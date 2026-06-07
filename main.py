@@ -18,51 +18,73 @@ import queue
 import time
 
 missing_packages = []
+dependency_errors = {}
+
+def record_dependency_error(package_name, error):
+    if package_name not in missing_packages:
+        missing_packages.append(package_name)
+    dependency_errors[package_name] = error
+
 try:
     import keyboard
-except Exception:
+except Exception as exc:
     keyboard = None
-    missing_packages.append("keyboard")
+    record_dependency_error("keyboard", exc)
 try:
     import torch
-except Exception:
+except Exception as exc:
     torch = None
-    missing_packages.append("torch")
+    record_dependency_error("torch", exc)
 try:
     import soundcard as sc
-except Exception:
+except Exception as exc:
     sc = None
-    missing_packages.append("soundcard")
+    record_dependency_error("soundcard", exc)
 else:
     warnings.filterwarnings("ignore", category=sc.SoundcardRuntimeWarning)
 try:
     import numpy as np
-except Exception:
+except Exception as exc:
     np = None
-    missing_packages.append("numpy")
+    record_dependency_error("numpy", exc)
 try:
     from transformers import pipeline
-except Exception:
+except Exception as exc:
     pipeline = None
-    missing_packages.append("transformers")
+    record_dependency_error("transformers", exc)
 
 # Configuration file path
 CONFIG_FILE = "config.ini"
 
+def dependency_failure_message():
+    if not missing_packages:
+        return None
+
+    lines = ["Missing or incompatible required Python packages:"]
+    for package_name in missing_packages:
+        lines.append(f"  - {package_name}")
+        error = dependency_errors.get(package_name)
+        if error:
+            lines.append(f"    {error}")
+
+    lines.append("")
+    lines.append("Install or repair dependencies:")
+    transformers_error = str(dependency_errors.get("transformers", ""))
+    if "huggingface-hub" in transformers_error:
+        lines.append('  pip install "huggingface-hub>=0.34.0,<1.0"')
+    else:
+        lines.append("  pip install -r requirements.txt")
+
+    lines.append("")
+    lines.append("If torch installs as CPU-only and you want GPU (CUDA):")
+    lines.append("  pip uninstall -y torch torchvision torchaudio")
+    lines.append("  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128")
+    return "\n".join(lines)
+
 def require_dependencies():
-    if missing_packages:
-        unique = []
-        for p in missing_packages:
-            if p not in unique:
-                unique.append(p)
-        print("\nMissing required Python packages:")
-        for p in unique:
-            print(f"  - {p}")
-        print("\nInstall dependencies:")
-        print("  pip install -r requirements.txt")
-        print("\nIf torch installs as CPU-only and you want GPU (CUDA):")
-        print("  pip uninstall -y torch torchvision torchaudio")
-        print("  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128")
+    failure_message = dependency_failure_message()
+    if failure_message:
+        print("\n" + failure_message)
         sys.exit(1)
 
     extra_missing = []

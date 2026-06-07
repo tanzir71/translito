@@ -4,8 +4,14 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 import os
-from main import ArabicAudioTranscriber, load_device_config, save_device_config, require_dependencies
-import soundcard as sc
+from main import (
+    ArabicAudioTranscriber,
+    dependency_failure_message,
+    load_device_config,
+    save_device_config,
+    require_dependencies,
+    sc,
+)
 
 
 CONFIG_FILE = "config.ini"
@@ -74,9 +80,24 @@ def hide_console_window():
         pass
 
 
+def show_startup_error(title, message):
+    try:
+        error_root = tk.Tk()
+        error_root.withdraw()
+        messagebox.showerror(title, message)
+        error_root.destroy()
+    except Exception:
+        print(message)
+
+
 def gui_main():
-    hide_console_window()
+    failure_message = dependency_failure_message()
+    if failure_message:
+        show_startup_error("Desktop Audio Translator startup error", failure_message)
+        return
+
     require_dependencies()
+    hide_console_window()
 
     root = tk.Tk()
     root.title("Desktop Audio Translator")
