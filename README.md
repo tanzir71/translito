@@ -2,6 +2,23 @@
 
 A real-time desktop audio transcription and translation tool. Captures desktop audio or microphone input, transcribes speech locally using Whisper, and translates using Helsinki-NLP models. Includes both a GUI and a CLI.
 
+## Windows Feature Parity Update
+
+The Windows GUI now includes Speak Mode and the native macOS parity work:
+
+- **Speak Mode**: speak into a real microphone, translate your speech, and play the translated voice to a selected playback device.
+- **VB-Cable routing**: choose `CABLE Input (VB-Audio Virtual Cable)` as the app output, then choose `CABLE Output (VB-Audio Virtual Cable)` as the microphone in Slack, Zoom, Teams, or Meet. Use headphones.
+- **Model preload and progress**: the GUI starts loading the selected Whisper and translation models after launch, shows download/preparing status, and reuses the same load if Start is pressed mid-preload.
+- **Lower latency**: chunks emit early when speech is followed by a pause, while steady room noise still waits for the normal window.
+- **Mic noise gate**: the Settings area includes an RMS gate slider from Off to High; it applies only to real microphones, never loopback or virtual sources.
+- **Route recovery**: Speak Mode resolves output devices by name at playback time and retries once after PortAudio route errors.
+- **Device refresh**: input/output pickers refresh automatically every few seconds and still include a manual Refresh button.
+- **Global hotkeys**: defaults are `Ctrl+Alt+T` toggle, `Ctrl+Alt+L` listen, `Ctrl+Alt+S` speak, and `Ctrl+Alt+X` stop. Hotkeys are recordable in the GUI.
+- **Open at login**: the Windows toggle writes the app command to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+- **Installer assets**: `installer/` contains PyInstaller and Inno Setup files for a one-dir app installer.
+
+VB-Audio Virtual Cable is donationware and is not bundled. Download it from https://vb-audio.com/Cable/.
+
 ## Features
 
 ### 🎤 Audio Capture

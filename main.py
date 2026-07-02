@@ -1,29 +1,52 @@
 #!/usr/bin/env python3
 """
-Arabic Desktop Audio Transcriber and Translator
-Captures desktop audio, transcribes Arabic speech, and translates to English
+Desktop audio transcriber, translator, and Speak Mode runtime for Windows.
 """
 
-import warnings
-warnings.filterwarnings("ignore")
-warnings.filterwarnings("ignore", message=r"`return_token_timestamps` is deprecated.*", category=FutureWarning)
-import sys
-import json
+import atexit
 from datetime import datetime
 import os
-import atexit
-import configparser
-import threading
 import queue
+import sys
+import threading
 import time
+import warnings
+
+warnings.filterwarnings("ignore")
+warnings.filterwarnings(
+    "ignore",
+    message=r"`return_token_timestamps` is deprecated.*",
+    category=FutureWarning,
+)
+
+from app_config import (
+    load_device_config as load_device_config_from_file,
+    load_runtime_config,
+    save_device_config as save_device_config_to_file,
+    save_runtime_config,
+)
+from audio_processing import (
+    AudioChunkProcessor,
+    AudioChunkResult,
+    DROP_DIGITAL_SILENCE,
+    resample_audio,
+)
+from device_utils import should_apply_mic_noise_gate
+from model_loading import GLOBAL_MODEL_MANAGER
+from speech_output import SpeechOutputPlayer
+
+
+CONFIG_FILE = "config.ini"
 
 missing_packages = []
 dependency_errors = {}
+
 
 def record_dependency_error(package_name, error):
     if package_name not in missing_packages:
         missing_packages.append(package_name)
     dependency_errors[package_name] = error
+
 
 try:
     import keyboard
@@ -48,13 +71,10 @@ except Exception as exc:
     np = None
     record_dependency_error("numpy", exc)
 try:
-    from transformers import pipeline
+    from transformers import pipeline as _transformers_pipeline  # noqa: F401
 except Exception as exc:
-    pipeline = None
     record_dependency_error("transformers", exc)
 
-# Configuration file path
-CONFIG_FILE = "config.ini"
 
 def dependency_failure_message():
     if not missing_packages:
@@ -78,8 +98,11 @@ def dependency_failure_message():
     lines.append("")
     lines.append("If torch installs as CPU-only and you want GPU (CUDA):")
     lines.append("  pip uninstall -y torch torchvision torchaudio")
-    lines.append("  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128")
+    lines.append(
+        "  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128"
+    )
     return "\n".join(lines)
+
 
 def require_dependencies():
     failure_message = dependency_failure_message()
@@ -99,60 +122,79 @@ def require_dependencies():
 
     if extra_missing:
         print("\nMissing optional-but-recommended packages (used by transformer models/tokenizers):")
-        for p in extra_missing:
-            print(f"  - {p}")
+        for package_name in extra_missing:
+            print(f"  - {package_name}")
         print("\nInstall:")
         print(f"  pip install {' '.join(extra_missing)}")
 
+
 def load_device_config():
-    """Load saved device configuration"""
-    config = configparser.ConfigParser()
-    if os.path.exists(CONFIG_FILE):
-        config.read(CONFIG_FILE)
-        if 'DEVICE' in config and 'name' in config['DEVICE']:
-            return config['DEVICE']['name']
-    return None
+    return load_device_config_from_file(CONFIG_FILE)
+
 
 def save_device_config(device_name):
-    """Save device configuration"""
-    config = configparser.ConfigParser()
-    config['DEVICE'] = {'name': device_name}
-    with open(CONFIG_FILE, 'w') as f:
-        config.write(f)
+    save_device_config_to_file(device_name, CONFIG_FILE)
     print(f"Device '{device_name}' saved as default.")
 
+
 def find_device_by_name(device_name):
-    """Find audio device by name"""
-    all_devices = sc.all_microphones(include_loopback=True)
-    for device in all_devices:
+    if not sc:
+        return None
+    for device in sc.all_microphones(include_loopback=True):
         if device.name == device_name:
             return device
     return None
 
+
+def translation_target_from_model(model_name, fallback="en"):
+    tail = (model_name or "").rsplit("/", 1)[-1]
+    parts = tail.split("-")
+    return (parts[-1] if len(parts) >= 2 else fallback).strip().lower() or fallback
+
+
 class ArabicAudioTranscriber:
-    def __init__(self, selected_device=None, on_event=None, interactive=True, asr_language=None, translation_model=None):
-        """Initialize the transcriber with audio capture and translation models"""
-        print("\nInitializing Arabic Audio Transcriber...")
-        
-        # Store selected device
+    def __init__(
+        self,
+        selected_device=None,
+        on_event=None,
+        interactive=True,
+        asr_language=None,
+        translation_model=None,
+        mode="listen",
+        target_language=None,
+        speech_output_device_name="",
+        speech_voice="Automatic",
+        monitor_spoken_audio=False,
+        mic_noise_gate=None,
+    ):
+        print("\nInitializing Desktop Audio Translator...")
+
         self.selected_device = selected_device
         self.on_event = on_event
         self.interactive = interactive
-        
-        # Initialize transcript storage
-        self.transcripts = []
-        self.session_start_time = datetime.now()
-        
-        # Register cleanup function to save transcripts on exit
-        atexit.register(self.save_transcript)
-        
-        # Keyboard shortcut flag
+        self.mode = mode if mode in {"listen", "speak"} else "listen"
         self.device_change_requested = False
 
         self.offline_only = os.environ.get("OFFLINE_ONLY", "0").strip() == "1"
         self.asr_language = (asr_language or os.environ.get("ASR_LANGUAGE", "ar-AR")).strip() or "ar-AR"
-        self.whisper_language = (self.asr_language.split("-")[0].strip().lower() or "ar")
+        self.whisper_language = self.asr_language.split("-")[0].strip().lower() or "ar"
         self.audio_debug = os.environ.get("AUDIO_DEBUG", "0").strip() == "1"
+        self.translation_model_name = (
+            translation_model or os.environ.get("TRANSLATION_MODEL", "Helsinki-NLP/opus-mt-ar-en")
+        ).strip()
+        self.translation_target_language = (
+            (target_language or translation_target_from_model(self.translation_model_name)).split("-")[0].lower()
+        )
+        self.speech_output_device_name = speech_output_device_name or ""
+        self.speech_voice = speech_voice or "Automatic"
+        self.monitor_spoken_audio = bool(monitor_spoken_audio)
+        runtime_config = load_runtime_config(CONFIG_FILE)
+        self.mic_noise_gate = (
+            runtime_config.mic_noise_gate
+            if mic_noise_gate is None
+            else max(0.0, float(mic_noise_gate))
+        )
+
         try:
             capture_sr_env = int(os.environ.get("CAPTURE_SAMPLE_RATE", "0").strip() or "0")
         except Exception:
@@ -163,86 +205,64 @@ class ArabicAudioTranscriber:
             is_loopback = bool(getattr(self.selected_device, "isloopback", False))
             self.capture_sample_rate = 48000 if is_loopback else 16000
 
-        self.torch_device = 0 if (torch and torch.cuda.is_available()) else -1
-        self.torch_dtype = torch.float16 if self.torch_device == 0 else None
-        if self.torch_device == 0:
-            print("✅ GPU detected (CUDA). Using GPU acceleration.")
-        else:
-            if torch and "+cpu" in getattr(torch, "__version__", ""):
-                print("⚠️ CUDA not available (CPU-only torch build). Using CPU.")
-            else:
-                print("⚠️ CUDA not available. Using CPU.")
-
-        # Initialize offline ASR (Whisper via transformers)
-        self.asr = None
-        whisper_model = os.environ.get("WHISPER_MODEL", "openai/whisper-small").strip()
-        print("Loading offline ASR model (Whisper)...")
-        if self.offline_only:
-            os.environ.setdefault("HF_HUB_OFFLINE", "1")
-            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+        self.sample_rate = 16000
         try:
-            asr_kwargs = {
-                "model": whisper_model,
-                "device": self.torch_device,
-            }
-            if self.torch_dtype is not None:
-                asr_kwargs["torch_dtype"] = self.torch_dtype
-            try:
-                self.asr = pipeline("automatic-speech-recognition", **asr_kwargs)
-            except TypeError:
-                asr_kwargs.pop("torch_dtype", None)
-                self.asr = pipeline("automatic-speech-recognition", **asr_kwargs)
-            try:
-                self.asr.feature_extractor.return_attention_mask = True
-            except Exception:
-                pass
-            print("✅ Offline ASR ready.")
-        except Exception as e:
-            print(f"❌ Failed to initialize offline ASR: {e}")
-            if self.offline_only:
-                print("💡 Offline-only is enabled. Set OFFLINE_ONLY=0 once to allow the model to download, then rerun.")
-            raise
-        
-        # Initialize translation pipeline (Helsinki-NLP)
-        print("Loading translation model (this may take a moment on first run)...")
-        translation_model_name = (translation_model or os.environ.get("TRANSLATION_MODEL", "Helsinki-NLP/opus-mt-ar-en")).strip()
-        self.translator = pipeline(
-            "translation", 
-            model=translation_model_name,
-            device=self.torch_device
-        )
-        
-        # Audio settings
-        self.sample_rate = 16000  # 16kHz for speech recognition
-        default_chunk = 6
-        try:
-            self.chunk_duration = float(os.environ.get("CHUNK_DURATION", str(default_chunk)).strip())
+            self.chunk_duration = float(os.environ.get("CHUNK_DURATION", "6").strip())
         except Exception:
-            self.chunk_duration = float(default_chunk)
-        
-        # Threading components
+            self.chunk_duration = 6.0
+
+        self.transcripts = []
+        self.session_start_time = datetime.now()
         self.audio_queue = queue.Queue()
         self.running = False
         self._silence_run = 0
         self._last_audio_hint_time = 0.0
         self._debug_counter = 0
-        
-        print("Initialization complete!\n")
+        self._capture_thread = None
+        self._process_thread = None
+        self.speech_player = None
 
-    def resample_audio(self, audio_array, original_sample_rate, target_sample_rate):
-        if original_sample_rate == target_sample_rate:
-            return audio_array.astype(np.float32, copy=False)
-        if audio_array is None or audio_array.size == 0:
-            return np.asarray([], dtype=np.float32)
-        duration_s = float(audio_array.shape[0]) / float(original_sample_rate)
-        target_len = int(round(duration_s * float(target_sample_rate)))
-        if target_len <= 1:
-            return np.asarray([], dtype=np.float32)
-        x = audio_array.astype(np.float32, copy=False)
-        original_positions = np.arange(x.shape[0], dtype=np.float64)
-        target_positions = np.linspace(0, x.shape[0] - 1, num=target_len, dtype=np.float64)
-        y = np.interp(target_positions, original_positions, x).astype(np.float32)
-        return y
+        atexit.register(self.save_transcript)
+
+        self.torch_device = 0 if (torch and torch.cuda.is_available()) else -1
+        self.torch_dtype = torch.float16 if self.torch_device == 0 else None
+        if self.torch_device == 0:
+            print("GPU detected (CUDA). Using GPU acceleration.")
+        else:
+            print("CUDA not available. Using CPU.")
+
+        self.asr = None
+        self.translator = None
+        self.whisper_model = os.environ.get("WHISPER_MODEL", "openai/whisper-small").strip()
+        if self.offline_only:
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
+        try:
+            loaded_models = GLOBAL_MODEL_MANAGER.load_models(
+                whisper_model=self.whisper_model,
+                translation_model=self.translation_model_name,
+                torch_device=self.torch_device,
+                torch_dtype=self.torch_dtype,
+                offline_only=self.offline_only,
+                on_event=self.emit,
+            )
+            self.asr = loaded_models.asr
+            self.translator = loaded_models.translator
+            print("Offline models ready.")
+        except Exception as exc:
+            if self.offline_only:
+                print("Offline-only is enabled. Set OFFLINE_ONLY=0 once to allow model downloads.")
+            raise RuntimeError(f"Failed to initialize offline models: {exc}") from exc
+
+        if self.mode == "speak":
+            self.speech_player = SpeechOutputPlayer(
+                output_device_name=self.speech_output_device_name,
+                monitor=self.monitor_spoken_audio,
+                on_event=self.emit,
+            )
+
+        print("Initialization complete.\n")
 
     def emit(self, event_type, payload=None):
         if callable(self.on_event):
@@ -252,147 +272,210 @@ class ArabicAudioTranscriber:
                 pass
 
     def recognize_arabic_offline(self, audio_array):
+        return self.recognize_speech_offline(audio_array)
+
+    def recognize_speech_offline(self, audio_array):
         if not self.asr:
             raise RuntimeError("Offline ASR is not initialized")
-        result = self.asr(
-            {"array": audio_array.astype(np.float32), "sampling_rate": self.sample_rate},
-            generate_kwargs={"task": "transcribe", "language": (self.whisper_language or "ar")},
-            return_timestamps=False,
-        )
+        base_kwargs = {"task": "transcribe", "language": (self.whisper_language or "ar")}
+        guarded_kwargs = {
+            **base_kwargs,
+            "logprob_threshold": -1.0,
+            "no_speech_threshold": 0.6,
+            "compression_ratio_threshold": 2.4,
+        }
+        payload = {"array": audio_array.astype(np.float32), "sampling_rate": self.sample_rate}
+        try:
+            result = self.asr(payload, generate_kwargs=guarded_kwargs, return_timestamps=False)
+        except (TypeError, ValueError):
+            result = self.asr(payload, generate_kwargs=base_kwargs, return_timestamps=False)
+
         if isinstance(result, str):
             return result.strip()
         if isinstance(result, dict):
-            text = result.get("text", "")
-            return (text or "").strip()
+            return (result.get("text", "") or "").strip()
         try:
             return str(result).strip()
         except Exception:
             return ""
-    
+
     def capture_audio(self):
-        """Continuously capture audio from selected device and add to queue"""
         try:
             if self.selected_device is None:
                 raise RuntimeError("No audio device selected")
-            
-            print(f"Capturing audio from: {self.selected_device.name}")
+
+            device_name = getattr(self.selected_device, "name", "<unknown>")
+            print(f"Capturing audio from: {device_name}")
             if getattr(self.selected_device, "isloopback", False):
-                print(f"Loopback capture sample rate: {self.capture_sample_rate} Hz (ASR runs at {self.sample_rate} Hz)")
-            print("Press Ctrl+C to stop\n")
+                print(
+                    f"Loopback capture sample rate: {self.capture_sample_rate} Hz "
+                    f"(ASR runs at {self.sample_rate} Hz)"
+                )
+            gate = self.mic_noise_gate if should_apply_mic_noise_gate(self.selected_device) else 0.0
+            if gate > 0:
+                print(f"Mic noise gate: {gate:.4f} RMS")
             print("-" * 50)
-            
-            # Open recorder for the selected device
-            with self.selected_device.recorder(samplerate=self.capture_sample_rate) as mic:
+
+            processor = AudioChunkProcessor(
+                chunk_duration=self.chunk_duration,
+                input_sample_rate=self.capture_sample_rate,
+                target_sample_rate=self.sample_rate,
+                noise_gate_rms=gate,
+                source_name=device_name,
+            )
+            block_duration = min(0.25, max(0.05, self.chunk_duration / 12.0))
+            block_size = max(1, int(self.capture_sample_rate * block_duration))
+
+            with self.selected_device.recorder(samplerate=self.capture_sample_rate) as recorder:
                 while self.running:
-                    # Capture audio chunk
-                    chunk_size = int(self.capture_sample_rate * self.chunk_duration)
-                    audio_data = mic.record(numframes=chunk_size)
-                    
-                    # Convert stereo to mono if necessary
-                    if len(audio_data.shape) > 1:
-                        audio_data = np.mean(audio_data, axis=1)
-                    
-                    # Add to queue for processing
-                    self.audio_queue.put((audio_data, self.capture_sample_rate))
-                    
-        except Exception as e:
-            print(f"\nError capturing audio: {e}")
+                    audio_data = recorder.record(numframes=block_size)
+                    for result in processor.append(audio_data, self.capture_sample_rate):
+                        self._handle_capture_result(result)
+                for result in processor.flush():
+                    self._handle_capture_result(result)
+        except Exception as exc:
+            self.emit("error", f"Audio capture failed: {exc}")
+            print(f"\nError capturing audio: {exc}")
             self.running = False
-    
+
+    def _handle_capture_result(self, result):
+        if result.kind == "audio":
+            self._silence_run = 0
+            if self.mode == "speak" and self.speech_player and self.speech_player.is_playing:
+                return
+            self.audio_queue.put(result)
+            return
+
+        self._silence_run += 1
+        if self.audio_debug:
+            print(f"\nDropped chunk: {result.kind} peak={result.peak:.6f} rms={result.rms:.6f}")
+        if (
+            result.kind == DROP_DIGITAL_SILENCE
+            and self._silence_run >= 5
+            and (time.time() - self._last_audio_hint_time) > 10
+        ):
+            device_name = getattr(self.selected_device, "name", "<unknown>")
+            if self.mode == "speak":
+                hint = (
+                    f"No speech detected from '{device_name}'. Check the mic and "
+                    "Windows microphone privacy settings."
+                )
+            else:
+                loopback_hint = ""
+                if getattr(self.selected_device, "isloopback", False):
+                    loopback_hint = (
+                        " If this is a loopback device, ensure audio is playing through "
+                        "that output and try CAPTURE_SAMPLE_RATE=48000."
+                    )
+                hint = (
+                    f"No audio detected from '{device_name}'. Select the correct device "
+                    f"and ensure Windows microphone permission is enabled.{loopback_hint}"
+                )
+            print(f"\n{hint}")
+            self.emit("status", "no_audio")
+            self.emit("hint", hint)
+            self._last_audio_hint_time = time.time()
+
     def process_audio(self):
-        """Process audio chunks from queue: transcribe and translate"""
         while self.running or not self.audio_queue.empty():
             try:
-                # Get audio chunk from queue (timeout prevents hanging)
                 item = self.audio_queue.get(timeout=1)
-                if isinstance(item, tuple) and len(item) == 2:
-                    audio_data, capture_sr = item
-                else:
-                    audio_data, capture_sr = item, self.sample_rate
-                if capture_sr != self.sample_rate:
-                    audio_data = self.resample_audio(audio_data, capture_sr, self.sample_rate)
-                
-                try:
-                    # Transcribe Arabic audio
-                    print("Listening...", end="\r")
-                    peak = float(np.max(np.abs(audio_data))) if audio_data.size else 0.0
-                    rms = float(np.sqrt(np.mean(np.square(audio_data)))) if audio_data.size else 0.0
-
-                    if self.audio_debug:
-                        self._debug_counter += 1
-                        if self._debug_counter % 10 == 0:
-                            print(f"\nAudio level: peak={peak:.6f} rms={rms:.6f}")
-
-                    if peak < 0.000001 and rms < 0.0000005:
-                        self._silence_run += 1
-                        if self._silence_run >= 5 and (time.time() - self._last_audio_hint_time) > 10:
-                            device_name = getattr(self.selected_device, "name", "<unknown>")
-                            loopback_hint = ""
-                            if getattr(self.selected_device, "isloopback", False):
-                                loopback_hint = " If this is a loopback device, ensure audio is playing through that output and try CAPTURE_SAMPLE_RATE=48000."
-                            print(
-                                f"\nNo audio detected from '{device_name}'. "
-                                f"Select the correct device and ensure Windows microphone permission is enabled.{loopback_hint}"
-                            )
-                            self._last_audio_hint_time = time.time()
-                        continue
-
-                    self._silence_run = 0
-
-                    if peak > 0 and peak < 0.05:
-                        gain = min(200.0, 0.9 / peak)
-                        audio_data = audio_data * gain
-                    started = time.time()
-                    print("Transcribing (offline Whisper)...", end="\r")
-                    self.emit("status", "transcribing")
-                    arabic_text = self.recognize_arabic_offline(audio_data)
-
-                    elapsed = time.time() - started
-                    if elapsed > 2.0 and self.audio_debug:
-                        print(f"\nASR time: {elapsed:.1f}s")
-                    
-                    if arabic_text:
-                        self.emit("arabic", arabic_text)
-                        print(f"\n🎤 Arabic: {arabic_text}")
-                        
-                        # Translate to English
-                        self.emit("status", "translating")
-                        translation = self.translator(
-                            arabic_text,
-                            max_length=512,
-                            truncation=True
-                        )
-                        english_text = translation[0]['translation_text']
-                        self.emit("english", english_text)
-                        print(f"🔤 English: {english_text}")
-                        print("-" * 50)
-                        
-                        # Store transcript entry
-                        transcript_entry = {
-                            'timestamp': datetime.now().isoformat(),
-                            'arabic_text': arabic_text,
-                            'english_text': english_text
-                        }
-                        self.transcripts.append(transcript_entry)
-                        self.emit("transcript", transcript_entry)
-                    
-                except Exception as e:
-                    hint = ""
-                    if self.offline_only:
-                        hint = " (set OFFLINE_ONLY=0 to allow first-time model download)"
-                    self.emit("error", f"{e}{hint}")
-                    print(f"\nOffline ASR error: {e}{hint}")
-                    continue
-                
             except queue.Empty:
                 continue
-            except Exception as e:
-                print(f"\nError processing audio: {e}")
+
+            try:
+                audio_data, peak, rms = self._coerce_audio_item(item)
+                if audio_data.size == 0:
+                    continue
+
+                if self.audio_debug:
+                    self._debug_counter += 1
+                    if self._debug_counter % 10 == 0:
+                        print(f"\nAudio level: peak={peak:.6f} rms={rms:.6f}")
+
+                started = time.time()
+                self.emit("status", "transcribing")
+                print("Transcribing (offline Whisper)...", end="\r")
+                source_text = self.recognize_speech_offline(audio_data)
+                elapsed = time.time() - started
+                if elapsed > 2.0 and self.audio_debug:
+                    print(f"\nASR time: {elapsed:.1f}s")
+
+                if not source_text:
+                    if self.running:
+                        self.emit("status", "listening")
+                    continue
+
+                self.emit("source", source_text)
+                self.emit("arabic", source_text)
+                print(f"\nSource: {source_text}")
+
+                self.emit("status", "translating")
+                translated_text = self.translate_text(source_text)
+                self.emit("target", translated_text)
+                self.emit("english", translated_text)
+                print(f"Target: {translated_text}")
+                print("-" * 50)
+
+                transcript_entry = {
+                    "timestamp": datetime.now().isoformat(),
+                    "source_text": source_text,
+                    "translated_text": translated_text,
+                    "source_language": self.whisper_language,
+                    "target_language": self.translation_target_language,
+                    "mode": self.mode,
+                    "arabic_text": source_text,
+                    "english_text": translated_text,
+                }
+                self.transcripts.append(transcript_entry)
+                self.emit("transcript", transcript_entry)
+
+                if self.mode == "speak" and translated_text and self.speech_player:
+                    self.emit("status", "speaking")
+                    self.speech_player.enqueue(
+                        translated_text,
+                        self.translation_target_language,
+                        self.speech_voice,
+                    )
+                elif self.running:
+                    self.emit("status", "listening")
+            except Exception as exc:
+                hint = " (set OFFLINE_ONLY=0 to allow first-time model download)" if self.offline_only else ""
+                self.emit("error", f"{exc}{hint}")
+                print(f"\nProcessing error: {exc}{hint}")
+
+    def _coerce_audio_item(self, item):
+        if isinstance(item, AudioChunkResult):
+            return item.samples, item.peak, item.rms
+
+        if isinstance(item, tuple) and len(item) == 2:
+            audio_data, capture_sr = item
+        else:
+            audio_data, capture_sr = item, self.sample_rate
+        if capture_sr != self.sample_rate:
+            audio_data = resample_audio(audio_data, capture_sr, self.sample_rate)
+        peak = float(np.max(np.abs(audio_data))) if audio_data.size else 0.0
+        rms = float(np.sqrt(np.mean(np.square(audio_data)))) if audio_data.size else 0.0
+        if peak < 0.000001 and rms < 0.0000005:
+            return np.asarray([], dtype=np.float32), peak, rms
+        if peak > 0 and peak < 0.05:
+            gain = min(200.0, 0.9 / peak)
+            audio_data = (audio_data * gain).astype(np.float32, copy=False)
+            peak = float(np.max(np.abs(audio_data))) if audio_data.size else 0.0
+            rms = float(np.sqrt(np.mean(np.square(audio_data)))) if audio_data.size else 0.0
+        return audio_data.astype(np.float32, copy=False), peak, rms
+
+    def translate_text(self, source_text):
+        translation = self.translator(source_text, max_length=512, truncation=True)
+        return translation[0]["translation_text"]
 
     def start_background(self, enable_keyboard_shortcuts=False):
         if self.running:
             return
         self.running = True
+        save_runtime_config(CONFIG_FILE, mic_noise_gate=self.mic_noise_gate, last_mode=self.mode)
+        if self.speech_player:
+            self.speech_player.start()
         if enable_keyboard_shortcuts and self.interactive:
             self.setup_keyboard_shortcuts()
         self._capture_thread = threading.Thread(target=self.capture_audio, daemon=True)
@@ -402,326 +485,277 @@ class ArabicAudioTranscriber:
 
     def stop_background(self):
         self.running = False
+        if self.speech_player:
+            self.speech_player.stop()
 
     def join_background(self, timeout_capture=2, timeout_process=5):
-        t1 = getattr(self, "_capture_thread", None)
-        t2 = getattr(self, "_process_thread", None)
-        if t1:
-            t1.join(timeout=timeout_capture)
-        if t2:
-            t2.join(timeout=timeout_process)
-    
+        if self._capture_thread:
+            self._capture_thread.join(timeout=timeout_capture)
+        if self._process_thread:
+            self._process_thread.join(timeout=timeout_process)
+
     def run(self):
-        """Main run loop with threading for simultaneous capture and processing"""
-        self.running = True
         if self.interactive:
             self.setup_keyboard_shortcuts()
-        
+
         while True:
             self.start_background(enable_keyboard_shortcuts=False)
-            
             try:
-                # Keep main thread alive and check for device change requests
                 while self.running:
                     if self.device_change_requested:
-                        print("\n\nStopping current session for device change...")
+                        print("\nStopping current session for device change...")
                         self.running = False
                         break
                     time.sleep(0.1)
             except KeyboardInterrupt:
-                print("\n\nStopping transcription...")
+                print("\nStopping transcription...")
                 self.running = False
-            
-            # Wait for threads to finish
+
             self.join_background(timeout_capture=2, timeout_process=5)
-            
-            # Handle device change request
+
             if self.device_change_requested:
                 self.device_change_requested = False
                 if self.change_device_interactive():
-                    # Restart with new device
-                    self.running = True
                     print("\n" + "=" * 50)
                     print("RESUMING TRANSCRIPTION WITH NEW DEVICE")
                     print("=" * 50)
                     continue
-                else:
-                    # User cancelled, ask if they want to continue with current device
-                    choice = input("\nContinue with current device? (y/n): ").strip().lower()
-                    if choice == 'y':
-                        self.running = True
-                        continue
-                    else:
-                        break
-            else:
-                # Normal exit
-                break
-        
-        # Save transcript before stopping
+                choice = input("\nContinue with current device? (y/n): ").strip().lower()
+                if choice == "y":
+                    continue
+            break
+
         self.save_transcript()
         print("Transcription stopped.")
-    
+
     def setup_keyboard_shortcuts(self):
-        """Setup keyboard shortcuts for device selection"""
         if not keyboard:
             return
+
         def on_device_change():
             self.device_change_requested = True
-            print("\n🔄 Device change requested. Press Ctrl+C to stop current session and change device.")
-        
-        # Register Ctrl+D for device change
-        keyboard.add_hotkey('ctrl+d', on_device_change)
-        print("\n⌨️  Keyboard shortcuts:")
+            print("\nDevice change requested. Press Ctrl+C to stop current session and change device.")
+
+        keyboard.add_hotkey("ctrl+d", on_device_change)
+        print("\nKeyboard shortcuts:")
         print("   Ctrl+D: Change audio device")
         print("   Ctrl+C: Stop transcription")
-    
+
     def change_device_interactive(self):
-        """Interactive device change during runtime"""
         print("\n" + "=" * 50)
         print("CHANGE AUDIO DEVICE")
         print("=" * 50)
-        
+
         new_device = select_audio_device()
         if new_device:
             self.selected_device = new_device
             save_device_config(new_device.name)
-            print(f"\n✅ Device changed to: {new_device.name}")
+            print(f"\nDevice changed to: {new_device.name}")
             return True
-        else:
-            print("\n❌ Device change cancelled.")
-            return False
-    
+        print("\nDevice change cancelled.")
+        return False
+
     def save_transcript(self):
-        """Save all transcripts to a text file"""
         if not self.transcripts:
             print("No transcripts to save.")
             return
-        
+
         try:
-            # Create transcripts directory if it doesn't exist
             transcript_dir = "transcripts"
-            if not os.path.exists(transcript_dir):
-                os.makedirs(transcript_dir)
-            
-            # Generate filename with timestamp
+            os.makedirs(transcript_dir, exist_ok=True)
             timestamp = self.session_start_time.strftime("%Y%m%d_%H%M%S")
-            filename = f"transcript_{timestamp}.txt"
-            filepath = os.path.join(transcript_dir, filename)
-            
-            # Save to text file
-            with open(filepath, 'w', encoding='utf-8') as f:
-                # Write session header
-                f.write("=" * 60 + "\n")
-                f.write("ARABIC AUDIO TRANSCRIPTION SESSION\n")
-                f.write("=" * 60 + "\n")
-                f.write(f"Session Start: {self.session_start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"Session End: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"Audio Device: {self.selected_device.name if self.selected_device else 'Unknown'}\n")
-                f.write(f"Total Entries: {len(self.transcripts)}\n")
-                f.write("=" * 60 + "\n\n")
-                
-                # Write each transcript entry
-                for i, entry in enumerate(self.transcripts, 1):
-                    entry_time = datetime.fromisoformat(entry['timestamp']).strftime('%H:%M:%S')
-                    f.write(f"[{i:03d}] {entry_time}\n")
-                    f.write("-" * 40 + "\n")
-                    f.write(f"🎤 Arabic:  {entry['arabic_text']}\n")
-                    f.write(f"🔤 English: {entry['english_text']}\n")
-                    f.write("\n")
-            
-            print(f"\n📄 Transcript saved to: {filepath}")
+            filepath = os.path.join(transcript_dir, f"transcript_{timestamp}.txt")
+
+            with open(filepath, "w", encoding="utf-8") as handle:
+                handle.write("=" * 60 + "\n")
+                handle.write("DESKTOP AUDIO TRANSLATION SESSION\n")
+                handle.write("=" * 60 + "\n")
+                handle.write(f"Session Start: {self.session_start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                handle.write(f"Session End: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                handle.write(f"Mode: {self.mode}\n")
+                handle.write(
+                    f"Audio Device: {self.selected_device.name if self.selected_device else 'Unknown'}\n"
+                )
+                handle.write(f"Total Entries: {len(self.transcripts)}\n")
+                handle.write("=" * 60 + "\n\n")
+
+                for index, entry in enumerate(self.transcripts, 1):
+                    entry_time = datetime.fromisoformat(entry["timestamp"]).strftime("%H:%M:%S")
+                    source_text = entry.get("source_text", entry.get("arabic_text", ""))
+                    translated_text = entry.get("translated_text", entry.get("english_text", ""))
+                    source_language = entry.get("source_language", "source")
+                    target_language = entry.get("target_language", "target")
+                    handle.write(f"[{index:03d}] {entry_time}\n")
+                    handle.write("-" * 40 + "\n")
+                    handle.write(f"Source ({source_language}): {source_text}\n")
+                    handle.write(f"Target ({target_language}): {translated_text}\n\n")
+
+            print(f"\nTranscript saved to: {filepath}")
             print(f"   Total entries: {len(self.transcripts)}")
-            
-        except Exception as e:
-            print(f"\n❌ Error saving transcript: {e}")
+        except Exception as exc:
+            print(f"\nError saving transcript: {exc}")
+
 
 def select_audio_device(show_saved_device=True):
-    """Interactive device selector"""
     print("\n" + "=" * 50)
     print("AUDIO DEVICE SELECTION")
     print("=" * 50)
-    
-    # Check for saved device
-    saved_device_name = load_device_config() if show_saved_device else None
-    saved_device = None
-    if saved_device_name:
-        saved_device = find_device_by_name(saved_device_name)
-        if saved_device:
-            print(f"\n💾 Saved Default Device: {saved_device.name}")
-            print("   Press ENTER to use saved device, or select a different one below.")
-        else:
-            print(f"\n⚠️  Saved device '{saved_device_name}' not found. Please select a new device.")
-    
-    # Get all available microphones including loopback devices
-    all_devices = sc.all_microphones(include_loopback=True)
-    
-    if not all_devices:
-        print("No audio devices found!")
+
+    if not sc:
+        print("No audio backend available.")
         return None
-    
-    # Separate devices by type
-    loopback_devices = []
-    microphone_devices = []
-    
-    for device in all_devices:
-        if device.isloopback:
-            loopback_devices.append(device)
-        else:
-            microphone_devices.append(device)
-    
-    # Display devices
-    print("\n📢 DESKTOP AUDIO (Loopback) Devices:")
+
+    saved_device_name = load_device_config() if show_saved_device else None
+    saved_device = find_device_by_name(saved_device_name) if saved_device_name else None
+    if saved_device:
+        print(f"\nSaved Default Device: {saved_device.name}")
+        print("   Press ENTER to use saved device, or select a different one below.")
+    elif saved_device_name:
+        print(f"\nSaved device '{saved_device_name}' not found. Please select a new device.")
+
+    all_devices = sc.all_microphones(include_loopback=True)
+    if not all_devices:
+        print("No audio devices found.")
+        return None
+
+    loopback_devices = [device for device in all_devices if getattr(device, "isloopback", False)]
+    microphone_devices = [device for device in all_devices if not getattr(device, "isloopback", False)]
+
+    print("\nDESKTOP AUDIO (Loopback) Devices:")
     print("-" * 40)
     if loopback_devices:
-        for i, device in enumerate(loopback_devices):
-            print(f"  {i + 1}. {device.name}")
+        for index, device in enumerate(loopback_devices, 1):
+            print(f"  {index}. {device.name}")
     else:
         print("  No loopback devices found")
-    
-    print("\n🎤 MICROPHONE Devices:")
+
+    print("\nMICROPHONE Devices:")
     print("-" * 40)
     if microphone_devices:
-        for i, device in enumerate(microphone_devices):
-            idx = len(loopback_devices) + i + 1
-            print(f"  {idx}. {device.name}")
+        for index, device in enumerate(microphone_devices, len(loopback_devices) + 1):
+            print(f"  {index}. {device.name}")
     else:
         print("  No microphone devices found")
-    
-    # Get default devices for reference
-    print("\n💡 Default Devices:")
+
+    print("\nDefault Devices:")
     print("-" * 40)
     try:
         default_speaker = sc.default_speaker()
         if default_speaker:
             print(f"  Default Speaker: {default_speaker.name}")
-    except:
+    except Exception:
         pass
-    
     try:
         default_mic = sc.default_microphone()
         if default_mic:
             print(f"  Default Microphone: {default_mic.name}")
-    except:
+    except Exception:
         pass
-    
-    # Let user select
+
     print("\n" + "=" * 50)
     print("Select an audio device:")
     if saved_device:
-        print("  • Press ENTER to use saved default device")
-    print("  • For desktop audio (YouTube, music, etc.), choose a loopback device")
-    print("  • For microphone input, choose a microphone device")
-    print("  • Enter 0 to try auto-detect desktop audio")
-    print("  • Enter Q to quit")
+        print("  - Press ENTER to use saved default device")
+    print("  - For desktop audio, choose a loopback device")
+    print("  - For microphone input, choose a microphone device")
+    print("  - Enter 0 to try auto-detect desktop audio")
+    print("  - Enter Q to quit")
     print("=" * 50)
-    
+
     while True:
         try:
-            prompt = "\nEnter device number (1-{})" + (" or ENTER for default" if saved_device else "") + ": "
-            choice = input(prompt.format(len(all_devices))).strip()
-            
-            if choice.upper() == 'Q':
+            prompt = "\nEnter device number (1-{})".format(len(all_devices))
+            if saved_device:
+                prompt += " or ENTER for default"
+            prompt += ": "
+            choice = input(prompt).strip()
+
+            if choice.upper() == "Q":
                 return None
-            
-            # Handle ENTER for saved device
             if choice == "" and saved_device:
                 print(f"\nUsing saved device: {saved_device.name}")
                 return saved_device
-            
+
             choice_num = int(choice)
-            
             if choice_num == 0:
-                # Auto-detect desktop audio
-                print("\nAuto-detecting desktop audio device...")
                 if loopback_devices:
                     selected = loopback_devices[0]
                     print(f"Selected: {selected.name}")
-                    return selected
-                else:
-                    print("No loopback devices found. Please select a microphone instead.")
-                    continue
-            
-            if 1 <= choice_num <= len(all_devices):
-                # Map choice to device
-                if choice_num <= len(loopback_devices):
-                    selected = loopback_devices[choice_num - 1]
-                else:
-                    mic_idx = choice_num - len(loopback_devices) - 1
-                    selected = microphone_devices[mic_idx]
-                
-                device_type = "Desktop Audio (Loopback)" if selected.isloopback else "Microphone"
-                print(f"\nSelected: {selected.name} [{device_type}]")
-                
-                if not selected.isloopback:
-                    print("⚠️  Note: Microphone selected - this will capture from your mic, not desktop audio")
-                
-                confirm = input("Confirm selection? (y/n): ").strip().lower()
-                if confirm == 'y':
-                    # Save the selected device as default
                     save_device_config(selected.name)
                     return selected
+                print("No loopback devices found. Please select a microphone instead.")
+                continue
+
+            if 1 <= choice_num <= len(all_devices):
+                if choice_num <= len(loopback_devices):
+                    selected = loopback_devices[choice_num - 1]
+                    device_type = "Desktop Audio (Loopback)"
                 else:
-                    print("Selection cancelled. Please choose again.")
+                    selected = microphone_devices[choice_num - len(loopback_devices) - 1]
+                    device_type = "Microphone"
+                print(f"\nSelected: {selected.name} [{device_type}]")
+                if not getattr(selected, "isloopback", False):
+                    print("Note: Microphone selected - this captures your mic, not desktop audio.")
+                confirm = input("Confirm selection? (y/n): ").strip().lower()
+                if confirm == "y":
+                    save_device_config(selected.name)
+                    return selected
+                print("Selection cancelled. Please choose again.")
             else:
-                print(f"Invalid choice. Please enter a number between 1 and {len(all_devices)}")
-                
+                print(f"Invalid choice. Please enter a number between 1 and {len(all_devices)}.")
         except ValueError:
-            print("Invalid input. Please enter a number or 'Q' to quit.")
-        except Exception as e:
-            print(f"Error: {e}")
+            print("Invalid input. Please enter a number or Q to quit.")
+        except Exception as exc:
+            print(f"Error: {exc}")
             return None
 
+
 def main():
-    """Main entry point"""
     print("=" * 50)
     print("Desktop Audio Translator")
     print("=" * 50)
-    
+
     require_dependencies()
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == "--help":
         print("\nUsage: python main.py")
         print("\nCommand-line mode (device selection in terminal).")
         print("GUI mode is available via gui.py.")
         sys.exit(0)
-    
+
     try:
-        # Check for saved device first
         saved_device_name = load_device_config()
         selected_device = None
-        
         if saved_device_name:
             saved_device = find_device_by_name(saved_device_name)
             if saved_device:
-                print(f"\n💾 Found saved default device: {saved_device.name}")
+                print(f"\nFound saved default device: {saved_device.name}")
                 use_saved = input("Use saved device? (Y/n): ").strip().lower()
-                if use_saved != 'n':
+                if use_saved != "n":
                     selected_device = saved_device
-                    print(f"✅ Using saved device: {selected_device.name}")
-        
-        # If no saved device or user chose not to use it, show device selector
+                    print(f"Using saved device: {selected_device.name}")
+
         if selected_device is None:
             selected_device = select_audio_device()
-            
             if selected_device is None:
                 print("\nNo device selected. Exiting...")
                 sys.exit(0)
-        
-        # Create and run transcriber with selected device
+
         print("\n" + "=" * 50)
         print("Starting Transcription")
         print("=" * 50)
-        
+
         transcriber = ArabicAudioTranscriber(selected_device=selected_device)
         transcriber.run()
-        
     except KeyboardInterrupt:
-        print("\n\nProgram interrupted by user.")
-    except Exception as e:
-        print(f"\nFatal error: {e}")
+        print("\nProgram interrupted by user.")
+    except Exception as exc:
+        print(f"\nFatal error: {exc}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
