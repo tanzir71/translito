@@ -18,8 +18,17 @@ import queue
 import time
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(BASE_DIR, "config.ini")
-TRANSCRIPT_DIR = os.path.join(BASE_DIR, "transcripts")
+APP_SUPPORT_DIR = os.environ.get(
+    "DAT_APP_SUPPORT_DIR",
+    os.path.join(
+        os.path.expanduser("~"),
+        "Library",
+        "Application Support",
+        "Desktop Audio Translator Menu Bar",
+    ),
+)
+CONFIG_FILE = os.path.join(APP_SUPPORT_DIR, "config.ini")
+TRANSCRIPT_DIR = os.path.join(APP_SUPPORT_DIR, "transcripts")
 VIRTUAL_AUDIO_NAME_PARTS = (
     "blackhole",
     "soundflower",
@@ -40,11 +49,14 @@ def record_dependency_error(package_name, error):
         missing_packages.append(package_name)
     dependency_errors[package_name] = error
 
-try:
-    import keyboard
-except Exception as exc:
-    keyboard_error = exc
+if os.environ.get("DAT_DISABLE_KEYBOARD", "").strip().lower() in {"1", "true", "yes", "on"}:
     keyboard = None
+else:
+    try:
+        import keyboard
+    except Exception as exc:
+        keyboard_error = exc
+        keyboard = None
 try:
     import torch
 except Exception as exc:
@@ -263,7 +275,7 @@ class ArabicAudioTranscriber:
 
         # Audio settings
         self.sample_rate = 16000  # 16kHz for speech recognition
-        default_chunk = 6
+        default_chunk = 3
         try:
             self.chunk_duration = float(os.environ.get("CHUNK_DURATION", str(default_chunk)).strip())
         except Exception:
@@ -273,7 +285,10 @@ class ArabicAudioTranscriber:
         self.audio_queue = queue.Queue()
         self.running = False
         self._silence_run = 0
+        self._empty_transcript_run = 0
         self._last_audio_hint_time = 0.0
+        self._last_no_speech_time = 0.0
+        self._has_seen_audio = False
         self._debug_counter = 0
 
         self.log("Initialization complete.")
@@ -398,12 +413,22 @@ class ArabicAudioTranscriber:
 
                     if peak < 0.000001 and rms < 0.0000005:
                         self._silence_run += 1
-                        if self._silence_run >= 5 and (time.time() - self._last_audio_hint_time) > 10:
+                        if self._silence_run >= 2 and (time.time() - self._last_audio_hint_time) > 8:
                             device_name = getattr(self.selected_device, "name", "<unknown>")
-                            self.log(f"No audio detected from '{device_name}'. {no_audio_hint_for(self.selected_device)}")
+                            hint = no_audio_hint_for(self.selected_device)
+                            self.emit("no_audio", {
+                                "device_name": device_name,
+                                "hint": hint,
+                                "peak": peak,
+                                "rms": rms,
+                            })
+                            self.log(f"No audio detected from '{device_name}'. {hint}")
                             self._last_audio_hint_time = time.time()
                         continue
 
+                    if self._silence_run > 0 or not self._has_seen_audio:
+                        self.emit("audio_detected", {"peak": peak, "rms": rms})
+                    self._has_seen_audio = True
                     self._silence_run = 0
 
                     if peak > 0 and peak < 0.05:
@@ -418,30 +443,37 @@ class ArabicAudioTranscriber:
                     if elapsed > 2.0 and self.audio_debug:
                         self.log(f"ASR time: {elapsed:.1f}s")
 
-                    if arabic_text:
-                        self.emit("arabic", arabic_text)
-                        self.console(f"\n🎤 Arabic: {arabic_text}")
+                    if not arabic_text:
+                        self._empty_transcript_run += 1
+                        if (time.time() - self._last_no_speech_time) > 10:
+                            self.emit("no_speech", "Audio is coming in, but no speech was recognized yet.")
+                            self._last_no_speech_time = time.time()
+                        continue
 
-                        # Translate to English
-                        self.emit("status", "translating")
-                        translation = self.translator(
-                            arabic_text,
-                            max_length=512,
-                            truncation=True
-                        )
-                        english_text = translation[0]['translation_text']
-                        self.emit("english", english_text)
-                        self.console(f"🔤 English: {english_text}")
-                        self.console("-" * 50)
+                    self._empty_transcript_run = 0
+                    self.emit("arabic", arabic_text)
+                    self.console(f"\n🎤 Arabic: {arabic_text}")
 
-                        # Store transcript entry
-                        transcript_entry = {
-                            'timestamp': datetime.now().isoformat(),
-                            'arabic_text': arabic_text,
-                            'english_text': english_text
-                        }
-                        self.transcripts.append(transcript_entry)
-                        self.emit("transcript", transcript_entry)
+                    # Translate to English
+                    self.emit("status", "translating")
+                    translation = self.translator(
+                        arabic_text,
+                        max_length=512,
+                        truncation=True
+                    )
+                    english_text = translation[0]['translation_text']
+                    self.emit("english", english_text)
+                    self.console(f"🔤 English: {english_text}")
+                    self.console("-" * 50)
+
+                    # Store transcript entry
+                    transcript_entry = {
+                        'timestamp': datetime.now().isoformat(),
+                        'arabic_text': arabic_text,
+                        'english_text': english_text
+                    }
+                    self.transcripts.append(transcript_entry)
+                    self.emit("transcript", transcript_entry)
 
                 except Exception as e:
                     hint = ""

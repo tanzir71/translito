@@ -14,3 +14,6 @@ protobuf>=3.20.0
 
 # Optional CLI shortcut support. The GUI does not require global hotkeys.
 keyboard>=0.13.5
+
+# Menu bar app wrapper
+pyobjc-framework-Cocoa>=9.0

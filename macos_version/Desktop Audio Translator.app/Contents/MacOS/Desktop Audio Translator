@@ -1,0 +1,35 @@
+#!/bin/zsh
+
+set -u
+
+SCRIPT_DIR="${0:A:h}"
+APP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+LOG_FILE="$APP_DIR/translator-launch.log"
+PYTHON=""
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+
+cd "$APP_DIR" || exit 1
+
+if [[ -x "$APP_DIR/.venv/bin/python" ]]; then
+  PYTHON="$APP_DIR/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON="$(command -v python3)"
+else
+  osascript -e 'display dialog "Python 3 was not found. Install Python 3, then open Desktop Audio Translator again." buttons {"OK"} default button "OK" with icon caution' >/dev/null 2>&1
+  exit 1
+fi
+
+if [[ ! -f "$APP_DIR/gui.py" ]]; then
+  osascript -e 'display dialog "gui.py was not found next to the app bundle." buttons {"OK"} default button "OK" with icon stop' >/dev/null 2>&1
+  exit 1
+fi
+
+"$PYTHON" "$APP_DIR/gui.py" >"$LOG_FILE" 2>&1
+status=$?
+
+if [[ $status -ne 0 ]]; then
+  osascript -e "display dialog \"Desktop Audio Translator exited with status $status. Details were written to translator-launch.log.\" buttons {\"OK\"} default button \"OK\" with icon caution" >/dev/null 2>&1
+fi
+
+exit $status
