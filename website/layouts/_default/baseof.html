@@ -7,6 +7,8 @@
     <meta name="description" content="{{ .Site.Params.description }}">
     <meta name="author" content="{{ .Site.Params.author }}">
     
+    <meta name="theme-color" content="#080a09">
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ .Permalink }}">
@@ -20,7 +22,7 @@
     <meta property="twitter:description" content="{{ .Site.Params.description }}">
     
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="{{ "favicon.svg" | relURL }}">
+    <link rel="icon" type="image/png" href="{{ "translito-icon.png" | relURL }}">
     
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -28,15 +30,11 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- CSS -->
     <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
     
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <header class="header">
@@ -44,7 +42,8 @@
             <div class="nav-container">
                 <div class="nav-brand">
                     <a href="{{ "/" | relURL }}" class="brand-link">
-                        <i class="ph-fill ph-microphone brand-icon"></i>
+                        <img src="{{ "translito-icon.png" | relURL }}" alt="" class="brand-icon">
+                        <span>Translito</span>
                     </a>
                 </div>
                 <ul class="nav-menu">
@@ -54,6 +53,9 @@
                     </li>
                     {{ end }}
                 </ul>
+                <a class="nav-download" href="https://github.com/tanzir71/arabic-desktop-audio-translator/releases/latest/download/Translito.dmg">
+                    Download for macOS
+                </a>
             </div>
         </nav>
     </header>
@@ -66,7 +68,10 @@
         <div class="footer-container">
             <div class="footer-content">
                 <div class="footer-section">
-                    <h3>{{ .Site.Title }}</h3>
+                    <div class="footer-brand">
+                        <img src="{{ "translito-icon.png" | relURL }}" alt="" class="footer-icon">
+                        <h3>{{ .Site.Title }}</h3>
+                    </div>
                     <p>{{ .Site.Params.description }}</p>
                 </div>
                 <div class="footer-section">
@@ -81,7 +86,8 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>Vibe coded with love by <a href="https://tanziro.com" target="_blank" style="color: white; text-decoration: underline;">Tanzir</a> from Bangladesh 🇧🇩</p>
+                <p>Built by <a href="https://tanziro.com" target="_blank" rel="noopener">Tanzir</a> in Bangladesh 🇧🇩</p>
+                <p>Translito 1.0 · Native macOS app</p>
             </div>
         </div>
     </footer>

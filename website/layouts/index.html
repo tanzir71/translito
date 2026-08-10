@@ -1,160 +1,169 @@
 {{ define "main" }}
-<div class="hero">
+<section class="hero">
+    <div class="hero-glow hero-glow-one"></div>
+    <div class="hero-glow hero-glow-two"></div>
     <div class="hero-container">
         <div class="hero-content">
-            <h1 class="hero-title">Desktop Audio Translator</h1>
-            <p class="hero-subtitle">{{ .Site.Params.description }}</p>
-            <div class="hero-buttons">
-                <a href="https://github.com/tanzir71/arabic-desktop-audio-translator" class="btn btn-primary" target="_blank">View on GitHub</a>
-                <a href="#features" class="btn btn-secondary">Learn More</a>
+            <div class="eyebrow">
+                <span class="eyebrow-dot"></span>
+                Native translation for macOS
             </div>
+            <h1 class="hero-title">Translate what you hear.<br><span>Speak back naturally.</span></h1>
+            <p class="hero-subtitle">Translito captures system audio or your microphone, transcribes speech on-device, and translates it in real time—right from your menu bar.</p>
+            <div class="hero-buttons">
+                <a href="https://github.com/tanzir71/arabic-desktop-audio-translator/releases/latest/download/Translito.dmg" class="btn btn-primary">
+                    <i class="ph-fill ph-apple-logo btn-icon"></i>
+                    Download for macOS
+                </a>
+                <a href="https://github.com/tanzir71/arabic-desktop-audio-translator" class="btn btn-secondary" target="_blank" rel="noopener">
+                    <i class="ph ph-github-logo btn-icon"></i>
+                    View source
+                </a>
+            </div>
+            <p class="compatibility"><span>Universal app</span> Apple silicon + Intel · macOS 26.4 or later</p>
         </div>
-        <div class="hero-demo">
+
+        <div class="hero-demo" aria-label="Translito application preview">
             <div class="demo-window">
                 <div class="demo-header">
-                    <div class="demo-controls">
+                    <div class="demo-controls" aria-hidden="true">
                         <span class="demo-dot red"></span>
                         <span class="demo-dot yellow"></span>
                         <span class="demo-dot green"></span>
                     </div>
-                    <span class="demo-title">Desktop Audio Translator</span>
+                    <div class="demo-title">
+                        <img src="{{ "translito-icon.png" | relURL }}" alt="">
+                        Translito
+                    </div>
+                    <span class="demo-status"><span></span> Listening</span>
                 </div>
                 <div class="demo-content">
-                    <div class="demo-line">
-                        <span class="demo-prompt">🎤 Source:</span>
-                        <span class="demo-text arabic">مرحبا كيف حالك اليوم؟</span>
+                    <div class="mode-switch" aria-hidden="true">
+                        <span class="active">Translate audio</span>
+                        <span>Speak translation</span>
                     </div>
-                    <div class="demo-line">
-                        <span class="demo-prompt">🔤 Target:</span>
-                        <span class="demo-text">Hello, how are you today?</span>
+                    <div class="demo-source-row">
+                        <span><i class="ph-fill ph-speaker-high"></i> System Audio</span>
+                        <span>Arabic <i class="ph ph-arrow-right"></i> English</span>
                     </div>
-                    <div class="demo-separator">─────────────────────────────</div>
-                    <div class="demo-line">
-                        <span class="demo-prompt">🎤 Source:</span>
-                        <span class="demo-text arabic">أهلا وسهلا بك</span>
+                    <div class="transcript-card">
+                        <div class="transcript-meta">
+                            <span>10:42:18</span>
+                            <span class="waveform"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                        </div>
+                        <p class="transcript-source" lang="ar" dir="rtl">مرحباً، هل يمكنك سماعي بوضوح؟</p>
+                        <div class="translation-divider"></div>
+                        <p class="transcript-target">Hello, can you hear me clearly?</p>
                     </div>
-                    <div class="demo-line">
-                        <span class="demo-prompt">🔤 Target:</span>
-                        <span class="demo-text">Welcome</span>
+                    <div class="privacy-row">
+                        <span><i class="ph-fill ph-lock-key"></i> On-device</span>
+                        <span><i class="ph-fill ph-waveform"></i> WhisperKit</span>
+                        <span><i class="ph-fill ph-menubar"></i> Menu bar ready</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
+</section>
 
 <section id="features" class="features">
     <div class="container">
-        <h2 class="section-title">Powerful Features</h2>
+        <div class="section-heading">
+            <p class="section-kicker">One app, two directions</p>
+            <h2 class="section-title">Understand the room. Join the conversation.</h2>
+            <p class="section-copy">Listen Mode translates the audio around you. Speak Mode turns your voice into spoken translation for calls and conversations.</p>
+        </div>
         <div class="features-grid">
-            <div class="feature-card">
-                <i class="ph-fill ph-microphone feature-icon"></i>
-                <h3>Real-time Audio Capture</h3>
-                <p>Capture audio from any system device with smart device selection and persistent preferences.</p>
-                <ul>
-                    <li>Desktop audio capture</li>
-                    <li>Microphone input support</li>
-                    <li>Device switching with Ctrl+D</li>
-                </ul>
-            </div>
-            <div class="feature-card">
-                <i class="ph-fill ph-translate feature-icon"></i>
-                <h3>Advanced Speech Recognition</h3>
-                <p>Offline speech recognition using Whisper models (runs locally after download).</p>
-                <ul>
-                    <li>Offline Whisper ASR</li>
-                    <li>GPU acceleration (CUDA)</li>
-                    <li>Configurable model size</li>
-                </ul>
-            </div>
-            <div class="feature-card">
-                <i class="ph-fill ph-globe feature-icon"></i>
-                <h3>Instant Translation</h3>
-                <p>Translate from a selectable source language to a selectable target language.</p>
-                <ul>
-                    <li>Helsinki-NLP models</li>
-                    <li>Download per language pair</li>
-                    <li>Offline after download</li>
-                </ul>
-            </div>
-            <div class="feature-card">
-                <i class="ph-fill ph-floppy-disk feature-icon"></i>
-                <h3>Session Management</h3>
-                <p>Automatic transcript saving with organized output and configuration persistence.</p>
-                <ul>
-                    <li>Timestamped transcripts</li>
-                    <li>Automatic file organization</li>
-                    <li>Session metadata</li>
-                </ul>
-            </div>
-            <div class="feature-card">
-                <i class="ph-fill ph-keyboard feature-icon"></i>
-                <h3>GUI + CLI</h3>
-                <p>Use the simple GUI for language selection, or the CLI for quick control.</p>
-                <ul>
-                    <li>GUI: device + language picker</li>
-                    <li>GUI: download models button</li>
-                    <li>CLI: Ctrl+D / Ctrl+C shortcuts</li>
-                </ul>
-            </div>
-            <div class="feature-card">
-                <i class="ph-fill ph-wrench feature-icon"></i>
-                <h3>Easy Setup</h3>
-                <p>Simple installation process with comprehensive documentation and troubleshooting.</p>
-                <ul>
-                    <li>One-command installation</li>
-                    <li>Cross-platform support</li>
-                    <li>Detailed documentation</li>
-                </ul>
-            </div>
+            <article class="feature-card feature-card-wide">
+                <div class="feature-icon"><i class="ph-fill ph-speaker-hifi"></i></div>
+                <div>
+                    <h3>Capture system audio directly</h3>
+                    <p>Translate meetings, videos, and calls without virtual cables. Translito uses macOS ScreenCaptureKit for clean, direct system-audio capture.</p>
+                    <div class="feature-tags"><span>System audio</span><span>Microphones</span><span>Virtual devices</span></div>
+                </div>
+            </article>
+            <article class="feature-card">
+                <div class="feature-icon"><i class="ph-fill ph-shield-check"></i></div>
+                <h3>Private by design</h3>
+                <p>Speech recognition runs locally with WhisperKit. Translation uses Apple's on-device Translation framework.</p>
+            </article>
+            <article class="feature-card">
+                <div class="feature-icon"><i class="ph-fill ph-chats-circle"></i></div>
+                <h3>Speak in another language</h3>
+                <p>Speak Mode transcribes your voice, translates it, and plays the result through your chosen output—including BlackHole for Slack or Zoom.</p>
+            </article>
+            <article class="feature-card">
+                <div class="feature-icon"><i class="ph-fill ph-menubar"></i></div>
+                <h3>Always within reach</h3>
+                <p>Start, stop, switch modes, and open Settings from the menu bar. Add global hotkeys and launch Translito automatically at login.</p>
+            </article>
+            <article class="feature-card">
+                <div class="feature-icon"><i class="ph-fill ph-translate"></i></div>
+                <h3>Languages that stay flexible</h3>
+                <p>Choose source and target languages independently for listening and speaking. macOS downloads language packs when needed.</p>
+            </article>
+            <article class="feature-card feature-card-wide">
+                <div class="feature-icon"><i class="ph-fill ph-file-text"></i></div>
+                <div>
+                    <h3>Every translation, saved</h3>
+                    <p>Keep timestamped source text and translations, choose your transcript folder, and jump straight to saved sessions in Finder.</p>
+                    <div class="feature-tags"><span>Timestamped</span><span>Searchable</span><span>Your folder</span></div>
+                </div>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="workflow" aria-labelledby="workflow-title">
+    <div class="container">
+        <div class="section-heading">
+            <p class="section-kicker">Built for the menu bar</p>
+            <h2 id="workflow-title" class="section-title">Translation without breaking your flow.</h2>
+        </div>
+        <div class="workflow-grid">
+            <article class="workflow-step">
+                <span class="step-number">01</span>
+                <div class="step-icon"><i class="ph-fill ph-download-simple"></i></div>
+                <h3>Install Translito</h3>
+                <p>Open the DMG, drag Translito to Applications, and grant the audio permission for your source.</p>
+            </article>
+            <article class="workflow-step">
+                <span class="step-number">02</span>
+                <div class="step-icon"><i class="ph-fill ph-sliders-horizontal"></i></div>
+                <h3>Choose your direction</h3>
+                <p>Select system audio or a microphone, then pick the languages you want to hear or speak.</p>
+            </article>
+            <article class="workflow-step">
+                <span class="step-number">03</span>
+                <div class="step-icon"><i class="ph-fill ph-waveform"></i></div>
+                <h3>Translate in real time</h3>
+                <p>Follow live translations in the window, control capture from the menu bar, and save the transcript.</p>
+            </article>
         </div>
     </div>
 </section>
 
 <section id="download" class="download">
     <div class="container">
-        <h2 class="section-title">Get Started</h2>
-        <div class="download-content">
-            <div class="download-info">
-                <h3>Quick Installation</h3>
-                <div class="code-block">
-                    <div class="code-header">
-                        <span>Terminal</span>
-                        <button class="copy-btn" onclick="copyCode('install-code')">Copy</button>
-                    </div>
-                    <pre id="install-code"><code># Clone or download the repository
-git clone https://github.com/tanzir71/arabic-desktop-audio-translator.git
-cd arabic-desktop-audio-translator
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the GUI
-python gui.py
-
-# Or run CLI mode
-python main.py</code></pre>
+        <div class="download-panel">
+            <div class="download-art" aria-hidden="true">
+                <div class="download-orbit"></div>
+                <img src="{{ "translito-icon.png" | relURL }}" alt="">
+            </div>
+            <div class="download-copy">
+                <p class="section-kicker">Translito 1.0 for macOS</p>
+                <h2>Make every conversation feel closer.</h2>
+                <p>Download the universal macOS app and translate system audio, your microphone, or your own voice in real time.</p>
+                <div class="download-actions">
+                    <a href="https://github.com/tanzir71/arabic-desktop-audio-translator/releases/latest/download/Translito.dmg" class="btn btn-primary btn-large">
+                        <i class="ph-fill ph-apple-logo btn-icon"></i>
+                        Download Translito.dmg
+                    </a>
+                    <span>4.9 MB · macOS 26.4+</span>
                 </div>
+                <p class="download-note"><i class="ph ph-info"></i> If macOS asks on first launch, right-click Translito in Applications and choose <strong>Open</strong>.</p>
             </div>
-            <div class="download-requirements">
-                <h3>System Requirements</h3>
-                <ul class="requirements-list">
-                    <li><strong>Python:</strong> 3.8 or higher</li>
-                    <li><strong>OS:</strong> Windows</li>
-                    <li><strong>RAM:</strong> 4GB minimum (8GB recommended)</li>
-                    <li><strong>Storage:</strong> 2GB free space for models</li>
-                    <li><strong>Internet:</strong> Only required for first-time model downloads</li>
-                </ul>
-            </div>
-        </div>
-        <div class="download-buttons">
-            <a href="https://github.com/tanzir71/arabic-desktop-audio-translator" class="btn btn-primary btn-large" target="_blank">
-                <i class="ph-fill ph-github-logo btn-icon"></i>
-                View on GitHub
-            </a>
         </div>
     </div>
 </section>
-
-
 {{ end }}

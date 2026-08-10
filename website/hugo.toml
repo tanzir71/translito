@@ -1,10 +1,10 @@
 baseURL = 'https://localarabic.com'
 languageCode = 'en-us'
-title = 'Desktop Audio Translator'
+title = 'Translito'
 
 [params]
-  description = 'A desktop audio translator with offline Whisper speech recognition, Helsinki-NLP translation, and a simple GUI with language switching.'
-  author = 'Desktop Audio Translator'
+  description = 'A native macOS menu-bar app that translates system audio, microphones, and your spoken voice in real time with on-device intelligence.'
+  author = 'Translito'
   version = '1.0.0'
 
 [markup]
