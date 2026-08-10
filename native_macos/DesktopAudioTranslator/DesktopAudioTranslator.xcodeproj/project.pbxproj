@@ -12,7 +12,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		09A1BCEE2FF5BD13003E8BBC /* DesktopAudioTranslator.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DesktopAudioTranslator.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		09A1BCEE2FF5BD13003E8BBC /* Translito.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Translito.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -47,7 +47,7 @@
 		09A1BCEF2FF5BD13003E8BBC /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				09A1BCEE2FF5BD13003E8BBC /* DesktopAudioTranslator.app */,
+				09A1BCEE2FF5BD13003E8BBC /* Translito.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -75,8 +75,8 @@
 				09A1BD0F2FF5BD20003E8BBC /* WhisperKit */,
 				09A1BD132FF5BD22003E8BBC /* KeyboardShortcuts */,
 			);
-			productName = DesktopAudioTranslator;
-			productReference = 09A1BCEE2FF5BD13003E8BBC /* DesktopAudioTranslator.app */;
+			productName = Translito;
+			productReference = 09A1BCEE2FF5BD13003E8BBC /* Translito.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -274,14 +274,15 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Desktop Audio Translator needs microphone access to transcribe and translate speech from your microphone or virtual audio devices like BlackHole.";
+				INFOPLIST_KEY_CFBundleDisplayName = Translito;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Translito needs microphone access to transcribe and translate speech from your microphone or virtual audio devices like BlackHole.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = tanziro.DesktopAudioTranslator;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = tanziro.Translito;
+				PRODUCT_NAME = Translito;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -308,14 +309,15 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Desktop Audio Translator needs microphone access to transcribe and translate speech from your microphone or virtual audio devices like BlackHole.";
+				INFOPLIST_KEY_CFBundleDisplayName = Translito;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Translito needs microphone access to transcribe and translate speech from your microphone or virtual audio devices like BlackHole.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = tanziro.DesktopAudioTranslator;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = tanziro.Translito;
+				PRODUCT_NAME = Translito;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

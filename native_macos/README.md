@@ -1,6 +1,6 @@
-# Native macOS App (Xcode)
+# Translito for macOS (Xcode)
 
-Fully native Swift implementation of the Desktop Audio Translator. No Python, no BlackHole required for system audio.
+Translito is a fully native Swift audio transcription and translation app. No Python or BlackHole is required for system audio.
 
 ## What it uses
 
@@ -20,7 +20,23 @@ Capture at native rate (48 kHz for system audio) → downmix to mono → resampl
 
 1. Open `DesktopAudioTranslator/DesktopAudioTranslator.xcodeproj` in Xcode.
 2. First build: Xcode resolves the WhisperKit Swift package automatically (File → Packages → Resolve Package Versions if it doesn't).
-3. Run. Signing is automatic with your team; the app is sandboxed with audio-input, network-client (model download), and user-selected-file entitlements already configured.
+3. Run the `DesktopAudioTranslator` scheme. It produces `Translito.app`; signing is automatic with your team, and the app is sandboxed with audio-input, network-client (model download), and user-selected-file entitlements already configured.
+
+## Build the DMG
+
+With Xcode installed:
+
+```bash
+./build_dmg.sh
+```
+
+To repackage an existing working native build with the current Translito branding and icon:
+
+```bash
+./build_dmg.sh --prebuilt "/path/to/DesktopAudioTranslator.app"
+```
+
+Both paths produce `Translito.dmg` and `dist/Translito.app`.
 
 ## First run
 

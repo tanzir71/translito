@@ -93,6 +93,12 @@ struct ContentView: View {
             .frame(maxWidth: 320)
             .disabled(pipeline.isRunning)
             Spacer()
+
+            SettingsLink {
+                Label("Settings", systemImage: "gearshape")
+                    .labelStyle(.iconOnly)
+            }
+            .help("Settings")
         }
         .padding(.horizontal, 12)
         .padding(.top, 10)

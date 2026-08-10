@@ -1,6 +1,6 @@
 //
-//  DesktopAudioTranslatorApp.swift
-//  DesktopAudioTranslator
+//  TranslitoApp.swift
+//  Translito
 //
 //  Native macOS audio translator: captures system audio
 //  (ScreenCaptureKit) or microphone/virtual devices (AVAudioEngine),
@@ -11,7 +11,7 @@
 import SwiftUI
 
 @main
-struct DesktopAudioTranslatorApp: App {
+struct TranslitoApp: App {
     @StateObject private var settings: AppSettings
     @StateObject private var translationBridge: TranslationBridge
     @StateObject private var pipeline: TranslatorPipeline
@@ -33,7 +33,7 @@ struct DesktopAudioTranslatorApp: App {
     }
 
     var body: some Scene {
-        Window("Desktop Audio Translator", id: "main") {
+        Window("Translito", id: "main") {
             ContentView()
                 .environmentObject(settings)
                 .environmentObject(translationBridge)

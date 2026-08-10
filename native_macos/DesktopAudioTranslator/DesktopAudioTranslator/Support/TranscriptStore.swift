@@ -49,7 +49,7 @@ enum TranscriptStore {
 
         var lines: [String] = []
         lines.append("=" * 60)
-        lines.append("Desktop Audio Translator — Transcript")
+        lines.append("Translito — Transcript")
         lines.append("Session Start: \(Self.headerFormatter.string(from: sessionStart))")
         lines.append("Saved: \(Self.headerFormatter.string(from: Date()))")
         lines.append("Languages: \(Languages.name(for: sourceLanguage)) → \(Languages.name(for: targetLanguage))")

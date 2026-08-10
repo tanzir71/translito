@@ -57,6 +57,11 @@ struct MenuBarView: View {
 
             Divider()
 
+            SettingsLink {
+                Text("Settings…")
+            }
+            .keyboardShortcut(",", modifiers: .command)
+
             Button("Quit") {
                 Task {
                     await pipeline.stop(save: true)
