@@ -1,11 +1,8 @@
 {{ define "main" }}
 <section class="hero">
-    <div class="hero-glow hero-glow-one"></div>
-    <div class="hero-glow hero-glow-two"></div>
     <div class="hero-container">
         <div class="hero-content">
             <div class="eyebrow">
-                <span class="eyebrow-dot"></span>
                 Native translation for macOS
             </div>
             <h1 class="hero-title">Translate what you hear.<br><span>Speak back naturally.</span></h1>
@@ -58,7 +55,7 @@
                     <div class="privacy-row">
                         <span><i class="ph-fill ph-lock-key"></i> On-device</span>
                         <span><i class="ph-fill ph-waveform"></i> WhisperKit</span>
-                        <span><i class="ph-fill ph-menubar"></i> Menu bar ready</span>
+                        <span><i class="ph-fill ph-command"></i> Menu bar ready</span>
                     </div>
                 </div>
             </div>
@@ -93,7 +90,7 @@
                 <p>Speak Mode transcribes your voice, translates it, and plays the result through your chosen output—including BlackHole for Slack or Zoom.</p>
             </article>
             <article class="feature-card">
-                <div class="feature-icon"><i class="ph-fill ph-menubar"></i></div>
+                <div class="feature-icon"><i class="ph-fill ph-command"></i></div>
                 <h3>Always within reach</h3>
                 <p>Start, stop, switch modes, and open Settings from the menu bar. Add global hotkeys and launch Translito automatically at login.</p>
             </article>
@@ -144,25 +141,22 @@
 </section>
 
 <section id="download" class="download">
-    <div class="container">
-        <div class="download-panel">
-            <div class="download-art" aria-hidden="true">
-                <div class="download-orbit"></div>
-                <img src="{{ "translito-icon.png" | relURL }}" alt="">
+    <div class="download-container">
+        <div class="download-art" aria-hidden="true">
+            <img src="{{ "translito-icon.png" | relURL }}" alt="">
+        </div>
+        <div class="download-copy">
+            <p class="section-kicker">Translito 1.0 for macOS</p>
+            <h2>Make every conversation feel closer.</h2>
+            <p>Download the universal macOS app and translate system audio, your microphone, or your own voice in real time.</p>
+            <div class="download-actions">
+                <a href="https://github.com/tanzir71/arabic-desktop-audio-translator/releases/latest/download/Translito.dmg" class="btn btn-primary btn-large">
+                    <i class="ph-fill ph-apple-logo btn-icon"></i>
+                    Download Translito.dmg
+                </a>
+                <span>4.9 MB · macOS 26.4+</span>
             </div>
-            <div class="download-copy">
-                <p class="section-kicker">Translito 1.0 for macOS</p>
-                <h2>Make every conversation feel closer.</h2>
-                <p>Download the universal macOS app and translate system audio, your microphone, or your own voice in real time.</p>
-                <div class="download-actions">
-                    <a href="https://github.com/tanzir71/arabic-desktop-audio-translator/releases/latest/download/Translito.dmg" class="btn btn-primary btn-large">
-                        <i class="ph-fill ph-apple-logo btn-icon"></i>
-                        Download Translito.dmg
-                    </a>
-                    <span>4.9 MB · macOS 26.4+</span>
-                </div>
-                <p class="download-note"><i class="ph ph-info"></i> If macOS asks on first launch, right-click Translito in Applications and choose <strong>Open</strong>.</p>
-            </div>
+            <p class="download-note"><i class="ph ph-info"></i> If macOS asks on first launch, right-click Translito in Applications and choose <strong>Open</strong>.</p>
         </div>
     </div>
 </section>
