@@ -64,6 +64,7 @@ struct ContentView: View {
         .onAppear {
             refreshSources()
             restoreSelection()
+            restoreMode()
             // Warm the ASR model in the background so Start is instant.
             Task { await pipeline.preloadModels() }
         }
@@ -71,6 +72,16 @@ struct ContentView: View {
         // USB mics, BlackHole) — no restart or manual refresh needed.
         .onReceive(NotificationCenter.default.publisher(for: .audioDevicesDidChange)) { _ in
             refreshSources()
+        }
+        .onChange(of: uiMode) {
+            if !pipeline.isRunning {
+                settings.lastMode = uiMode.rawValue
+            }
+        }
+        .onChange(of: pipeline.mode) {
+            if pipeline.isRunning {
+                uiMode = pipeline.mode
+            }
         }
         // Hidden bridge to Apple's Translation framework. The session is
         // only valid inside this closure, so the bridge queues requests
@@ -474,6 +485,14 @@ struct ContentView: View {
                       return false
                   }) {
             selectedSourceID = match.id
+        }
+    }
+
+    private func restoreMode() {
+        if pipeline.isRunning {
+            uiMode = pipeline.mode
+        } else {
+            uiMode = settings.lastMode == TranslatorPipeline.Mode.speak.rawValue ? .speak : .listen
         }
     }
 

@@ -50,6 +50,7 @@ struct TranslitoApp: App {
                   ? "waveform.circle.fill"
                   : "waveform.circle")
         }
+        .menuBarExtraStyle(.window)
 
         Settings {
             SettingsView()

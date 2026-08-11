@@ -51,6 +51,11 @@ jobs:
             --gc \
             --minify \
             --baseURL "${{ steps.pages.outputs.base_url }}/"
+      - name: Validate macOS download CTA
+        run: |
+          CTA_URL="https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg"
+          grep -Fq "$CTA_URL" website/public/index.html
+          curl --fail --location --retry 5 --retry-all-errors --output /dev/null "$CTA_URL"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
