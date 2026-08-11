@@ -1,6 +1,6 @@
-# Desktop Audio Translator
+# Translito
 
-A real-time desktop audio transcription and translation tool. Captures desktop audio or microphone input, transcribes speech locally using Whisper, and translates using Helsinki-NLP models. Includes both a GUI and a CLI.
+A real-time desktop audio transcription and translation app for Windows and macOS. The Windows edition captures desktop audio or microphone input, transcribes locally with Whisper, and translates with Helsinki-NLP models. It includes both a GUI and a CLI.
 
 ## Windows Feature Parity Update
 

@@ -17,6 +17,8 @@ DEFAULT_HOTKEYS = {
 class RuntimeConfig:
     mic_noise_gate: float = 0.002
     last_mode: str = "listen"
+    chunk_duration: float = 6.0
+    offline_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -101,10 +103,31 @@ def load_runtime_config(path=None):
     last_mode = section.get("last_mode", "listen")
     if last_mode not in {"listen", "speak"}:
         last_mode = "listen"
-    return RuntimeConfig(mic_noise_gate=gate, last_mode=last_mode)
+    try:
+        chunk_duration = min(15.0, max(3.0, float(section.get("chunk_duration", "6"))))
+    except Exception:
+        chunk_duration = 6.0
+    offline_only = str(section.get("offline_only", "0")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    return RuntimeConfig(
+        mic_noise_gate=gate,
+        last_mode=last_mode,
+        chunk_duration=chunk_duration,
+        offline_only=offline_only,
+    )
 
 
-def save_runtime_config(path=None, mic_noise_gate=None, last_mode=None):
+def save_runtime_config(
+    path=None,
+    mic_noise_gate=None,
+    last_mode=None,
+    chunk_duration=None,
+    offline_only=None,
+):
     config = read_config(path)
     section = _ensure_section(config, "RUNTIME")
     if mic_noise_gate is not None:
@@ -113,6 +136,26 @@ def save_runtime_config(path=None, mic_noise_gate=None, last_mode=None):
             section["mic_noise_gate"] = "0"
     if last_mode is not None:
         section["last_mode"] = last_mode if last_mode in {"listen", "speak"} else "listen"
+    if chunk_duration is not None:
+        section["chunk_duration"] = str(min(15.0, max(3.0, float(chunk_duration)))).rstrip("0").rstrip(".")
+    if offline_only is not None:
+        section["offline_only"] = "1" if offline_only else "0"
+    write_config(config, path)
+
+
+def default_transcript_folder():
+    return Path.home() / "Documents" / "Translito" / "Transcripts"
+
+
+def load_transcript_folder(path=None):
+    config = read_config(path)
+    stored = config.get("TRANSCRIPTS", "folder", fallback="").strip()
+    return Path(stored).expanduser() if stored else default_transcript_folder()
+
+
+def save_transcript_folder(folder, path=None):
+    config = read_config(path)
+    _ensure_section(config, "TRANSCRIPTS")["folder"] = str(Path(folder).expanduser())
     write_config(config, path)
 
 

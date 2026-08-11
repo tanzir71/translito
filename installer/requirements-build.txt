@@ -1,0 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Keep Windows releases CPU-only so CUDA runtimes do not inflate the installer.
+torch==2.13.0+cpu
+transformers==4.57.6
+huggingface-hub==0.36.2
+
+-r ../requirements.txt

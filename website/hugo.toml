@@ -3,7 +3,7 @@ languageCode = 'en-us'
 title = 'Translito'
 
 [params]
-  description = 'A native macOS menu-bar app that translates system audio, microphones, and your spoken voice in real time with on-device intelligence.'
+  description = 'A native macOS and Windows app that translates system audio, microphones, and your spoken voice in real time with on-device intelligence.'
   author = 'Translito'
   version = '1.0.0'
 

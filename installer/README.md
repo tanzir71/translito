@@ -1,13 +1,23 @@
 # Windows Installer
 
-Build one-dir PyInstaller output first:
+Run the release build from PowerShell:
 
 ```powershell
-python -m pip install -r ..\requirements.txt
-pyinstaller DesktopAudioTranslator.spec --noconfirm --clean
+.\build_windows.ps1
 ```
 
-Then build `DesktopAudioTranslator.iss` with Inno Setup.
+The script creates an isolated CPU-only build environment, runs PyInstaller, packages the portable app, and wraps the result with Inno Setup. To rebuild without reinstalling dependencies:
+
+```powershell
+.\build_windows.ps1 -SkipDependencies
+```
+
+Outputs:
+
+- Portable ZIP: `output\TranslitoPortable-1.0.0.zip`
+- Installer: `output\TranslitoSetup-1.0.0.exe`
+
+The unpacked release is staged under `.packaging\release-dist`; this keeps builds isolated from any older portable copy that may currently be running.
 
 Models are not bundled. Whisper and Helsinki-NLP models download on first run and then use the Hugging Face cache. VB-Audio Virtual Cable is not bundled; the installer offers the download page after setup.
 

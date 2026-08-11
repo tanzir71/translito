@@ -3,16 +3,21 @@
 from PyInstaller.utils.hooks import collect_submodules
 
 
-hiddenimports = []
-for package in (
+hiddenimports = [
     "google.protobuf",
     "huggingface_hub",
     "keyboard",
     "sentencepiece",
     "soundcard",
     "sounddevice",
-    "torch",
-    "transformers",
+]
+
+# These packages load backends dynamically. Limit collection to the two
+# model families Translito uses instead of bundling every Transformers model.
+for package in (
+    "pyttsx3",
+    "transformers.models.marian",
+    "transformers.models.whisper",
 ):
     try:
         hiddenimports += collect_submodules(package)
@@ -24,12 +29,28 @@ a = Analysis(
     ["..\\gui.py"],
     pathex=[".."],
     binaries=[],
-    datas=[],
+    datas=[("Translito.ico", ".")],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tensorflow"],
+    excludes=[
+        "cv2",
+        "datasets",
+        "flax",
+        "jax",
+        "keras",
+        "librosa",
+        "matplotlib",
+        "moviepy",
+        "onnxruntime",
+        "pandas",
+        "scipy",
+        "sklearn",
+        "tensorflow",
+        "torchaudio",
+        "torchvision",
+    ],
     noarchive=False,
     optimize=0,
 )
@@ -40,7 +61,9 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="DesktopAudioTranslator",
+    name="Translito",
+    icon="Translito.ico",
+    version="version_info.txt",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -60,5 +83,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="DesktopAudioTranslator",
+    name="Translito",
 )

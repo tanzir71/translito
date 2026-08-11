@@ -4,20 +4,39 @@ from app_config import (
     DEFAULT_HOTKEYS,
     load_hotkey_config,
     load_runtime_config,
+    load_transcript_folder,
     save_hotkey_config,
     save_runtime_config,
+    save_transcript_folder,
 )
 from device_utils import conference_mic_hint, is_virtual_device_name, normalize_device_name
 
 
-def test_runtime_config_preserves_zero_noise_gate(tmp_path):
+def test_runtime_config_preserves_mac_visible_settings(tmp_path):
     config_path = tmp_path / "config.ini"
-    save_runtime_config(config_path, mic_noise_gate=0, last_mode="speak")
+    save_runtime_config(
+        config_path,
+        mic_noise_gate=0,
+        last_mode="speak",
+        chunk_duration=9,
+        offline_only=True,
+    )
 
     loaded = load_runtime_config(config_path)
 
     assert loaded.mic_noise_gate == 0
     assert loaded.last_mode == "speak"
+    assert loaded.chunk_duration == 9
+    assert loaded.offline_only is True
+
+
+def test_transcript_folder_round_trips(tmp_path):
+    config_path = tmp_path / "config.ini"
+    transcript_path = tmp_path / "My Transcripts"
+
+    save_transcript_folder(transcript_path, config_path)
+
+    assert load_transcript_folder(config_path) == transcript_path
 
 
 def test_hotkey_config_uses_defaults_and_persists_overrides(tmp_path):

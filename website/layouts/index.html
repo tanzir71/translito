@@ -3,21 +3,21 @@
     <div class="hero-container">
         <div class="hero-content">
             <div class="eyebrow">
-                Native translation for macOS
+                Live translation for macOS and Windows
             </div>
             <h1 class="hero-title">Translate what you hear.<br><span>Speak back naturally.</span></h1>
-            <p class="hero-subtitle">Translito captures system audio or your microphone, transcribes speech on-device, and translates it in real time—right from your menu bar.</p>
+            <p class="hero-subtitle">Translito captures system audio or your microphone, transcribes speech on-device, and translates it in real time—right from your menu bar or system tray.</p>
             <div class="hero-buttons">
-                <a href="https://github.com/tanzir71/arabic-desktop-audio-translator/releases/latest/download/Translito.dmg" class="btn btn-primary">
+                <a href="https://github.com/tanzir71/translito/releases/latest/download/TranslitoSetup-1.0.0.exe" class="btn btn-primary">
+                    <i class="ph-fill ph-windows-logo btn-icon"></i>
+                    Download for Windows
+                </a>
+                <a href="https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg" class="btn btn-secondary">
                     <i class="ph-fill ph-apple-logo btn-icon"></i>
                     Download for macOS
                 </a>
-                <a href="https://github.com/tanzir71/arabic-desktop-audio-translator" class="btn btn-secondary" target="_blank" rel="noopener">
-                    <i class="ph ph-github-logo btn-icon"></i>
-                    View source
-                </a>
             </div>
-            <p class="compatibility"><span>Universal app</span> Apple silicon + Intel · macOS 26.4 or later</p>
+            <p class="compatibility"><span>Desktop native</span> Windows 10/11 (64-bit) · Apple silicon + Intel · macOS 26.4+</p>
         </div>
 
         <div class="hero-demo" aria-label="Translito application preview">
@@ -55,7 +55,7 @@
                     <div class="privacy-row">
                         <span><i class="ph-fill ph-lock-key"></i> On-device</span>
                         <span><i class="ph-fill ph-waveform"></i> WhisperKit</span>
-                        <span><i class="ph-fill ph-command"></i> Menu bar ready</span>
+                        <span><i class="ph-fill ph-command"></i> Menu bar + tray</span>
                     </div>
                 </div>
             </div>
@@ -75,35 +75,35 @@
                 <div class="feature-icon"><i class="ph-fill ph-speaker-hifi"></i></div>
                 <div>
                     <h3>Capture system audio directly</h3>
-                    <p>Translate meetings, videos, and calls without virtual cables. Translito uses macOS ScreenCaptureKit for clean, direct system-audio capture.</p>
+                    <p>Translate meetings, videos, and calls from system audio or a microphone. Translito uses ScreenCaptureKit on macOS and loopback capture on Windows.</p>
                     <div class="feature-tags"><span>System audio</span><span>Microphones</span><span>Virtual devices</span></div>
                 </div>
             </article>
             <article class="feature-card">
                 <div class="feature-icon"><i class="ph-fill ph-shield-check"></i></div>
                 <h3>Private by design</h3>
-                <p>Speech recognition runs locally with WhisperKit. Translation uses Apple's on-device Translation framework.</p>
+                <p>Speech recognition and translation run locally after the required models download—using native Apple frameworks on macOS and CPU-friendly models on Windows.</p>
             </article>
             <article class="feature-card">
                 <div class="feature-icon"><i class="ph-fill ph-chats-circle"></i></div>
                 <h3>Speak in another language</h3>
-                <p>Speak Mode transcribes your voice, translates it, and plays the result through your chosen output—including BlackHole for Slack or Zoom.</p>
+                <p>Speak Mode transcribes your voice, translates it, and plays the result through your chosen output—including BlackHole or VB-Audio Cable for calls.</p>
             </article>
             <article class="feature-card">
                 <div class="feature-icon"><i class="ph-fill ph-command"></i></div>
                 <h3>Always within reach</h3>
-                <p>Start, stop, switch modes, and open Settings from the menu bar. Add global hotkeys and launch Translito automatically at login.</p>
+                <p>Start, stop, switch modes, and open Settings from the macOS menu bar or Windows notification area. Global hotkeys work everywhere.</p>
             </article>
             <article class="feature-card">
                 <div class="feature-icon"><i class="ph-fill ph-translate"></i></div>
                 <h3>Languages that stay flexible</h3>
-                <p>Choose source and target languages independently for listening and speaking. macOS downloads language packs when needed.</p>
+                <p>Choose source and target languages independently for listening and speaking. Language packs or translation models download when needed.</p>
             </article>
             <article class="feature-card feature-card-wide">
                 <div class="feature-icon"><i class="ph-fill ph-file-text"></i></div>
                 <div>
                     <h3>Every translation, saved</h3>
-                    <p>Keep timestamped source text and translations, choose your transcript folder, and jump straight to saved sessions in Finder.</p>
+                    <p>Keep timestamped source text and translations, choose your transcript folder, and jump straight to saved sessions in Finder or Explorer.</p>
                     <div class="feature-tags"><span>Timestamped</span><span>Searchable</span><span>Your folder</span></div>
                 </div>
             </article>
@@ -114,7 +114,7 @@
 <section class="workflow" aria-labelledby="workflow-title">
     <div class="container">
         <div class="section-heading">
-            <p class="section-kicker">Built for the menu bar</p>
+            <p class="section-kicker">Built for your desktop</p>
             <h2 id="workflow-title" class="section-title">Translation without breaking your flow.</h2>
         </div>
         <div class="workflow-grid">
@@ -122,7 +122,7 @@
                 <span class="step-number">01</span>
                 <div class="step-icon"><i class="ph-fill ph-download-simple"></i></div>
                 <h3>Install Translito</h3>
-                <p>Open the DMG, drag Translito to Applications, and grant the audio permission for your source.</p>
+                <p>Run Windows Setup, extract the portable ZIP, or drag the macOS app to Applications. Then choose your audio source.</p>
             </article>
             <article class="workflow-step">
                 <span class="step-number">02</span>
@@ -134,7 +134,7 @@
                 <span class="step-number">03</span>
                 <div class="step-icon"><i class="ph-fill ph-waveform"></i></div>
                 <h3>Translate in real time</h3>
-                <p>Follow live translations in the window, control capture from the menu bar, and save the transcript.</p>
+                <p>Follow live translations in the window, control capture from the menu bar or system tray, and save the transcript.</p>
             </article>
         </div>
     </div>
@@ -146,17 +146,39 @@
             <img src="{{ "translito-icon.png" | relURL }}" alt="">
         </div>
         <div class="download-copy">
-            <p class="section-kicker">Translito 1.0 for macOS</p>
+            <p class="section-kicker">Translito 1.0 for Windows + macOS</p>
             <h2>Make every conversation feel closer.</h2>
-            <p>Download the universal macOS app and translate system audio, your microphone, or your own voice in real time.</p>
-            <div class="download-actions">
-                <a href="https://github.com/tanzir71/arabic-desktop-audio-translator/releases/latest/download/Translito.dmg" class="btn btn-primary btn-large">
-                    <i class="ph-fill ph-apple-logo btn-icon"></i>
-                    Download Translito.dmg
-                </a>
-                <span>4.9 MB · macOS 26.4+</span>
+            <p>Choose the build for your desktop and translate system audio, your microphone, or your own voice in real time.</p>
+            <div class="platform-downloads">
+                <article class="platform-card platform-card-featured">
+                    <div class="platform-label"><i class="ph-fill ph-windows-logo"></i> Windows</div>
+                    <h3>Install or run portable.</h3>
+                    <p>Use Setup for shortcuts and startup options, or keep the standalone ZIP on any drive.</p>
+                    <div class="platform-actions">
+                        <a href="https://github.com/tanzir71/translito/releases/latest/download/TranslitoSetup-1.0.0.exe" class="btn btn-primary">
+                            <i class="ph-fill ph-download-simple btn-icon"></i>
+                            Download Setup
+                        </a>
+                        <a href="https://github.com/tanzir71/translito/releases/latest/download/TranslitoPortable-1.0.0.zip" class="btn btn-secondary">
+                            Portable ZIP
+                        </a>
+                    </div>
+                    <span class="platform-meta">Windows 10/11 · 64-bit · CPU-only runtime</span>
+                </article>
+                <article class="platform-card">
+                    <div class="platform-label"><i class="ph-fill ph-apple-logo"></i> macOS</div>
+                    <h3>Universal Mac app.</h3>
+                    <p>One DMG for Apple silicon and Intel, with native menu-bar controls.</p>
+                    <div class="platform-actions">
+                        <a href="https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg" class="btn btn-secondary">
+                            <i class="ph-fill ph-download-simple btn-icon"></i>
+                            Download DMG
+                        </a>
+                    </div>
+                    <span class="platform-meta">4.9 MB · macOS 26.4+</span>
+                </article>
             </div>
-            <p class="download-note"><i class="ph ph-info"></i> If macOS asks on first launch, right-click Translito in Applications and choose <strong>Open</strong>.</p>
+            <p class="download-note"><i class="ph ph-info"></i> Windows builds are currently unsigned and may show SmartScreen. On macOS, right-click Translito and choose <strong>Open</strong> if prompted.</p>
         </div>
     </div>
 </section>

@@ -4,7 +4,7 @@ import sys
 
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-RUN_VALUE_NAME = "DesktopAudioTranslator"
+RUN_VALUE_NAME = "Translito"
 
 
 def default_startup_command():

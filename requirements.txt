@@ -23,6 +23,10 @@ keyboard>=0.13.5
 # Offline/local TTS fallback for Speak Mode (Piper executable + tts_models/ is preferred when available)
 pyttsx3>=2.90
 
+# Windows notification-area menu (macOS MenuBarExtra counterpart)
+pystray>=0.19.5
+Pillow>=10.0.0
+
 # Windows packaging
 pyinstaller>=6.0.0
 

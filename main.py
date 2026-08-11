@@ -166,8 +166,10 @@ class ArabicAudioTranscriber:
         speech_voice="Automatic",
         monitor_spoken_audio=False,
         mic_noise_gate=None,
+        chunk_duration=None,
+        transcript_folder=None,
     ):
-        print("\nInitializing Desktop Audio Translator...")
+        print("\nInitializing Translito...")
 
         self.selected_device = selected_device
         self.on_event = on_event
@@ -206,10 +208,17 @@ class ArabicAudioTranscriber:
             self.capture_sample_rate = 48000 if is_loopback else 16000
 
         self.sample_rate = 16000
-        try:
-            self.chunk_duration = float(os.environ.get("CHUNK_DURATION", "6").strip())
-        except Exception:
-            self.chunk_duration = 6.0
+        if chunk_duration is not None:
+            self.chunk_duration = min(15.0, max(3.0, float(chunk_duration)))
+        else:
+            try:
+                self.chunk_duration = float(
+                    os.environ.get("CHUNK_DURATION", str(runtime_config.chunk_duration)).strip()
+                )
+            except Exception:
+                self.chunk_duration = runtime_config.chunk_duration
+        self.transcript_folder = transcript_folder or "transcripts"
+        self.last_saved_path = None
 
         self.transcripts = []
         self.session_start_time = datetime.now()
@@ -339,6 +348,7 @@ class ArabicAudioTranscriber:
             self.running = False
 
     def _handle_capture_result(self, result):
+        self.emit("level", {"peak": result.peak, "rms": result.rms})
         if result.kind == "audio":
             self._silence_run = 0
             if self.mode == "speak" and self.speech_player and self.speech_player.is_playing:
@@ -473,7 +483,12 @@ class ArabicAudioTranscriber:
         if self.running:
             return
         self.running = True
-        save_runtime_config(CONFIG_FILE, mic_noise_gate=self.mic_noise_gate, last_mode=self.mode)
+        save_runtime_config(
+            CONFIG_FILE,
+            mic_noise_gate=self.mic_noise_gate,
+            last_mode=self.mode,
+            chunk_duration=self.chunk_duration,
+        )
         if self.speech_player:
             self.speech_player.start()
         if enable_keyboard_shortcuts and self.interactive:
@@ -558,17 +573,17 @@ class ArabicAudioTranscriber:
     def save_transcript(self):
         if not self.transcripts:
             print("No transcripts to save.")
-            return
+            return None
 
         try:
-            transcript_dir = "transcripts"
+            transcript_dir = os.fspath(self.transcript_folder)
             os.makedirs(transcript_dir, exist_ok=True)
             timestamp = self.session_start_time.strftime("%Y%m%d_%H%M%S")
             filepath = os.path.join(transcript_dir, f"transcript_{timestamp}.txt")
 
             with open(filepath, "w", encoding="utf-8") as handle:
                 handle.write("=" * 60 + "\n")
-                handle.write("DESKTOP AUDIO TRANSLATION SESSION\n")
+                handle.write("TRANSLITO — TRANSCRIPT\n")
                 handle.write("=" * 60 + "\n")
                 handle.write(f"Session Start: {self.session_start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
                 handle.write(f"Session End: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -592,8 +607,11 @@ class ArabicAudioTranscriber:
 
             print(f"\nTranscript saved to: {filepath}")
             print(f"   Total entries: {len(self.transcripts)}")
+            self.last_saved_path = filepath
+            return filepath
         except Exception as exc:
             print(f"\nError saving transcript: {exc}")
+            return None
 
 
 def select_audio_device(show_saved_device=True):
@@ -712,7 +730,7 @@ def select_audio_device(show_saved_device=True):
 
 def main():
     print("=" * 50)
-    print("Desktop Audio Translator")
+    print("Translito")
     print("=" * 50)
 
     require_dependencies()
