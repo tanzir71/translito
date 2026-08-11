@@ -25,7 +25,8 @@ elif [[ $# -ne 0 ]]; then
 fi
 
 if [[ -z "$SOURCE_APP" ]]; then
-  XCODEBUILD_PATH="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}/usr/bin/xcodebuild"
+  DEVELOPER_PATH="${DEVELOPER_DIR:-$(xcode-select -p 2>/dev/null || true)}"
+  XCODEBUILD_PATH="$DEVELOPER_PATH/usr/bin/xcodebuild"
   if [[ ! -x "$XCODEBUILD_PATH" ]]; then
     echo "Xcode is required to compile Translito. Install Xcode or pass --prebuilt with an existing native app bundle." >&2
     exit 1
@@ -36,6 +37,8 @@ if [[ -z "$SOURCE_APP" ]]; then
     -scheme "$SCHEME" \
     -configuration Release \
     -derivedDataPath "$BUILD_DIR" \
+    ARCHS="arm64 x86_64" \
+    ONLY_ACTIVE_ARCH=NO \
     CODE_SIGNING_ALLOWED=NO \
     build
   SOURCE_APP="$BUILD_DIR/Build/Products/Release/$APP_NAME.app"

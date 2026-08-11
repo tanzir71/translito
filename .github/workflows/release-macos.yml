@@ -1,0 +1,123 @@
+name: Build and publish macOS DMG
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "native_macos/DesktopAudioTranslator/**"
+      - "native_macos/branding/**"
+      - "native_macos/build_dmg.sh"
+      - ".github/workflows/release-macos.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: macos-26
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show build toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Build universal DMG
+        run: ./native_macos/build_dmg.sh
+
+      - name: Verify app and disk image
+        id: verify
+        run: |
+          APP_PATH="native_macos/dist/Translito.app"
+          BINARY_PATH="$APP_PATH/Contents/MacOS/DesktopAudioTranslator"
+          DMG_PATH="native_macos/Translito.dmg"
+
+          test -d "$APP_PATH"
+          test -f "$BINARY_PATH"
+          test -f "$DMG_PATH"
+          lipo -verify_arch x86_64 arm64 "$BINARY_PATH"
+          codesign --verify --deep --strict "$APP_PATH"
+          hdiutil verify "$DMG_PATH"
+
+          DMG_SHA="$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')"
+          DMG_SIZE="$(stat -f '%z' "$DMG_PATH")"
+          echo "DMG_SHA=$DMG_SHA" >> "$GITHUB_ENV"
+          echo "DMG_SIZE=$DMG_SIZE" >> "$GITHUB_ENV"
+
+      - name: Replace latest release DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_TAG="$(gh release view --json tagName --jq '.tagName')"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          gh release upload "$RELEASE_TAG" native_macos/Translito.dmg --clobber
+
+          gh release view "$RELEASE_TAG" --json body --jq '.body' > "$RUNNER_TEMP/current-release-notes.md"
+          python3 - "$DMG_SHA" "$RUNNER_TEMP/current-release-notes.md" "$RUNNER_TEMP/release-notes.md" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          checksum, source_path, destination_path = sys.argv[1:]
+          body = Path(source_path).read_text()
+          body, replacements = re.subn(
+              r"(### macOS download.*?SHA-256: `)[0-9a-f]+(`)",
+              lambda match: f"{match.group(1)}{checksum}{match.group(2)}",
+              body,
+              count=1,
+              flags=re.DOTALL,
+          )
+          if replacements != 1:
+              raise SystemExit("Could not update the macOS SHA-256 in the release notes")
+
+          highlight = "- App-style macOS menu-bar controls for switching modes, starting or stopping, and reviewing recent translations"
+          if highlight not in body:
+              body = body.replace("### Highlights\n", f"### Highlights\n\n{highlight}\n", 1)
+
+          Path(destination_path).write_text(body)
+          PY
+          gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+
+      - name: Verify website CTA downloads this build
+        run: |
+          CTA_URL="https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg"
+          VERIFIED=0
+
+          for ATTEMPT in 1 2 3 4 5 6; do
+            curl --fail --location --retry 3 --retry-all-errors \
+              --output "$RUNNER_TEMP/cta-Translito.dmg" \
+              "$CTA_URL?run=$GITHUB_RUN_ID&attempt=$ATTEMPT"
+            DOWNLOADED_SHA="$(shasum -a 256 "$RUNNER_TEMP/cta-Translito.dmg" | awk '{print $1}')"
+            if [[ "$DOWNLOADED_SHA" == "$DMG_SHA" ]]; then
+              VERIFIED=1
+              break
+            fi
+            sleep 10
+          done
+
+          test "$VERIFIED" -eq 1
+          {
+            echo "### macOS release updated"
+            echo "- Release: $RELEASE_TAG"
+            echo "- DMG size: $DMG_SIZE bytes"
+            echo "- SHA-256: \`$DMG_SHA\`"
+            echo "- Website CTA: verified against the uploaded DMG"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain DMG as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Translito-macOS
+          path: native_macos/Translito.dmg
+          if-no-files-found: error
