@@ -47,7 +47,7 @@ jobs:
           test -d "$APP_PATH"
           test -f "$BINARY_PATH"
           test -f "$DMG_PATH"
-          lipo -verify_arch x86_64 arm64 "$BINARY_PATH"
+          lipo "$BINARY_PATH" -verify_arch x86_64 arm64
           codesign --verify --deep --strict "$APP_PATH"
           hdiutil verify "$DMG_PATH"
 
