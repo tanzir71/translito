@@ -111,7 +111,7 @@ struct ContentView: View {
             }
             .help("Settings")
         }
-        .padding(.horizontal, 12)
+        .padding(.trailing, 12)
         .padding(.top, 10)
         .padding(.bottom, 4)
     }

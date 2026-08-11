@@ -79,25 +79,17 @@ struct MenuBarView: View {
     // MARK: - Controls
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("MODE")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 8) {
-                modeButton(
-                    .listen,
-                    title: "Listen",
-                    subtitle: "Translate audio",
-                    systemImage: "headphones"
-                )
-                modeButton(
-                    .speak,
-                    title: "Speak",
-                    subtitle: "Voice translation",
-                    systemImage: "waveform.and.mic"
-                )
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Mode", selection: Binding(
+                get: { selectedMode },
+                set: { selectMode($0) }
+            )) {
+                Text("Listen").tag(TranslatorPipeline.Mode.listen)
+                Text("Speak").tag(TranslatorPipeline.Mode.speak)
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .disabled(isChangingRunState)
 
             HStack(spacing: 8) {
                 Image(systemName: selectedMode == .listen ? "speaker.wave.2" : "arrow.triangle.2.circlepath")
@@ -122,11 +114,10 @@ struct MenuBarView: View {
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 26)
             }
             .buttonStyle(.borderedProminent)
             .tint(pipeline.isRunning ? .red : .accentColor)
-            .controlSize(.large)
+            .controlSize(.regular)
             .keyboardShortcut(.space, modifiers: [.command])
             .disabled(isChangingRunState)
 
@@ -142,49 +133,7 @@ struct MenuBarView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
-    }
-
-    private func modeButton(
-        _ mode: TranslatorPipeline.Mode,
-        title: String,
-        subtitle: String,
-        systemImage: String
-    ) -> some View {
-        let isSelected = selectedMode == mode
-
-        return Button {
-            selectMode(mode)
-        } label: {
-            HStack(spacing: 9) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 20)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.callout.weight(.semibold))
-                    Text(subtitle)
-                        .font(.caption2)
-                        .foregroundStyle(isSelected ? Color.white.opacity(0.8) : Color.secondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .background(
-                isSelected ? Color.accentColor : Color.primary.opacity(0.055),
-                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-            )
-            .overlay {
-                if !isSelected {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(.primary.opacity(0.08))
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(isChangingRunState)
+        .padding(12)
     }
 
     // MARK: - Translations
