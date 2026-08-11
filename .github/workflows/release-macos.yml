@@ -40,7 +40,8 @@ jobs:
         id: verify
         run: |
           APP_PATH="native_macos/dist/Translito.app"
-          BINARY_PATH="$APP_PATH/Contents/MacOS/DesktopAudioTranslator"
+          EXECUTABLE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Contents/Info.plist")"
+          BINARY_PATH="$APP_PATH/Contents/MacOS/$EXECUTABLE_NAME"
           DMG_PATH="native_macos/Translito.dmg"
 
           test -d "$APP_PATH"
