@@ -293,11 +293,11 @@ class ArabicAudioTranscriber:
             "no_speech_threshold": 0.6,
             "compression_ratio_threshold": 2.4,
         }
-        payload = {"array": audio_array.astype(np.float32), "sampling_rate": self.sample_rate}
+        payload = {"raw": audio_array.astype(np.float32), "sampling_rate": self.sample_rate}
         try:
-            result = self.asr(payload, generate_kwargs=guarded_kwargs, return_timestamps=False)
+            result = self.asr(payload.copy(), generate_kwargs=guarded_kwargs, return_timestamps=False)
         except (TypeError, ValueError):
-            result = self.asr(payload, generate_kwargs=base_kwargs, return_timestamps=False)
+            result = self.asr(payload.copy(), generate_kwargs=base_kwargs, return_timestamps=False)
 
         if isinstance(result, str):
             return result.strip()
