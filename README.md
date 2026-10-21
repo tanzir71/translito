@@ -2,6 +2,11 @@
 
 A real-time desktop audio transcription and translation app for Windows and macOS. The Windows edition captures desktop audio or microphone input, transcribes locally with Whisper, and translates with Helsinki-NLP models. It includes both a GUI and a CLI.
 
+## Downloads
+
+- **Windows 1.0.1:** [Installer](https://github.com/tanzir71/translito/releases/latest/download/TranslitoSetup-1.0.1.exe) or [portable ZIP](https://github.com/tanzir71/translito/releases/latest/download/TranslitoPortable-1.0.1.zip). This release fixes transcription after an ASR retry.
+- **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
+
 ## Windows Feature Parity Update
 
 The Windows GUI now includes Speak Mode and the native macOS parity work:

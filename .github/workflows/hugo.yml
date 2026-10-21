@@ -56,6 +56,13 @@ jobs:
           CTA_URL="https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg"
           grep -Fq "$CTA_URL" website/public/index.html
           curl --fail --location --retry 5 --retry-all-errors --output /dev/null "$CTA_URL"
+      - name: Validate Windows download CTAs
+        run: |
+          for asset in TranslitoSetup-1.0.1.exe TranslitoPortable-1.0.1.zip; do
+            CTA_URL="https://github.com/tanzir71/translito/releases/latest/download/$asset"
+            grep -Fq "$CTA_URL" website/public/index.html
+            curl --fail --head --location --retry 5 --retry-all-errors --output /dev/null "$CTA_URL"
+          done
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
