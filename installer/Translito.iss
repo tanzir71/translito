@@ -1,8 +1,12 @@
 #define MyAppName "Translito"
 #define MyAppExeName "Translito.exe"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #ifndef SourceDir
   #define SourceDir "dist\Translito"
+#endif
+
+#ifndef OutputDir
+  #define OutputDir "output"
 #endif
 
 [Setup]
@@ -13,7 +17,7 @@ AppPublisher=Translito
 DefaultDirName={autopf}\Translito
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputDir=output
+OutputDir={#OutputDir}
 OutputBaseFilename=TranslitoSetup-{#MyAppVersion}
 SetupIconFile=Translito.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
