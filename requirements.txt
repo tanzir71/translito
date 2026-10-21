@@ -12,6 +12,7 @@ SpeechRecognition>=3.10.0
 # Machine learning and translation
 transformers>=4.21.0
 huggingface-hub>=0.34.0,<1.0
+truststore>=0.10.4,<1; sys_platform == "win32"
 torch>=1.12.0
 sentencepiece>=0.1.97
 protobuf>=3.20.0

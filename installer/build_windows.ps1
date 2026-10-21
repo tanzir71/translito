@@ -35,7 +35,7 @@ try {
     $outputDir = Join-Path $BuildRoot "output"
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
-    $portableOutput = Join-Path $outputDir "TranslitoPortable-1.0.1.zip"
+    $portableOutput = Join-Path $outputDir "TranslitoPortable-1.0.2.zip"
     if (Test-Path -LiteralPath $portableOutput) {
         Remove-Item -LiteralPath $portableOutput -Force
     }
@@ -55,7 +55,7 @@ try {
     & $iscc "/DSourceDir=$releaseAppDir" "/DOutputDir=$outputDir" Translito.iss
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup build failed." }
 
-    $installerOutput = Join-Path $outputDir "TranslitoSetup-1.0.1.exe"
+    $installerOutput = Join-Path $outputDir "TranslitoSetup-1.0.2.exe"
     Write-Host "Portable Windows app ready: $portableOutput"
     Write-Host "Windows installer ready: $installerOutput"
 }

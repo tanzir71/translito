@@ -12,6 +12,10 @@ import threading
 import time
 import warnings
 
+from native_tls import configure_native_tls
+
+configure_native_tls()
+
 warnings.filterwarnings("ignore")
 warnings.filterwarnings(
     "ignore",

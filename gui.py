@@ -9,6 +9,10 @@ from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import ttk
 
+from native_tls import configure_native_tls
+
+configure_native_tls()
+
 from app_config import (
     DEFAULT_HOTKEYS,
     default_transcript_folder,
