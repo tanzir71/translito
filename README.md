@@ -4,7 +4,7 @@ A real-time desktop audio transcription and translation app for Windows and macO
 
 ## Downloads
 
-- **Windows 1.0.2:** [Installer](https://github.com/tanzir71/translito/releases/latest/download/TranslitoSetup-1.0.2.exe) or [portable ZIP](https://github.com/tanzir71/translito/releases/latest/download/TranslitoPortable-1.0.2.zip). This release fixes Hugging Face model downloads on Windows networks that use Windows-trusted certificates and includes the ASR retry fix.
+- **Windows 1.0.3:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.0.3/TranslitoSetup-1.0.3.exe) or [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.0.3/TranslitoPortable-1.0.3.zip). This release fixes the `config.ini` permission error at startup, preserves existing settings in a writable user-data folder, and includes the certificate and ASR retry fixes.
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 ## Windows Feature Parity Update

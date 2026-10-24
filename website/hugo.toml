@@ -6,7 +6,7 @@ title = 'Translito'
   seoTitle = 'Translito: Arabic, Spanish, French & 50+ Language Voice Translator'
   description = 'A native macOS and Windows app that translates system audio, microphones, and your spoken voice in real time with on-device intelligence.'
   author = 'Translito'
-  version = '1.0.2'
+  version = '1.0.3'
 
 [markup]
   [markup.goldmark]
