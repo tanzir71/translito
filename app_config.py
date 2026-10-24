@@ -1,9 +1,22 @@
 import configparser
 from dataclasses import dataclass
+import os
 from pathlib import Path
+import sys
+import tempfile
 
 
-CONFIG_FILE = "config.ini"
+def default_config_path():
+    if sys.platform == "win32":
+        root = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+        return root / "Translito" / "config.ini"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Translito" / "config.ini"
+    root = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return root / "translito" / "config.ini"
+
+
+CONFIG_FILE = default_config_path()
 
 DEFAULT_HOTKEYS = {
     "toggle": "ctrl+alt+t",
@@ -42,18 +55,39 @@ def _path(path=None):
     return Path(path or CONFIG_FILE)
 
 
+def _legacy_config_paths():
+    # Installed copies used the executable folder; source runs used the current
+    # folder. Read these only until the user's new settings file exists.
+    app_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent
+    return (app_dir / "config.ini", Path.cwd() / "config.ini")
+
+
 def read_config(path=None):
     config = configparser.ConfigParser()
     config_path = _path(path)
-    if config_path.exists():
-        config.read(config_path)
+    candidates = (config_path,)
+    if config_path == CONFIG_FILE and not config_path.exists():
+        candidates = _legacy_config_paths()
+    for candidate in candidates:
+        if config.read(candidate, encoding="utf-8"):
+            break
     return config
 
 
 def write_config(config, path=None):
     config_path = _path(path)
-    with config_path.open("w") as handle:
-        config.write(handle)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=config_path.parent, delete=False
+        ) as handle:
+            temp_path = Path(handle.name)
+            config.write(handle)
+        temp_path.replace(config_path)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 
 
 def _ensure_section(config, section):

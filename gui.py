@@ -14,6 +14,7 @@ from native_tls import configure_native_tls
 configure_native_tls()
 
 from app_config import (
+    CONFIG_FILE,
     DEFAULT_HOTKEYS,
     default_transcript_folder,
     load_device_config,
@@ -44,7 +45,6 @@ from model_loading import GLOBAL_MODEL_MANAGER
 from speech_output import LocalSpeechSynthesizer
 
 
-CONFIG_FILE = "config.ini"
 APP_NAME = "Translito"
 
 # Native macOS-inspired palette. Tk's clam theme lets the same colors render

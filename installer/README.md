@@ -14,12 +14,14 @@ The script creates an isolated CPU-only build environment, runs PyInstaller, pac
 
 Outputs:
 
-- Portable ZIP: `output\TranslitoPortable-1.0.2.zip`
-- Installer: `output\TranslitoSetup-1.0.2.exe`
+- Portable ZIP: `output\TranslitoPortable-1.0.3.zip`
+- Installer: `output\TranslitoSetup-1.0.3.exe`
 
 Pass `-BuildRoot <path>` to keep the virtual environment, PyInstaller files, and `output/` on another drive. Use a short path such as `D:\TranslitoBuild`; deeply nested Windows paths can exceed Inno Setup's file path limit.
 
 The unpacked release is staged under `.packaging\release-dist` inside the build root; this keeps builds isolated from any older portable copy that may currently be running.
+
+Settings are saved to `%LOCALAPPDATA%\Translito\config.ini`, independently of the installation folder or launch directory. On first save, existing settings beside the executable or in the legacy working folder are preserved. User settings take precedence on subsequent launches.
 
 Models are not bundled. Whisper and Helsinki-NLP models download on first run and then use the Hugging Face cache. On Windows, downloads validate HTTPS certificates against the Windows certificate store. VB-Audio Virtual Cable is not bundled; the installer offers the download page after setup.
 

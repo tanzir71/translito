@@ -1,5 +1,6 @@
 import configparser
 
+import app_config
 from app_config import (
     DEFAULT_HOTKEYS,
     load_hotkey_config,
@@ -66,6 +67,47 @@ def test_config_helpers_preserve_existing_sections(tmp_path):
     loaded.read(config_path)
     assert loaded["DEVICE"]["name"] == "Existing Device"
     assert loaded["RUNTIME"]["mic_noise_gate"] == "0.004"
+
+
+def test_windows_config_path_uses_local_app_data(tmp_path, monkeypatch):
+    monkeypatch.setattr(app_config.sys, "platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "user-data"))
+
+    assert app_config.default_config_path() == tmp_path / "user-data" / "Translito" / "config.ini"
+
+
+def test_default_saves_migrate_legacy_settings_without_writing_to_working_folder(tmp_path, monkeypatch):
+    legacy_dir = tmp_path / "installed-app"
+    legacy_dir.mkdir()
+    legacy = legacy_dir / "config.ini"
+    original = "[DEVICE]\nname = Existing microphone\n[LANGUAGE]\nsource = fr\ntarget = en\n"
+    legacy.write_text(original, encoding="utf-8")
+    target = tmp_path / "user-data" / "Translito" / "config.ini"
+    monkeypatch.setattr(app_config, "CONFIG_FILE", target)
+    monkeypatch.setattr(app_config, "_legacy_config_paths", lambda: (legacy,))
+    monkeypatch.chdir(legacy_dir)
+
+    save_runtime_config(last_mode="speak")
+
+    assert target.is_file()
+    assert app_config.load_device_config() == "Existing microphone"
+    assert app_config.load_language_config().source == "fr"
+    assert load_runtime_config().last_mode == "speak"
+    assert legacy.read_text(encoding="utf-8") == original
+
+
+def test_user_settings_take_precedence_over_legacy_settings(tmp_path, monkeypatch):
+    target = tmp_path / "user-data" / "Translito" / "config.ini"
+    monkeypatch.setattr(app_config, "CONFIG_FILE", target)
+    legacy = tmp_path / "config.ini"
+    legacy.write_text("[DEVICE]\nname = Old microphone\n", encoding="utf-8")
+    monkeypatch.setattr(app_config, "_legacy_config_paths", lambda: (legacy,))
+
+    app_config.save_device_config("নতুন microphone")
+    legacy.write_text("[DEVICE]\nname = Another old microphone\n", encoding="utf-8")
+
+    assert app_config.load_device_config() == "নতুন microphone"
+    assert not list(target.parent.glob("tmp*"))
 
 
 def test_virtual_device_detection_includes_windows_cable_names():

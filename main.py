@@ -24,6 +24,7 @@ warnings.filterwarnings(
 )
 
 from app_config import (
+    CONFIG_FILE,
     load_device_config as load_device_config_from_file,
     load_runtime_config,
     save_device_config as save_device_config_to_file,
@@ -39,8 +40,6 @@ from device_utils import should_apply_mic_noise_gate
 from model_loading import GLOBAL_MODEL_MANAGER
 from speech_output import SpeechOutputPlayer
 
-
-CONFIG_FILE = "config.ini"
 
 missing_packages = []
 dependency_errors = {}
