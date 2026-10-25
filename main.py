@@ -10,6 +10,7 @@ import queue
 import sys
 import threading
 import time
+from uuid import uuid4
 import warnings
 
 from native_tls import configure_native_tls
@@ -225,7 +226,10 @@ class ArabicAudioTranscriber:
 
         self.transcripts = []
         self.session_start_time = datetime.now()
-        self.audio_queue = queue.Queue()
+        self.audio_queue = queue.Queue(maxsize=1)
+        self._stop_event = threading.Event()
+        self._last_backlog_hint_time = 0.0
+        self._last_empty_text_hint_time = 0.0
         self.running = False
         self._silence_run = 0
         self._last_audio_hint_time = 0.0
@@ -289,18 +293,22 @@ class ArabicAudioTranscriber:
     def recognize_speech_offline(self, audio_array):
         if not self.asr:
             raise RuntimeError("Offline ASR is not initialized")
-        base_kwargs = {"task": "transcribe", "language": (self.whisper_language or "ar")}
-        guarded_kwargs = {
-            **base_kwargs,
-            "logprob_threshold": -1.0,
-            "no_speech_threshold": 0.6,
-            "compression_ratio_threshold": 2.4,
+        duration = len(audio_array) / self.sample_rate
+        generate_kwargs = {
+            "task": "transcribe",
+            "language": (self.whisper_language or "ar"),
+            "num_beams": 1,
+            "do_sample": False,
+            "use_cache": True,
+            "max_new_tokens": max(32, min(256, int(duration * 16))),
         }
+        stopping_criteria = self._generation_stopping_criteria()
+        if stopping_criteria is not None:
+            generate_kwargs["stopping_criteria"] = stopping_criteria
         payload = {"raw": audio_array.astype(np.float32), "sampling_rate": self.sample_rate}
-        try:
-            result = self.asr(payload.copy(), generate_kwargs=guarded_kwargs, return_timestamps=False)
-        except (TypeError, ValueError):
-            result = self.asr(payload.copy(), generate_kwargs=base_kwargs, return_timestamps=False)
+        # Live chunks are short-form input. Long-form silence thresholds can fail
+        # after decoding and previously caused the entire chunk to be decoded twice.
+        result = self.asr(payload, generate_kwargs=generate_kwargs, return_timestamps=False)
 
         if isinstance(result, str):
             return result.strip()
@@ -310,6 +318,18 @@ class ArabicAudioTranscriber:
             return str(result).strip()
         except Exception:
             return ""
+
+    def _generation_stopping_criteria(self):
+        stop_event = getattr(self, "_stop_event", None)
+        if stop_event is None:
+            return None
+        from transformers import StoppingCriteria, StoppingCriteriaList
+
+        class StopRequested(StoppingCriteria):
+            def __call__(self, input_ids, scores, **kwargs):
+                return stop_event.is_set()
+
+        return StoppingCriteriaList([StopRequested()])
 
     def capture_audio(self):
         try:
@@ -351,12 +371,28 @@ class ArabicAudioTranscriber:
             self.running = False
 
     def _handle_capture_result(self, result):
+        if self._stop_event.is_set():
+            return
         self.emit("level", {"peak": result.peak, "rms": result.rms})
         if result.kind == "audio":
             self._silence_run = 0
             if self.mode == "speak" and self.speech_player and self.speech_player.is_playing:
                 return
-            self.audio_queue.put(result)
+            try:
+                self.audio_queue.put_nowait(result)
+            except queue.Full:
+                try:
+                    self.audio_queue.get_nowait()
+                except queue.Empty:
+                    pass
+                self.audio_queue.put_nowait(result)
+                if time.monotonic() - self._last_backlog_hint_time > 10:
+                    self.emit(
+                        "hint",
+                        "Skipped older audio to keep up with playback. Choose a smaller "
+                        "Whisper model in Settings for faster results on this computer.",
+                    )
+                    self._last_backlog_hint_time = time.monotonic()
             return
 
         self._silence_run += 1
@@ -391,6 +427,9 @@ class ArabicAudioTranscriber:
 
     def process_audio(self):
         while self.running or not self.audio_queue.empty():
+            transcript_entry = None
+            if self._stop_event.is_set():
+                break
             try:
                 item = self.audio_queue.get(timeout=1)
             except queue.Empty:
@@ -410,11 +449,20 @@ class ArabicAudioTranscriber:
                 self.emit("status", "transcribing")
                 print("Transcribing (offline Whisper)...", end="\r")
                 source_text = self.recognize_speech_offline(audio_data)
+                if self._stop_event.is_set():
+                    continue
                 elapsed = time.time() - started
                 if elapsed > 2.0 and self.audio_debug:
                     print(f"\nASR time: {elapsed:.1f}s")
 
                 if not source_text:
+                    if time.monotonic() - self._last_empty_text_hint_time > 10:
+                        self.emit(
+                            "hint",
+                            "Audio was received, but no speech was recognized. Check that "
+                            "the selected source language matches the audio being played.",
+                        )
+                        self._last_empty_text_hint_time = time.monotonic()
                     if self.running:
                         self.emit("status", "listening")
                     continue
@@ -423,25 +471,35 @@ class ArabicAudioTranscriber:
                 self.emit("arabic", source_text)
                 print(f"\nSource: {source_text}")
 
-                self.emit("status", "translating")
-                translated_text = self.translate_text(source_text)
-                self.emit("target", translated_text)
-                self.emit("english", translated_text)
-                print(f"Target: {translated_text}")
-                print("-" * 50)
-
                 transcript_entry = {
+                    "id": uuid4().hex,
                     "timestamp": datetime.now().isoformat(),
                     "source_text": source_text,
-                    "translated_text": translated_text,
+                    "translated_text": "",
+                    "translation_pending": True,
                     "source_language": self.whisper_language,
                     "target_language": self.translation_target_language,
                     "mode": self.mode,
                     "arabic_text": source_text,
-                    "english_text": translated_text,
+                    "english_text": "",
                 }
                 self.transcripts.append(transcript_entry)
-                self.emit("transcript", transcript_entry)
+                self.emit("transcript", transcript_entry.copy())
+
+                self.emit("status", "translating")
+                translated_text = self.translate_text(source_text)
+                transcript_entry["translation_pending"] = False
+                if self._stop_event.is_set():
+                    transcript_entry["translation_cancelled"] = True
+                    self.emit("transcript_update", transcript_entry.copy())
+                    continue
+                transcript_entry["translated_text"] = translated_text
+                transcript_entry["english_text"] = translated_text
+                self.emit("target", translated_text)
+                self.emit("english", translated_text)
+                self.emit("transcript_update", transcript_entry.copy())
+                print(f"Target: {translated_text}")
+                print("-" * 50)
 
                 if self.mode == "speak" and translated_text and self.speech_player:
                     self.emit("status", "speaking")
@@ -453,6 +511,10 @@ class ArabicAudioTranscriber:
                 elif self.running:
                     self.emit("status", "listening")
             except Exception as exc:
+                if transcript_entry is not None:
+                    transcript_entry["translation_pending"] = False
+                    transcript_entry["translation_error"] = str(exc)
+                    self.emit("transcript_update", transcript_entry.copy())
                 hint = " (set OFFLINE_ONLY=0 to allow first-time model download)" if self.offline_only else ""
                 self.emit("error", f"{exc}{hint}")
                 print(f"\nProcessing error: {exc}{hint}")
@@ -479,12 +541,17 @@ class ArabicAudioTranscriber:
         return audio_data.astype(np.float32, copy=False), peak, rms
 
     def translate_text(self, source_text):
-        translation = self.translator(source_text, max_length=512, truncation=True)
+        kwargs = {"max_length": 512, "truncation": True}
+        stopping_criteria = self._generation_stopping_criteria()
+        if stopping_criteria is not None:
+            kwargs["stopping_criteria"] = stopping_criteria
+        translation = self.translator(source_text, **kwargs)
         return translation[0]["translation_text"]
 
     def start_background(self, enable_keyboard_shortcuts=False):
         if self.running:
             return
+        self._stop_event.clear()
         self.running = True
         save_runtime_config(
             CONFIG_FILE,
@@ -503,6 +570,12 @@ class ArabicAudioTranscriber:
 
     def stop_background(self):
         self.running = False
+        self._stop_event.set()
+        while True:
+            try:
+                self.audio_queue.get_nowait()
+            except queue.Empty:
+                break
         if self.speech_player:
             self.speech_player.stop()
 

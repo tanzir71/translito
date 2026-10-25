@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from main import ArabicAudioTranscriber
 
@@ -25,9 +26,12 @@ def test_recognize_speech_passes_raw_audio_to_pipeline():
     assert payload["sampling_rate"] == 16000
     np.testing.assert_array_equal(payload["raw"], audio.astype(np.float32))
     assert kwargs["generate_kwargs"]["language"] == "ar"
+    assert kwargs["generate_kwargs"]["num_beams"] == 1
+    assert kwargs["generate_kwargs"]["max_new_tokens"] == 32
+    assert "no_speech_threshold" not in kwargs["generate_kwargs"]
 
 
-def test_recognize_speech_retries_with_fresh_audio_payload():
+def test_recognition_errors_are_not_hidden_by_decoding_the_chunk_again():
     calls = []
 
     def asr(payload, **kwargs):
@@ -36,15 +40,13 @@ def test_recognize_speech_retries_with_fresh_audio_payload():
         sample_rate = payload.pop("sampling_rate")
         assert sample_rate == 16000
         assert samples.dtype == np.float32
-        if "logprob_threshold" in kwargs["generate_kwargs"]:
-            raise ValueError("unsupported generation option")
-        return {"text": "مرحبا"}
+        raise TypeError("generation failed after decoding")
 
     transcriber = ArabicAudioTranscriber.__new__(ArabicAudioTranscriber)
     transcriber.asr = asr
     transcriber.sample_rate = 16000
     transcriber.whisper_language = "ar"
 
-    assert transcriber.recognize_speech_offline(np.array([0.1], dtype=np.float32)) == "مرحبا"
-    assert len(calls) == 2
-    assert all(set(payload) == {"raw", "sampling_rate"} for payload, _ in calls)
+    with pytest.raises(TypeError, match="generation failed"):
+        transcriber.recognize_speech_offline(np.array([0.1], dtype=np.float32))
+    assert len(calls) == 1

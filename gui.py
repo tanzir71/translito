@@ -348,6 +348,7 @@ class TranslatorGUI:
         self.last_transcriber = None
         self.last_saved_path = None
         self.transcript_entries = []
+        self.transcript_targets = {}
         self.transcript_text_labels = []
         self.recording_action = None
         self.settings_window = None
@@ -1769,6 +1770,8 @@ class TranslatorGUI:
                 self.set_status("Error")
             elif event_type == "transcript":
                 self.append_transcript_card(payload or {})
+            elif event_type == "transcript_update":
+                self.update_transcript_card(payload or {})
             elif event_type == "level":
                 self.update_level(float((payload or {}).get("peak", 0)))
 
@@ -1836,6 +1839,9 @@ class TranslatorGUI:
         self.error_var.set("")
 
     def append_transcript_card(self, entry):
+        if entry.get("id") in self.transcript_targets:
+            self.update_transcript_card(entry)
+            return
         self.transcript_entries.append(entry)
         card_bg = COLORS["surface_2"]
         card = tk.Frame(
@@ -1890,10 +1896,10 @@ class TranslatorGUI:
         )
         source_label.pack(fill="x")
         self.transcript_text_labels.append(source_label)
-        if translated_text:
+        if translated_text or entry.get("id"):
             translated_label = tk.Label(
                 card,
-                text=translated_text,
+                text=self.transcript_target_text(entry),
                 bg=card_bg,
                 fg=COLORS["secondary"],
                 anchor=target_anchor,
@@ -1903,9 +1909,31 @@ class TranslatorGUI:
             )
             translated_label.pack(fill="x", pady=(5, 0))
             self.transcript_text_labels.append(translated_label)
+            if entry.get("id"):
+                self.transcript_targets[entry["id"]] = (entry, translated_label)
         self.update_transcript_state()
         self.refresh_tray_menu()
         self.root.after(10, lambda: self.transcript_scroll.canvas.yview_moveto(1.0))
+
+    @staticmethod
+    def transcript_target_text(entry):
+        if entry.get("translation_pending"):
+            return "Translating…"
+        if entry.get("translation_cancelled"):
+            return "Translation stopped."
+        if entry.get("translation_error"):
+            return f"Translation failed: {entry['translation_error']}"
+        return entry.get("translated_text", entry.get("english_text", ""))
+
+    def update_transcript_card(self, entry):
+        target = self.transcript_targets.get(entry.get("id"))
+        if target is None:
+            return
+        stored_entry, label = target
+        stored_entry.update(entry)
+        label.configure(text=self.transcript_target_text(stored_entry))
+        self.latest_translation = stored_entry.get("translated_text") or stored_entry.get("source_text", "")
+        self.refresh_tray_menu()
 
     def current_source_info(self, entry):
         mode = entry.get("mode", self.mode_var.get())
@@ -1931,6 +1959,7 @@ class TranslatorGUI:
 
     def clear_transcript(self):
         self.transcript_entries.clear()
+        self.transcript_targets.clear()
         self.transcript_text_labels.clear()
         for child in self.transcript_scroll.content.winfo_children():
             child.destroy()
