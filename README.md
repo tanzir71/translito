@@ -4,7 +4,7 @@ A real-time desktop audio transcription and translation app for Windows and macO
 
 ## Downloads
 
-- **Windows 1.0.3:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.0.3/TranslitoSetup-1.0.3.exe) or [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.0.3/TranslitoPortable-1.0.3.zip). This release fixes the `config.ini` permission error at startup, preserves existing settings in a writable user-data folder, and includes the certificate and ASR retry fixes.
+- **Windows 1.0.4:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.0.4/TranslitoSetup-1.0.4.exe) or [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.0.4/TranslitoPortable-1.0.4.zip). This release fixes slow transcription caused by duplicate decoding, displays recognized speech before translation completes, and keeps live audio from accumulating a long backlog. It includes the settings and certificate fixes.
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 ## Windows Feature Parity Update
@@ -15,6 +15,7 @@ The Windows GUI now includes Speak Mode and the native macOS parity work:
 - **VB-Cable routing**: choose `CABLE Input (VB-Audio Virtual Cable)` as the app output, then choose `CABLE Output (VB-Audio Virtual Cable)` as the microphone in Slack, Zoom, Teams, or Meet. Use headphones.
 - **Model preload and progress**: the GUI starts loading the selected Whisper and translation models after launch, shows download/preparing status, and reuses the same load if Start is pressed mid-preload.
 - **Lower latency**: chunks emit early when speech is followed by a pause, while steady room noise still waits for the normal window.
+- **Live results**: recognized speech appears before translation completes. Short audio chunks decode once with a token limit, older waiting audio is skipped when processing falls behind, and Stop cancels generation and clears the backlog.
 - **Mic noise gate**: the Settings area includes an RMS gate slider from Off to High; it applies only to real microphones, never loopback or virtual sources.
 - **Route recovery**: Speak Mode resolves output devices by name at playback time and retries once after PortAudio route errors.
 - **Device refresh**: input/output pickers refresh automatically every few seconds and still include a manual Refresh button.
