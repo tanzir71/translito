@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 
 hiddenimports = [
@@ -10,6 +10,9 @@ hiddenimports = [
     "sentencepiece",
     "soundcard",
     "sounddevice",
+    "silero_vad",
+    "faster_whisper",
+    "ctranslate2",
 ]
 
 # These packages load backends dynamically. Limit collection to the two
@@ -29,7 +32,7 @@ a = Analysis(
     ["..\\gui.py"],
     pathex=[".."],
     binaries=[],
-    datas=[("Translito.ico", ".")],
+    datas=[("Translito.ico", "."), *collect_data_files("silero_vad")],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

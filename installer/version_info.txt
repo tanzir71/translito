@@ -16,11 +16,11 @@ VSVersionInfo(
         [
           StringStruct(u'CompanyName', u'Translito'),
           StringStruct(u'FileDescription', u'Translito desktop audio translator'),
-          StringStruct(u'FileVersion', u'1.0.4'),
+          StringStruct(u'FileVersion', u'1.0.5'),
           StringStruct(u'InternalName', u'Translito'),
           StringStruct(u'OriginalFilename', u'Translito.exe'),
           StringStruct(u'ProductName', u'Translito'),
-          StringStruct(u'ProductVersion', u'1.0.4')
+          StringStruct(u'ProductVersion', u'1.0.5')
         ]
       )
     ]),

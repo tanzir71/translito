@@ -34,7 +34,8 @@ VB-Audio Virtual Cable is donationware and is not bundled. Download it from http
 - **Device Persistence**: Remembers your preferred audio device
 
 ### 🗣️ Speech Processing
-- **Offline ASR (Default)**: Whisper via Transformers (runs locally; downloads model once)
+- **Offline ASR (Default)**: Whisper with fast CPU inference via CTranslate2, or Transformers on CUDA (downloads the selected model once)
+- **Speech activity filtering**: Drops silence and background noise before recognition
 - **Multi-language**: Select source and target language in the GUI
 - **High-Quality Translation**: Helsinki-NLP translation models (downloads once per language pair)
 - **Continuous Processing**: Processes audio in short chunks (configurable) for near real-time results
@@ -125,6 +126,8 @@ python main.py
 
 ### Whisper Model Selection (Offline)
 Whisper speed/accuracy depends on model size. On CPU, prefer smaller models:
+
+CPU installations use an optimized copy of the selected Whisper model, so the first run may download it even if an older Transformers copy is cached.
 
 ```powershell
 $env:WHISPER_MODEL="openai/whisper-tiny"
@@ -266,7 +269,9 @@ Runtime settings are primarily controlled via environment variables:
 ### Dependencies
 - **soundcard**: Audio device access and recording
 - **numpy**: Audio data processing
-- **transformers**: Whisper (offline ASR) and Helsinki-NLP translation models
+- **faster-whisper / CTranslate2**: Efficient CPU Whisper recognition
+- **transformers**: CUDA Whisper recognition and Helsinki-NLP translation models
+- **silero-vad**: Speech activity filtering
 - **torch**: ML backend (CPU or CUDA)
 - **keyboard**: Global keyboard shortcuts (CLI)
 - **configparser**: Configuration file management

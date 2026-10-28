@@ -226,7 +226,7 @@ class ArabicAudioTranscriber:
 
         self.transcripts = []
         self.session_start_time = datetime.now()
-        self.audio_queue = queue.Queue(maxsize=1)
+        self.audio_queue = queue.Queue(maxsize=2)
         self._stop_event = threading.Event()
         self._last_backlog_hint_time = 0.0
         self._last_empty_text_hint_time = 0.0
@@ -293,6 +293,12 @@ class ArabicAudioTranscriber:
     def recognize_speech_offline(self, audio_array):
         if not self.asr:
             raise RuntimeError("Offline ASR is not initialized")
+        if hasattr(self.asr, "transcribe"):
+            return self.asr.transcribe(
+                audio_array.astype(np.float32),
+                language=(self.whisper_language or "ar"),
+                stop_event=getattr(self, "_stop_event", None),
+            )
         duration = len(audio_array) / self.sample_rate
         generate_kwargs = {
             "task": "transcribe",
@@ -541,7 +547,7 @@ class ArabicAudioTranscriber:
         return audio_data.astype(np.float32, copy=False), peak, rms
 
     def translate_text(self, source_text):
-        kwargs = {"max_length": 512, "truncation": True}
+        kwargs = {"max_length": 512, "truncation": True, "num_beams": 1, "do_sample": False}
         stopping_criteria = self._generation_stopping_criteria()
         if stopping_criteria is not None:
             kwargs["stopping_criteria"] = stopping_criteria

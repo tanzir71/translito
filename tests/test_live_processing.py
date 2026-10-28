@@ -10,7 +10,7 @@ from main import ArabicAudioTranscriber
 def worker():
     transcriber = ArabicAudioTranscriber.__new__(ArabicAudioTranscriber)
     transcriber.running = False
-    transcriber.audio_queue = queue.Queue(maxsize=1)
+    transcriber.audio_queue = queue.Queue(maxsize=2)
     transcriber._stop_event = threading.Event()
     transcriber._last_backlog_hint_time = 0.0
     transcriber._last_empty_text_hint_time = 0.0
@@ -76,13 +76,16 @@ def test_translation_error_keeps_recognized_speech_visible():
     assert any(kind == "error" for kind, _ in events)
 
 
-def test_live_capture_keeps_only_latest_waiting_chunk():
+def test_live_capture_keeps_two_latest_waiting_chunks():
     transcriber, _ = worker()
     transcriber._handle_capture_result(chunk(0.2))
-    newest = chunk(0.3)
+    second = chunk(0.3)
+    transcriber._handle_capture_result(second)
+    newest = chunk(0.4)
     transcriber._handle_capture_result(newest)
 
-    assert transcriber.audio_queue.qsize() == 1
+    assert transcriber.audio_queue.qsize() == 2
+    assert transcriber.audio_queue.get_nowait() is second
     assert transcriber.audio_queue.get_nowait() is newest
 
 

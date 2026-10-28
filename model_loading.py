@@ -1,4 +1,50 @@
+import os
+from pathlib import Path
 import threading
+
+
+FAST_WHISPER_MODELS = {
+    "openai/whisper-tiny": "tiny",
+    "openai/whisper-base": "base",
+    "openai/whisper-small": "small",
+    "openai/whisper-medium": "medium",
+    "openai/whisper-large-v3": "large-v3",
+}
+
+
+def _local_fast_whisper_model(model_size):
+    configured = os.environ.get("TRANSLITO_WHISPER_MODEL_DIR", "").strip()
+    if configured:
+        folder = Path(configured).expanduser()
+    else:
+        app_data = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".cache")
+        folder = app_data / "Translito" / "models" / f"whisper-{model_size}-ct2"
+    if all((folder / name).is_file() for name in ("model.bin", "config.json", "tokenizer.json")):
+        return str(folder)
+    return None
+
+
+class FastWhisperASR:
+    """Use the same selected Whisper weights with efficient CPU inference."""
+
+    def __init__(self, model):
+        self.model = model
+
+    def transcribe(self, audio, language, stop_event=None):
+        segments, _ = self.model.transcribe(
+            audio,
+            language=language,
+            task="transcribe",
+            beam_size=3,
+            condition_on_previous_text=False,
+            vad_filter=False,
+        )
+        text = []
+        for segment in segments:
+            if stop_event is not None and stop_event.is_set():
+                break
+            text.append(segment.text.strip())
+        return " ".join(part for part in text if part).strip()
 
 
 class LoadedModels:
@@ -82,8 +128,12 @@ class ModelLoadManager:
         on_event,
     ):
         _emit(on_event, "status", "Loading models")
+        fast_model = FAST_WHISPER_MODELS.get(whisper_model) if torch_device == -1 else None
+        fast_model_path = _local_fast_whisper_model(fast_model) if fast_model else None
         if not offline_only:
-            _download_repo_with_progress(whisper_model, "Whisper", 0.0, 0.5, on_event)
+            if fast_model_path is None:
+                whisper_repo = f"Systran/faster-whisper-{fast_model}" if fast_model else whisper_model
+                _download_repo_with_progress(whisper_repo, "Whisper", 0.0, 0.5, on_event)
             _download_repo_with_progress(translation_model, "translation", 0.5, 0.5, on_event)
 
         _emit(
@@ -96,18 +146,31 @@ class ModelLoadManager:
         )
         from transformers import pipeline
 
-        asr_kwargs = {"model": whisper_model, "device": torch_device}
-        if torch_dtype is not None:
-            asr_kwargs["torch_dtype"] = torch_dtype
-        try:
-            asr = pipeline("automatic-speech-recognition", **asr_kwargs)
-        except TypeError:
-            asr_kwargs.pop("torch_dtype", None)
-            asr = pipeline("automatic-speech-recognition", **asr_kwargs)
-        try:
-            asr.feature_extractor.return_attention_mask = True
-        except Exception:
-            pass
+        if fast_model:
+            from faster_whisper import WhisperModel
+
+            asr = FastWhisperASR(
+                WhisperModel(
+                    fast_model_path or fast_model,
+                    device="cpu",
+                    compute_type="int8",
+                    cpu_threads=2,
+                    local_files_only=offline_only,
+                )
+            )
+        else:
+            asr_kwargs = {"model": whisper_model, "device": torch_device}
+            if torch_dtype is not None:
+                asr_kwargs["torch_dtype"] = torch_dtype
+            try:
+                asr = pipeline("automatic-speech-recognition", **asr_kwargs)
+            except TypeError:
+                asr_kwargs.pop("torch_dtype", None)
+                asr = pipeline("automatic-speech-recognition", **asr_kwargs)
+            try:
+                asr.feature_extractor.return_attention_mask = True
+            except Exception:
+                pass
 
         _emit(
             on_event,

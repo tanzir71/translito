@@ -5,6 +5,37 @@ import numpy as np
 
 DROP_DIGITAL_SILENCE = "digital_silence"
 DROP_NOISE_GATE = "noise_gate"
+DROP_NO_SPEECH = "no_speech"
+
+
+class SpeechActivityDetector:
+    """Reject audio without sustained speech before it reaches Whisper."""
+
+    def __init__(self):
+        from silero_vad import load_silero_vad
+
+        self.model = load_silero_vad()
+
+    def contains_speech(self, samples, sample_rate):
+        import torch
+        from silero_vad import get_speech_timestamps
+
+        sample_rate = int(sample_rate)
+        if sample_rate not in (8000, 16000):
+            raise ValueError(f"Unsupported voice activity sample rate: {sample_rate}")
+        if len(samples) < sample_rate // 5:
+            return False
+
+        waveform = torch.from_numpy(np.asarray(samples, dtype=np.float32).copy())
+        with torch.inference_mode():
+            segments = get_speech_timestamps(
+                waveform,
+                self.model,
+                sampling_rate=sample_rate,
+                threshold=0.35,
+                min_speech_duration_ms=200,
+            )
+        return bool(segments)
 
 
 @dataclass(frozen=True)
@@ -41,12 +72,14 @@ class AudioChunkProcessor:
         target_sample_rate=16000,
         noise_gate_rms=0.0,
         source_name="",
+        speech_detector=None,
     ):
         self.chunk_duration = max(1.0, float(chunk_duration))
         self.input_sample_rate = int(input_sample_rate)
         self.target_sample_rate = int(target_sample_rate)
         self.noise_gate_rms = max(0.0, float(noise_gate_rms))
         self.source_name = source_name
+        self.speech_detector = speech_detector
         self.pending = np.asarray([], dtype=np.float32)
         self.silence_run = 0
 
@@ -121,6 +154,19 @@ class AudioChunkProcessor:
             self.silence_run += 1
             return AudioChunkResult(
                 kind=DROP_DIGITAL_SILENCE if is_digital_silence else DROP_NOISE_GATE,
+                samples=np.asarray([], dtype=np.float32),
+                sample_rate=self.target_sample_rate,
+                peak=peak,
+                rms=rms,
+                source_name=self.source_name,
+            )
+
+        if self.speech_detector is None:
+            self.speech_detector = SpeechActivityDetector()
+        if not self.speech_detector.contains_speech(samples, self.target_sample_rate):
+            self.silence_run += 1
+            return AudioChunkResult(
+                kind=DROP_NO_SPEECH,
                 samples=np.asarray([], dtype=np.float32),
                 sample_rate=self.target_sample_rate,
                 peak=peak,
