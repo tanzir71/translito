@@ -22,6 +22,7 @@ import numpy as np
 from engines.usage import LOCAL_RATE, estimate_cost
 from tools.eval.metrics import score_clip
 from tools.eval.runtime import DesktopRuntime, PeakMemory, block_network
+from tools.eval.streaming_runner import PROFILES as STREAMING_PROFILES, PaidPolicy, StreamingRuntime
 
 
 def read_audio(path):
@@ -84,17 +85,25 @@ def percentile(values, percentile):
 def evaluate_profile(clips, profile, args, runtime_factory=DesktopRuntime):
     with PeakMemory() as memory:
         load_started = time.perf_counter()
-        runtime = runtime_factory(
-            profile, source=args.source, target=args.target,
-            whisper_model=args.whisper_model, allow_network=args.allow_downloads, allow_cloud=args.allow_cloud,
-            legacy_fixed_window=args.legacy_fixed_window,
-        )
+        if profile in STREAMING_PROFILES:
+            runtime = StreamingRuntime(profile, target=args.target,
+                policy=PaidPolicy.read(args.paid_policy, profile, allow_cloud=args.allow_cloud, allow_paid=args.allow_paid),
+                monthly_path=args.paid_usage, run_path=args.paid_run_usage,
+                allow_cloud_mt=args.stream_mt == "free_cloud")
+        else:
+            runtime = runtime_factory(
+                profile, source=args.source, target=args.target,
+                whisper_model=args.whisper_model, allow_network=args.allow_downloads, allow_cloud=args.allow_cloud,
+                legacy_fixed_window=args.legacy_fixed_window,
+            )
         load_seconds = time.perf_counter() - load_started
         rows, predictions = [], []
         for index, clip in enumerate(clips):
             samples, rate = read_audio(clip["path"])
             result = runtime.evaluate(samples, rate)
-            metrics = score_clip(clip["source"], clip["target"], clip["tags"],
+            load_seconds += result.get("setup_s", 0)
+            tags = clip["tags"] if result.get("utterance_tag_metrics", True) else []
+            metrics = score_clip(clip["source"], clip["target"], tags,
                                  result["entries"], clip["terms"], args.target)
             latency = result["processing_latencies_s"]
             end_latency = result["speech_end_latencies_s"]
@@ -109,7 +118,8 @@ def evaluate_profile(clips, profile, args, runtime_factory=DesktopRuntime):
                    "speech_end_p95_s": percentile(end_latency, 95),
                    "mt_characters": result["mt_characters"],
                    "mt_requests": result["mt_requests"],
-                   "estimated_cost_usd": str(estimate_cost(LOCAL_RATE)),
+                   "estimated_cost_usd": result.get("estimated_cost_usd", str(estimate_cost(LOCAL_RATE))),
+                   "cost_status": result.get("cost_status", "No paid API cost; free-tier quota accounting is separate"),
                    "error_count": len(result["errors"]), **metrics}
             rows.append(row)
             predictions.append({"clip": str(clip["path"]), "profile": profile,
@@ -128,7 +138,7 @@ def metadata():
     dirty = bool(subprocess.run(["git", "diff", "--name-only"], cwd=ROOT,
                                capture_output=True, text=True, check=True).stdout.strip())
     versions = {}
-    for name in ("torch", "transformers", "faster-whisper", "jiwer", "sacrebleu", "psutil"):
+    for name in ("torch", "transformers", "faster-whisper", "jiwer", "sacrebleu", "psutil", "websockets"):
         try:
             versions[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
@@ -189,6 +199,12 @@ def write_reports(output, results, meta):
                   "Legacy segmentation has no speech-end timestamps, so its end-of-speech latency is n/a.",
                   "Faster-than-real-time replay measures compute and endpoint delay, not real-time queue contention.",
                   "No Saudi-meeting accuracy claim follows from a synthetic or MSA smoke clip.", ""])
+    if any(result["profile"] in STREAMING_PROFILES for result in results):
+        lines.extend(["Streaming costs retain the complete owner-approved session allocation, not an observed invoice.",
+                      "Account ceilings must be independently verified; no advertised hourly price is a billing guarantee.",
+                      "Soniox is clip-scored: per-utterance tags and timestamp latency are unavailable.",
+                      "ElevenLabs EOF uses a post-EOF commit plus bounded quiet drain, not a server EndOfTranscript.",
+                      "Missing latency is n/a and cannot establish the live-latency acceptance criterion.", ""])
     (output / "summary.md").write_text("\n".join(lines), encoding="utf-8")
     (output / "run.json").write_text(json.dumps({"metadata": meta, "results": results},
                                                ensure_ascii=False, indent=2), encoding="utf-8")
@@ -199,7 +215,7 @@ def parser():
     inputs = result.add_mutually_exclusive_group(required=True)
     inputs.add_argument("--input", type=Path, help="Folder containing WAVs and .ref.* sidecars")
     inputs.add_argument("--manifest", type=Path, help="Private sets.local.json with a clips list")
-    result.add_argument("--profiles", default="baseline", help="Comma-separated: baseline,offline,free_cloud")
+    result.add_argument("--profiles", default="baseline", help="Comma-separated: baseline,offline,free_cloud," + ",".join(STREAMING_PROFILES))
     result.add_argument("--source", default="ar")
     result.add_argument("--target", default="en")
     result.add_argument("--whisper-model", default="openai/whisper-small")
@@ -208,6 +224,12 @@ def parser():
                         help="Allow model downloads, never cloud audio/text uploads")
     result.add_argument("--allow-cloud", action="store_true",
                         help="Explicitly allow free_cloud to upload the evaluation clips/text to enabled, tested providers")
+    result.add_argument("--allow-paid", action="store_true", help="Allow only streaming evaluations covered by --paid-policy")
+    result.add_argument("--paid-policy", type=Path, help="Owner-approved allocation, verified session ceilings and credential fingerprints")
+    result.add_argument("--paid-usage", type=Path, help="Persistent evaluation-only monthly ledger; defaults below --output")
+    result.add_argument("--paid-run-usage", type=Path, help=argparse.SUPPRESS)
+    result.add_argument("--stream-mt", choices=["offline", "free_cloud"], default="offline",
+                        help="Desktop MT chain for Speechmatics/ElevenLabs; free_cloud uses saved enabled/Test checks")
     result.add_argument("--output", type=Path, default=ROOT / "tools/eval/results")
     result.add_argument("--bench", action="store_true", help="Benchmark local recognizers only")
     result.add_argument("--recognizers", default="cohere-fp32,cohere-bf16,cohere-int8,turbo-int8,base-lid")
@@ -223,8 +245,17 @@ def main(argv=None):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     args = parser().parse_args(argv)
+    paid_profiles = set(args.profiles.split(",")) & set(STREAMING_PROFILES)
+    for profile in paid_profiles:
+        PaidPolicy.read(args.paid_policy, profile, allow_cloud=args.allow_cloud, allow_paid=args.allow_paid)
+    if paid_profiles and (args.source != "ar" or args.target not in {"ar", "en"} or args.bench):
+        raise ValueError("Streaming evaluation is restricted to Arabic/English captions, not local recognizer benchmarks")
+    if args.paid_usage is None:
+        args.paid_usage = args.output / "paid-usage.json"
     if args.worker:
-        with nullcontext() if args.allow_downloads or (args.allow_cloud and args.profiles == "free_cloud") else block_network():
+        if paid_profiles and args.paid_run_usage is None:
+            raise ValueError("The parent runner must supply the shared paid run ledger")
+        with nullcontext() if args.allow_downloads or (args.allow_cloud and args.profiles == "free_cloud") or paid_profiles else block_network():
             if args.worker == "bench":
                 from tools.eval.bench import benchmark
                 result = benchmark(args)
@@ -236,14 +267,21 @@ def main(argv=None):
     # Every profile/model gets its own process, isolating offline flags, caches,
     # model load time and peak memory. Existing runs are never overwritten.
     if not args.bench:
-        find_clips(args.input, args.manifest)
-        unsupported = set(args.profiles.split(",")) - {"baseline", "offline", "free_cloud"}
+        clips = find_clips(args.input, args.manifest)
+        unsupported = set(args.profiles.split(",")) - {"baseline", "offline", "free_cloud", *STREAMING_PROFILES}
         if unsupported:
             raise ValueError(f"Profiles not yet implemented: {', '.join(sorted(unsupported))}")
         if "free_cloud" in args.profiles.split(",") and not args.allow_cloud:
             raise ValueError("free_cloud requires explicit --allow-cloud consent to upload evaluation audio/text")
+        if paid_profiles:
+            from tools.eval.streaming_runner import MAX_CLIP_SECONDS
+            for clip in clips:
+                samples, rate = read_audio(clip["path"])
+                if len(samples) / rate > MAX_CLIP_SECONDS:
+                    raise ValueError("Streaming evaluation clips must be at most 90 seconds")
     output = args.output / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     output.mkdir(parents=True, exist_ok=False)
+    args.paid_run_usage = output / "paid-run-usage.json"
     meta = metadata()
     names = args.recognizers.split(",") if args.bench else args.profiles.split(",")
     results = []
@@ -259,6 +297,10 @@ def main(argv=None):
             cmd.append("--allow-downloads")
         if args.allow_cloud and name == "free_cloud":
             cmd.append("--allow-cloud")
+        if name in STREAMING_PROFILES:
+            cmd += ["--allow-cloud", "--allow-paid", "--paid-policy", str(args.paid_policy),
+                    "--paid-usage", str(args.paid_usage.resolve()), "--paid-run-usage", str(args.paid_run_usage.resolve()),
+                    "--stream-mt", args.stream_mt]
         if args.legacy_fixed_window:
             cmd.append("--legacy-fixed-window")
         subprocess.run(cmd, check=True, cwd=ROOT)

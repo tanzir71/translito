@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "approved_run_usd": "0",
+  "monthly_cap_usd": "0",
+  "accounts": {
+    "soniox": {
+      "model": "stt-rt-v5",
+      "session_ceiling_usd": "0",
+      "ceiling_verified": false,
+      "credential_sha256": ""
+    },
+    "speechmatics": {
+      "model": "enhanced",
+      "session_ceiling_usd": "0",
+      "ceiling_verified": false,
+      "credential_sha256": ""
+    },
+    "speechmatics-melia": {
+      "model": "melia-1",
+      "session_ceiling_usd": "0",
+      "ceiling_verified": false,
+      "credential_sha256": ""
+    },
+    "elevenlabs": {
+      "model": "scribe_v2_realtime",
+      "session_ceiling_usd": "0",
+      "ceiling_verified": false,
+      "credential_sha256": ""
+    }
+  }
+}

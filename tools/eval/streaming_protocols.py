@@ -22,6 +22,7 @@ class StreamPiece:
     speaker: str | None = None
     start_s: float | None = None
     end_s: float | None = None
+    translation_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -119,7 +120,7 @@ class SonioxProtocol:
             if status not in {"none", "original", "translation"}:
                 raise ProviderError()
             pieces.append(StreamPiece(text, final, status == "translation", token.get("language"), token.get("speaker"),
-                                      _time(token.get("start_ms"), 1000), _time(token.get("end_ms"), 1000)))
+                                      _time(token.get("start_ms"), 1000), _time(token.get("end_ms"), 1000), status))
         return StreamUpdate(tuple(pieces), done=message.get("finished") is True, endpoint=endpoint)
 
 
