@@ -15,6 +15,13 @@ from unittest.mock import patch
 import numpy as np
 
 
+def is_opus_unmasked_fallback(message):
+    # Recognize the provider's fixed, key-free warning; don't serialize arbitrary
+    # hint/error strings or infer a row alignment from a synchronous callback.
+    return isinstance(message, str) and message == (
+        "Opus-MT lost an English-term placeholder; translating this line without masking.")
+
+
 @contextmanager
 def block_network():
     def denied(*args, **kwargs):
@@ -248,5 +255,7 @@ class DesktopRuntime:
                                         if e.get("speech_end_latency_s") is not None],
             "elapsed_s": elapsed, "mt_characters": sum(map(len, self.mt_calls)),
             "mt_requests": len(self.mt_calls), "errors": errors,
+            "opus_unmasked_fallbacks": sum(kind == "hint" and is_opus_unmasked_fallback(payload)
+                                            for _, kind, payload in self.events),
             "latency_method": "WAV capture clock with measured inference time, retained backlog and EOF flush",
         }

@@ -181,3 +181,4 @@ def test_profile_report_cannot_publish_p95_for_only_the_fast_measured_subset(tmp
     summary = (tmp_path / "summary.md").read_text()
     table = next(line for line in summary.splitlines() if line.startswith("| speechmatics |"))
     assert table.split("|")[7].strip() == "n/a" and "2/3" in summary
+    assert "Opus unmasked fallbacks: n/a (0/2 clips observed)" in summary

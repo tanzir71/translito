@@ -3,6 +3,17 @@
 Specification: `CODEX_HANDOFF_TRANSLATION_QUALITY.md` supplied by the owner.
 Native macOS code is outside this change.
 
+The latest P0 follow-up passed **358 tests** and adds exact-case MT Latin-run
+survival plus observed Opus unmasked-fallback counts. A new public Saudi-English
+30-clip proxy exposes the fallback limits: existing Small-cache WER 65.83% /
+English recall 4.30%, code-switch Balanced 54.30% / 60.22%, Fast 56.03% / 58.60%.
+Neither code-switch preset passed the 0.7 speed gate. Actual local MT retained
+all Latin runs in only 17/30 reference-text translations, with 30 unmasked
+fallbacks and no exceptions. No experimental marker format passed the gate or
+changed production behavior. See SAUDI_PUBLIC_ASR.md for scope, pinned inputs,
+cache provenance, method and remaining acceptance. User settings remain intact;
+the public code-switch weights are in a test-only D: cache.
+
 | Phase | Current evidence | Remaining work |
 |---|---|---|
 | P0 evaluation | Shared desktop replay, WER/CER/chrF and bilingual metrics, latency/RAM/cost reports, cache-only socket-blocked run; see P0_BASELINE.md. Hardware protocol v2 uses the desktop Cohere/Whisper/LID adapters and selected caches, VAD-bounded segments, retained predictions, segmented-audio headroom and separate gated-download confirmation; see LOCAL_HARDWARE.md. | Real Cohere hardware measurements require gated model access. Saudi meeting set waived by owner; those accuracy targets are unverified. |

@@ -125,6 +125,7 @@ def evaluate_profile(clips, profile, args, runtime_factory=DesktopRuntime):
                    "estimated_cost_usd": result.get("estimated_cost_usd", str(estimate_cost(LOCAL_RATE))),
                    "cost_status": result.get("cost_status", "No paid API cost; free-tier quota accounting is separate"),
                    "error_count": len(result["errors"]), **metrics}
+            row["opus_unmasked_fallbacks"] = result.get("opus_unmasked_fallbacks")
             rows.append(row)
             predictions.append({"clip": str(clip["path"]), "profile": profile,
                                 "reference_source": clip["source"],
@@ -193,6 +194,8 @@ def write_reports(output, results, meta):
             ("English-term recall", "english_terms_recalled", "english_terms_total"),
             ("Annotated transliteration rate", "transliterated_terms", "annotated_terms_total"),
             ("Unnecessary MT rate (Listen to English)", "unnecessary_mt_count", "english_utterances"),
+            ("MT Latin-run line survival (non-Latin to English)", "mt_latin_lines_passed", "mt_latin_lines"),
+            ("MT Latin-run occurrence survival", "mt_latin_runs_preserved", "mt_latin_runs"),
         ):
             total = sum(x[denominator] or 0 for x in group)
             value = sum(x[numerator] or 0 for x in group) / total if total else None
@@ -200,6 +203,9 @@ def write_reports(output, results, meta):
         lines.append(f"- Repetition loops: {sum(x['repetition_loops'] for x in group)}")
         lines.append(f"- Model load: {result['model_load_s']:.2f}s (excluded from segment latency)")
         lines.append(f"- Errors: {sum(x['error_count'] for x in group)}")
+        observed = [x["opus_unmasked_fallbacks"] for x in group if x.get("opus_unmasked_fallbacks") is not None]
+        fallback_count = str(sum(observed)) if len(observed) == len(group) else "n/a"
+        lines.append(f"- Opus unmasked fallbacks: {fallback_count} ({len(observed)}/{len(group)} clips observed)")
         for label, field in (("Arabic WER", "ar_wer"), ("Mixed WER", "mix_wer"),
                              ("Mixed English-term recall", "mix_english_term_recall")):
             values = [row[field] for row in group if row.get(field) is not None]
@@ -212,6 +218,7 @@ def write_reports(output, results, meta):
                   "Tag scores align reference utterances and output rows by order; missing/extra rows count as wrong.",
                   "Per-tag WER/term recall require matching row counts and align by reference utterance order, not predicted tags; otherwise n/a.",
                   "Transliteration is measured only for explicitly annotated Arabic spellings; n/a is not zero.",
+                  "MT Latin-run survival is exact-case multiset coverage on observed non-Latin-to-English MT rows; it is separate from ASR recall and does not prove semantic quality, alignment, glossary punctuation or other directions.",
                   "Legacy segmentation has no speech-end timestamps, so its end-of-speech latency is n/a.",
                   "Faster-than-real-time replay measures compute and endpoint delay, not real-time queue contention.",
                   "No Saudi-meeting accuracy claim follows from a synthetic or MSA smoke clip.", ""])

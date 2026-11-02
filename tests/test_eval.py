@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from engines.usage import Rate, estimate_cost
-from tools.eval.metrics import repetition_loops, score_clip
+from tools.eval.metrics import mt_latin_survival, repetition_loops, score_clip
 from tools.eval.run_eval import find_clips, read_audio
 from tools.eval.runtime import DesktopRuntime, block_network
 
@@ -36,6 +36,41 @@ def test_metrics_do_not_invent_transliteration_measurements_or_ignore_missing_ro
     assert metrics["english_term_recall"] == 0.5
     assert metrics["tag_accuracy"] == 0.5
     assert metrics["unnecessary_mt_rate"] == 0
+
+
+def test_mt_survival_separates_asr_recall_and_preserves_case_and_occurrences():
+    entries = [
+        {"source_text": "راجع API API مع deployment", "translated_text": "Review API with Deployment.",
+         "source_language": "ar-SA", "target_language": "en", "mt_called": True},
+        {"source_text": "Смотрим API", "translated_text": "Check API.",
+         "source_language": "ru", "target_language": "en", "mt_called": True},
+    ]
+    result = mt_latin_survival(entries, "en")
+    assert result["mt_latin_lines"] == 2 and result["mt_latin_lines_passed"] == 1
+    assert result["mt_latin_runs"] == 4 and result["mt_latin_runs_preserved"] == 2
+    assert result["mt_latin_line_rate"] == result["mt_latin_run_recall"] == .5
+    changed_word = dict(entries[1], translated_text="Check APIs.")
+    assert mt_latin_survival([changed_word], "en")["mt_latin_runs_preserved"] == 0
+
+
+@pytest.mark.parametrize("state", [{"translation_pending": True},
+                                  {"translation_error": "failed"}, {"translation_cancelled": True}])
+def test_incomplete_mt_is_not_a_passing_protected_line(state):
+    entry = {"source_text": "نراجع API", "translated_text": "API", "source_language": "ar",
+             "mt_called": True, **state}
+    result = mt_latin_survival([entry], "en")
+    assert result["mt_latin_lines"] == 1 and result["mt_latin_line_rate"] == 0
+    assert result["mt_latin_run_recall"] == 0
+
+
+def test_mt_survival_does_not_invent_unobserved_or_other_direction_measurements():
+    row = {"source_text": "نراجع API", "translated_text": "API", "source_language": "ar", "mt_called": True}
+    entries = [dict(row, mt_called=False), dict(row, source_language=None),
+               dict(row, source_language="und"), dict(row, source_language="fr"),
+               dict(row, target_language="ar"), dict(row, source_text="مرحبا")]
+    result = mt_latin_survival(entries, "en")
+    assert result["mt_latin_lines"] == result["mt_latin_runs"] == 0
+    assert result["mt_latin_line_rate"] is result["mt_latin_run_recall"] is None
 
 
 def test_repetition_metric_counts_maximal_ngrams():
@@ -105,7 +140,8 @@ def test_offline_guard_blocks_dns_and_connections():
                 connection.connect(("127.0.0.1", 1))
 
 
-def test_replay_runs_desktop_events_without_capture_or_config_write(monkeypatch):
+@pytest.mark.parametrize("placeholder_loss", [False, True])
+def test_replay_runs_desktop_events_without_capture_or_config_write(monkeypatch, placeholder_loss):
     import main
     from audio_processing import AudioChunkProcessor
     for key in ("OFFLINE_ONLY", "HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE"):
@@ -116,9 +152,18 @@ def test_replay_runs_desktop_events_without_capture_or_config_write(monkeypatch)
         def transcribe(self, audio, **kwargs):
             return "مرحبا"
 
-    monkeypatch.setattr(main.GLOBAL_MODEL_MANAGER, "load_models", lambda **kwargs:
-                        SimpleNamespace(asr=Recognizer(), translator=lambda text, **kw:
-                                        [{"translation_text": "Hello"}]))
+    def load_models(**kwargs):
+        def translate(text, **_options):
+            output = "Hello"
+            if placeholder_loss:
+                from engines.protect import translate_opus
+                attempts = iter(["lost markers", "Hello"])
+                output = translate_opus(text, lambda _value: next(attempts), terms=[text],
+                                        on_hint=lambda hint: kwargs["on_event"]("hint", hint))
+            return [{"translation_text": output}]
+        return SimpleNamespace(asr=Recognizer(), translator=translate)
+
+    monkeypatch.setattr(main.GLOBAL_MODEL_MANAGER, "load_models", load_models)
     monkeypatch.setattr(main, "save_runtime_config", lambda *a, **kw: pytest.fail("Settings were written"))
 
     class AcceptSpeech:
@@ -145,6 +190,8 @@ def test_replay_runs_desktop_events_without_capture_or_config_write(monkeypatch)
     assert result["mt_requests"] == 1
     assert result["mt_characters"] == 5
     assert result["errors"] == []
+    assert result["opus_unmasked_fallbacks"] == int(placeholder_loss)
+    assert "lost markers" not in json.dumps(result)
     assert not runtime.runtime.running
 
 
