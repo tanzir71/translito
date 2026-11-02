@@ -6,6 +6,7 @@ from pathlib import Path
 import threading
 
 from engines.cancellation import check_cancelled, current_stop_event
+from engines.lid import LATIN_LANGUAGES
 from engines.protect import protect, apply_preferred_terms
 from engines.types import MtResult
 
@@ -140,8 +141,9 @@ class TranslateGemma:
             raise LocalTranslationUnavailable("This language pair is not enabled for TranslateGemma.")
         self.load()
         original_text = text
-        text = apply_preferred_terms(text, glossary) if source == "en" else text
-        protected = protect(text, "llm", latin=target == "en", other_script=source == "en",
+        text = apply_preferred_terms(text, glossary) if source == "en" and target == "ar" else text
+        protected = protect(text, "llm", latin=target == "en" and source not in LATIN_LANGUAGES,
+                            other_script=source == "en",
                             terms=[term for term, value in glossary.items() if not value])
         instruction = "Keep English words and anything inside ⟦ ⟧ unchanged."
         with self.lock:

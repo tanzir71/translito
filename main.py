@@ -149,7 +149,7 @@ def find_device_by_name(device_name):
 
 
 def translation_target_from_model(model_name, fallback="en"):
-    if (model_name or "").startswith("translategemma:"):
+    if (model_name or "").startswith(("translategemma:", "cloud:")):
         return model_name.rsplit(":", 1)[-1]
     tail = (model_name or "").rsplit("/", 1)[-1]
     parts = tail.split("-")
@@ -246,6 +246,8 @@ class ArabicAudioTranscriber:
         self.speech_player = None
         self.conversation = conversation
         self.conversation_pipeline = None
+        self.recognition_router = self.translation_router = None
+        self._one_way_context = []
 
         atexit.register(self.save_transcript)
 
@@ -315,6 +317,23 @@ class ArabicAudioTranscriber:
                 recognizer, translator_engine, conversation, mode=self.mode, emit=self.emit,
                 transcripts=self.transcripts, stop_event=self._stop_event,
                 speech_player=self.speech_player, voice=self.speech_voice, glossary=glossary)
+        else:
+            from engines.asr_local import LocalOneWayRecognizer
+            from engines.glossary import Glossary
+            from engines.mt_quality import LocalQualityTranslator
+            from engines.registry import build_session_routers
+            from engines.settings import load_engine_settings
+            self.glossary = glossary or Glossary()
+            recognizer = recognizer or LocalOneWayRecognizer(
+                self._recognize_speech_local, self.whisper_language, glossary=self.glossary)
+            translator_engine = translator_engine or self.loaded_translator_engine or LocalQualityTranslator(
+                offline_only=self.offline_only, device=self.torch_device,
+                on_hint=lambda text: self.emit("hint", text))
+            if hasattr(translator_engine, "models") and self.translation_model_name.startswith("Helsinki-NLP/"):
+                translator_engine.models[self.translation_model_name] = self.translator
+            self.recognition_router, self.translation_router = build_session_routers(
+                recognizer, translator_engine, engine_settings or load_engine_settings(),
+                offline_only=self.offline_only, on_event=self.emit)
 
         print("Initialization complete.\n")
 
@@ -329,6 +348,15 @@ class ArabicAudioTranscriber:
         return self.recognize_speech_offline(audio_array)
 
     def recognize_speech_offline(self, audio_array):
+        router = getattr(self, "recognition_router", None)
+        if router is not None:
+            result = router.transcribe(audio_array, self.sample_rate, hint_language=self.whisper_language,
+                                       stop_event=self._stop_event, prompt=self.glossary.hotwords())
+            text = postprocess(result.text).text
+            return self.glossary.restore_english(text)[0] if self.whisper_language == "ar" else text
+        return self._recognize_speech_local(audio_array)
+
+    def _recognize_speech_local(self, audio_array):
         if not self.asr:
             raise RuntimeError("Offline ASR is not initialized")
         if hasattr(self.asr, "transcribe"):
@@ -610,6 +638,25 @@ class ArabicAudioTranscriber:
         return audio_data.astype(np.float32, copy=False), peak, rms
 
     def translate_text(self, source_text):
+        router = getattr(self, "translation_router", None)
+        if router is not None:
+            terms = self.glossary.translations()
+            keep = getattr(getattr(self, "conversation", None), "keep_english_terms", True)
+            if self.translation_target_language == "en" or (self.translation_target_language == "ar" and keep):
+                terms = {term: "" for term in terms}
+            elif self.translation_target_language != "ar":
+                terms = {}
+            else:
+                terms = {term: value for term, value in terms.items() if value}
+            with generation_scope(self._stop_event):
+                result = router.translate(source_text, self.whisper_language, self.translation_target_language,
+                                          context=self._one_way_context[-2:], glossary=terms)
+            self._one_way_context.append((source_text, result.text))
+            self._one_way_context[:] = self._one_way_context[-2:]
+            return result.text
+        return self._translate_text_local(source_text)
+
+    def _translate_text_local(self, source_text):
         tokenizer = getattr(self.translator, "tokenizer", None)
         tokens = len(tokenizer.encode(source_text)) if tokenizer else max(1, len(source_text.split()) * 2)
         kwargs = {"max_new_tokens": max(32, min(512, tokens * 3)), "truncation": True,

@@ -12,7 +12,7 @@ from engines.mt_google import GoogleTranslator
 from engines.provider import AuthenticationError, ProviderBinding, ProviderError, ProviderNetworkError, ProviderQuotaError
 from engines.router import TranslatorRouter
 from engines.types import MtResult
-from engines.usage import Allowance, Rate, UsageLedger
+from engines.usage import Allowance, MonthlyQuota, Rate, UsageLedger
 
 
 @pytest.fixture(autouse=True)
@@ -55,6 +55,17 @@ def test_google_key_stays_in_header_and_html_is_decoded_once(caplog):
     engine = GoogleTranslator(SimpleNamespace(get=lambda _: secret), http=transport(handle))
     assert engine.translate("نراجع API", "ar", "en", context=[], glossary={}).text == "The API & service."
     assert secret not in caplog.text
+
+
+@pytest.mark.parametrize("source,text", [("fr", "Vérifiez API maintenant."), ("es", "Revisa API ahora.")])
+def test_cloud_latin_source_keeps_ordinary_words_translatable(source, text):
+    def handle(request):
+        value = json.loads(request.content)[0]["Text"]
+        assert value.count("notranslate") == 1
+        assert '<span class="notranslate">API</span>' in value
+        return httpx2.Response(200, json=[{"translations": [{"text": "Check API now."}]}])
+    engine = AzureTranslator(SimpleNamespace(get=lambda _: "fake-key"), http=transport(handle))
+    assert engine.translate(text, source, "en", context=[], glossary={"API": ""}).text == "Check API now."
 
 
 @pytest.mark.parametrize("status,expected", [(401, AuthenticationError), (403, AuthenticationError),
@@ -108,3 +119,27 @@ def test_preflight_reserves_markup_ceiling_before_network_and_identity_uses_no_q
     assert router.translate("hello", "en", "en", context=[], glossary={}).text == "hello"
     send.assert_not_called()
     assert not router.ledger.path.exists()
+
+
+def test_simulated_hour_uses_azure_metering_and_costs_zero(tmp_path):
+    source = "نراجع المشروع والجدول والتفاصيل قبل الاجتماع. " * 4
+    assert 160 <= len(source) <= 210
+    calls = []
+    def handle(request):
+        calls.append(request)
+        return httpx2.Response(200, headers={"X-Metered-Usage": str(len(source))},
+                               json=[{"translations": [{"text": "Review the project before the meeting."}]}])
+    cloud = AzureTranslator(SimpleNamespace(get=lambda _: "fake-key"), http=transport(handle))
+    router = TranslatorRouter([ProviderBinding(cloud, enabled=True, tested=True, rate=Rate(),
+                                                quota=MonthlyQuota(characters=2_000_000))],
+                                ledger=UsageLedger(tmp_path / "usage.json"))
+    # 240 utterances of 15 seconds. This checks accounting only, not live quality.
+    for _ in range(240):
+        assert router.translate(source, "ar", "en", context=[], glossary={}).provider == "azure"
+    stats = router.ledger.snapshot()["providers"]["azure"]
+    assert 40_000 <= stats["characters"] <= 50_000
+    assert stats["characters"] == 240 * len(source) and stats["requests"] == len(calls) == 240
+    assert stats["estimated_usd"] == "0"
+    data = json.loads(router.ledger.path.read_text())
+    first = next(iter(data["reservations"].values()))
+    assert first["units"]["characters"] > first["actual_units"]["characters"]

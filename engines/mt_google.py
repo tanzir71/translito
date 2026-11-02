@@ -2,9 +2,9 @@
 from decimal import Decimal
 
 from engines.cloud_http import CloudHttp, provider_key
-from engines.mt_cloud import MarkupTranslator
+from engines.mt_cloud import CloudText, MarkupTranslator
 from engines.provider import ProviderBinding, ProviderError
-from engines.usage import Allowance, Rate
+from engines.usage import Allowance, Rate, Units
 
 
 class GoogleTranslator(MarkupTranslator):
@@ -20,7 +20,7 @@ class GoogleTranslator(MarkupTranslator):
         response = self.http.post(self.endpoint, headers={"X-Goog-Api-Key": provider_key(self.credentials, self.name)},
                                   json={"q": [text], "source": source, "target": target, "format": "html", "model": "nmt"})
         try:
-            return response["data"]["translations"][0]["translatedText"]
+            return CloudText(response["data"]["translations"][0]["translatedText"], Units(characters=len(text)))
         except (TypeError, KeyError, IndexError):
             raise ProviderError() from None
 
@@ -29,4 +29,4 @@ def build(preference, credentials):
     confirmed = preference.account_kind in {"free", "paid"}
     return ProviderBinding(GoogleTranslator(credentials),
                             rate=Rate(per_million_chars=Decimal("20")) if confirmed else None,
-                            allowance=Allowance(characters=500_000), monthly_cap=preference.monthly_cap)
+                            allowance=Allowance(characters=500_000), monthly_cap=0)

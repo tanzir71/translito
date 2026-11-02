@@ -105,6 +105,10 @@ class ProviderRouter:
             check_cancelled()
             if not provider.enabled:
                 continue
+            if not provider.network:
+                if self.cooldown.get(provider.name, 0) > self.clock() or not provider.ready():
+                    failed = True
+                    continue
             if provider.network:
                 if self.offline_only:
                     continue
@@ -127,6 +131,7 @@ class ProviderRouter:
                     failed = True
                     continue
             if supports is not None and not supports(provider.engine):
+                failed = True
                 continue
             reservation = None
             try:
@@ -138,10 +143,10 @@ class ProviderRouter:
                     reservation = self.ledger.reserve(
                         provider.name, quantity, rate=provider.rate, allowance=provider.allowance,
                         quota=provider.quota, monthly_cap=provider.monthly_cap,
-                        total_monthly_cap=self.total_monthly_cap)
+                        total_monthly_cap=self.total_monthly_cap, windows=provider.windows)
                 check_cancelled()
                 result = getattr(provider.engine, operation)(*args, **kwargs)
-                self._settle(reservation)
+                self._settle(reservation, actual=getattr(result, "usage", None))
                 check_cancelled()
                 self.emit("engine", {"mt" if operation == "translate" else "asr": result.provider,
                                        "stage": "mt" if operation == "translate" else "asr",
@@ -157,7 +162,8 @@ class ProviderRouter:
                 self._hint(provider.name, "unavailable", "The provider or usage file is unavailable. Using the next available engine.")
             except ProviderError as exc:
                 self._settle(reservation, known_not_billed=exc.known_not_billed, outcome=exc.category)
-                self.cooldown[provider.name] = self.clock() + (300 if exc.category == "auth" else 60)
+                self.cooldown[provider.name] = self.clock() + getattr(
+                    exc, "cooldown_seconds", 300 if exc.category == "auth" else 60)
                 self._hint(provider.name, exc.category, exc.public_message + " Using the next available engine.")
             except Exception:
                 # SDK exceptions may include headers, keys or input text.
@@ -207,4 +213,6 @@ class RecognizerRouter(ProviderRouter):
         with generation_scope(stop_event):
             return self._invoke("transcribe", Units(audio_seconds=len(audio) / sample_rate),
                                 (audio, sample_rate), {"hint_language": hint_language,
-                                "prompt": prompt, "stop_event": stop_event})
+                                "prompt": prompt, "stop_event": stop_event},
+                                supports=lambda engine: not engine.requires_network or not getattr(engine, "languages", None)
+                                or hint_language in engine.languages)

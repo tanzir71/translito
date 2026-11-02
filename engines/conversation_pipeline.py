@@ -116,8 +116,10 @@ class ConversationPipeline:
                 self.emit("status", "translating")
                 entry["mt_called"] = True
                 glossary = self.glossary.translations() if self.glossary else {}
-                if route.protect_glossary or route.protect_latin:
+                if target == "en" or route.protect_glossary or route.protect_latin:
                     glossary = {term: "" for term in glossary}
+                elif target != "ar":
+                    glossary = {}
                 else:
                     glossary = {term: value for term, value in glossary.items() if value}
                 with generation_scope(self.stop_event):

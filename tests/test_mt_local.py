@@ -69,3 +69,13 @@ def test_same_language_never_loads_an_mt_model():
     translator = OpusTranslator(loader=loader)
     assert translator.translate("Hello", "en", "en", context=[], glossary={}).text == "Hello"
     loader.assert_not_called()
+
+
+def test_latin_source_language_is_translated_while_english_glossary_terms_are_kept():
+    seen = []
+    pipeline = Mock(tokenizer=None)
+    pipeline.side_effect = lambda text, **kw: seen.append(text) or [{"translation_text": "Check ⟦1⟧ now."}]
+    translator = OpusTranslator(loader=lambda *a, **kw: pipeline)
+    result = translator.translate("Vérifiez API maintenant.", "fr", "en", context=[], glossary={"API": ""})
+    assert result.text == "Check API now."
+    assert seen == ["Vérifiez ⟦1⟧ maintenant."]

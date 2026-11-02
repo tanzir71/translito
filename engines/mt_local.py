@@ -7,6 +7,7 @@ import re
 import threading
 
 from engines.cancellation import check_cancelled, current_stop_event
+from engines.lid import LATIN_LANGUAGES
 from engines.protect import translate_opus, apply_preferred_terms
 from engines.types import MtResult
 
@@ -152,7 +153,8 @@ class OpusTranslator:
 
         # Arabic/Persian/etc. → English: protect Latin spans. English → Arabic:
         # keep existing Arabic runs plus explicitly selected glossary terms.
-        text = apply_preferred_terms(text, glossary) if source == "en" else text
-        translated = translate_opus(text, decode, latin=target == "en", other_script=source == "en",
+        text = apply_preferred_terms(text, glossary) if source == "en" and target == "ar" else text
+        translated = translate_opus(text, decode, latin=target == "en" and source not in LATIN_LANGUAGES,
+                                    other_script=source == "en",
                                     terms=[term for term, value in glossary.items() if not value], on_hint=self.on_hint)
         return MtResult(translated, self.name)

@@ -73,14 +73,21 @@ class ReplayClock:
 
 class DesktopRuntime:
     def __init__(self, profile, *, source="ar", target="en",
-                 whisper_model="openai/whisper-small", allow_network=False,
+                 whisper_model="openai/whisper-small", allow_network=False, allow_cloud=False,
                  legacy_fixed_window=False, runtime_factory=None, runtime_kwargs=None):
-        if profile not in {"baseline", "offline"}:
+        if profile not in {"baseline", "offline", "free_cloud"}:
             raise ValueError(f"Profile {profile!r} is not implemented; it cannot be evaluated as local")
+        if profile == "free_cloud" and not allow_cloud:
+            raise ValueError("free_cloud requires explicit --allow-cloud consent to upload evaluation audio/text")
         if not allow_network:
-            os.environ["OFFLINE_ONLY"] = "1"
+            if not allow_cloud:
+                os.environ["OFFLINE_ONLY"] = "1"
             os.environ["HF_HUB_OFFLINE"] = "1"
             os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        else:
+            os.environ["OFFLINE_ONLY"] = "0"
+            os.environ.pop("HF_HUB_OFFLINE", None)
+            os.environ.pop("TRANSFORMERS_OFFLINE", None)
         os.environ["WHISPER_MODEL"] = whisper_model
         if runtime_factory is None:
             from main import ArabicAudioTranscriber
@@ -89,17 +96,29 @@ class DesktopRuntime:
         self.clock = ReplayClock()
         self.completed_at = {}
         options = dict(runtime_kwargs or {})
-        if profile == "offline" and "en" in {source, target} and source != target:
+        from engines.settings import EngineSettings, load_engine_settings
+        if profile == "free_cloud":
+            from dataclasses import replace
+            settings = load_engine_settings()
+            if settings.profile == "offline":
+                raise ValueError("The saved profile is Offline. Enable and Test a free provider before cloud evaluation.")
+            if not any(p.enabled and p.tested_signature for p in settings.providers.values()):
+                raise ValueError("Test and enable at least one free provider before cloud evaluation.")
+            options["engine_settings"] = replace(settings, profile="free", monthly_cap=0)
+            os.environ["OFFLINE_ONLY"] = "0"
+        else:
+            # Model-download consent never enables configured cloud providers,
+            # including in the legacy one-way baseline path.
+            options["engine_settings"] = EngineSettings(profile="offline")
+        from engines.glossary import Glossary
+        options.setdefault("glossary", Glossary(read_only=True))
+        if profile in {"offline", "free_cloud"} and "en" in {source, target} and source != target:
             from engines.router import Conversation
-            from engines.glossary import Glossary
-            from engines.settings import EngineSettings
             other = source if source != "en" else target
             options.setdefault("conversation", Conversation(other_language=other, my_language=target,
                                                             audience_language=other))
             # Read the current terms/defaults without creating or merging files
             # in the user's profile. Replay never changes app settings/data.
-            options.setdefault("glossary", Glossary(read_only=True))
-            options.setdefault("engine_settings", EngineSettings(profile="offline"))
         self.runtime = runtime_factory(
             interactive=False, asr_language=source, target_language=target,
             translation_model=f"Helsinki-NLP/opus-mt-{source}-{target}",

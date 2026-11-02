@@ -10,6 +10,16 @@ class CloudHttp:
         self.client = client
 
     def post(self, url, **kwargs):
+        return self._request("post", url, **kwargs)
+
+    def get(self, url, **kwargs):
+        return self._request("get", url, **kwargs)
+
+    def close(self):
+        if self.client is not None:
+            self.client.close()
+
+    def _request(self, method, url, *, capture_headers=None, **kwargs):
         check_cancelled()
         if os.environ.get("OFFLINE_ONLY", "0").strip() == "1":
             raise ProviderNetworkError()
@@ -20,7 +30,7 @@ class CloudHttp:
             self.client = httpx.Client(timeout=httpx.Timeout(10, connect=4), follow_redirects=False)
         try:
             kwargs["follow_redirects"] = False
-            response = self.client.post(url, **kwargs)
+            response = getattr(self.client, method)(url, **kwargs)
         except (httpx.HTTPError, OSError):
             raise ProviderNetworkError() from None
         check_cancelled()
@@ -33,6 +43,11 @@ class CloudHttp:
         if response.status_code < 200 or response.status_code >= 300 or len(response.content) > 2 * 1024 * 1024:
             # In particular, never forward credentials through an HTTP redirect.
             raise ProviderError()
+        if capture_headers is not None:
+            # Only published metering fields, never arbitrary response headers.
+            value = response.headers.get("x-metered-usage")
+            if value is not None:
+                capture_headers["x-metered-usage"] = value
         try:
             return response.json()
         except (ValueError, UnicodeError):

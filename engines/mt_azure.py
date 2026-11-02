@@ -1,8 +1,8 @@
 """Azure Translator v3 standard text API, with HTML span preservation."""
 from engines.cloud_http import CloudHttp, provider_key
-from engines.mt_cloud import MarkupTranslator
+from engines.mt_cloud import CloudText, MarkupTranslator
 from engines.provider import ProviderBinding, ProviderError
-from engines.usage import LOCAL_RATE, MonthlyQuota
+from engines.usage import LOCAL_RATE, MonthlyQuota, Units
 
 
 class AzureTranslator(MarkupTranslator):
@@ -18,10 +18,12 @@ class AzureTranslator(MarkupTranslator):
         headers = {"Ocp-Apim-Subscription-Key": provider_key(self.credentials, self.name)}
         if self.region and self.region != "global":
             headers["Ocp-Apim-Subscription-Region"] = self.region
+        metering = {}
         response = self.http.post(self.endpoint, params={"api-version": "3.0", "from": source,
-                                 "to": target, "textType": "html"}, headers=headers, json=[{"Text": text}])
+                                 "to": target, "textType": "html"}, headers=headers, json=[{"Text": text}], capture_headers=metering)
         try:
-            return response[0]["translations"][0]["text"]
+            count = metering.get("x-metered-usage", "")
+            return CloudText(response[0]["translations"][0]["text"], Units(characters=int(count)) if count.isdigit() else None)
         except (TypeError, KeyError, IndexError):
             raise ProviderError() from None
 
@@ -31,4 +33,4 @@ def build(preference, credentials):
     # the user's region/agreement and is not guessed from an unconfigured key.
     return ProviderBinding(AzureTranslator(credentials, region=preference.region),
                             rate=LOCAL_RATE if preference.account_kind == "free" else None,
-                            quota=MonthlyQuota(characters=2_000_000), monthly_cap=preference.monthly_cap)
+                            quota=MonthlyQuota(characters=2_000_000), monthly_cap=0)

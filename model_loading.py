@@ -51,8 +51,23 @@ class FastWhisperASR:
     def __init__(self, model, beam_size=3):
         self.model = model
         self.beam_size = beam_size
+        self.decode_lock = threading.RLock()
 
     def transcribe(self, audio, language, stop_event=None, initial_prompt=None, hotwords=None):
+        with self.decode_lock:
+            return self._transcribe(audio, language, stop_event, initial_prompt, hotwords)
+
+    def transcribe_result(self, audio, language, stop_event=None, initial_prompt=None, hotwords=None):
+        with self.decode_lock:
+            self._transcribe(audio, language, stop_event, initial_prompt, hotwords)
+            return self.last_result
+
+    def _transcribe(self, audio, language, stop_event, initial_prompt, hotwords):
+        if stop_event is not None and stop_event.is_set():
+            from engines.types import AsrResult
+            self.last_result = AsrResult("", language, None, language, 0, None, None,
+                                         len(audio) / 16000, getattr(self, "provider", "faster-whisper"))
+            return ""
         segments, info = self.model.transcribe(
             audio,
             language=language,
@@ -184,7 +199,7 @@ class ModelLoadManager:
             if fast_model_path is None:
                 whisper_repo = fast_whisper_repo(fast_model) if fast_model else whisper_model
                 _download_repo_with_progress(whisper_repo, "Whisper", 0.0, 0.5, on_event)
-            if not translation_model.startswith(("identity:", "translategemma:")):
+            if not translation_model.startswith(("identity:", "translategemma:", "cloud:")):
                 repos = translation_model.split("|")
                 for i, repo in enumerate(repos):
                     _download_repo_with_progress(repo, "translation", 0.5 + i * 0.5 / len(repos),
@@ -236,12 +251,13 @@ class ModelLoadManager:
              else f"Preparing {translation_model}", "fraction": None},
         )
         translator_engine = None
-        if translation_model.startswith("translategemma:"):
+        if translation_model.startswith(("translategemma:", "cloud:")):
             from engines.mt_quality import BoundLocalTranslator, LocalQualityTranslator
             _, source, target = translation_model.split(":")
             translator_engine = LocalQualityTranslator(offline_only=offline_only, device=torch_device,
                                                        on_hint=lambda hint: _emit(on_event, "hint", hint))
-            translator_engine.preload(source, target)
+            if not translation_model.startswith("cloud:"):
+                translator_engine.preload(source, target)
             translator = BoundLocalTranslator(translator_engine, source, target)
         else:
             translator = LocalOpusPipeline(translation_model, device=torch_device, offline_only=offline_only)
