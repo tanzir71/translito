@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
 
 hiddenimports = [
@@ -33,7 +33,7 @@ for package in (
 a = Analysis(
     ["..\\gui.py"],
     pathex=[".."],
-    binaries=[],
+    binaries=collect_dynamic_libs("llama_cpp"),
     datas=[("Translito.ico", "."), *collect_data_files("silero_vad"),
            *collect_data_files("engines")],
     hiddenimports=hiddenimports,

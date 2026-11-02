@@ -39,6 +39,7 @@ from audio_processing import (
 )
 from device_utils import should_apply_mic_noise_gate
 from engines.postprocess import postprocess
+from engines.cancellation import generation_scope
 from model_loading import GLOBAL_MODEL_MANAGER
 from speech_output import SpeechOutputPlayer
 
@@ -148,6 +149,8 @@ def find_device_by_name(device_name):
 
 
 def translation_target_from_model(model_name, fallback="en"):
+    if (model_name or "").startswith("translategemma:"):
+        return model_name.rsplit(":", 1)[-1]
     tail = (model_name or "").rsplit("/", 1)[-1]
     parts = tail.split("-")
     return (parts[-1] if len(parts) >= 2 else fallback).strip().lower() or fallback
@@ -272,6 +275,7 @@ class ArabicAudioTranscriber:
             if hasattr(self.asr, "beam_size"):
                 self.asr.beam_size = {"fast": 1, "balanced": 3, "best": 5}.get(self.asr_preset, 3)
             self.translator = loaded_models.translator
+            self.loaded_translator_engine = getattr(loaded_models, "translator_engine", None)
             print("Offline models ready.")
         except Exception as exc:
             if self.offline_only:
@@ -289,17 +293,17 @@ class ArabicAudioTranscriber:
             from engines.asr_local import LocalConversationRecognizer
             from engines.conversation_pipeline import ConversationPipeline
             from engines.glossary import Glossary
-            from engines.mt_local import OpusTranslator
+            from engines.mt_quality import LocalQualityTranslator
             glossary = glossary or Glossary()
             recognizer = recognizer or LocalConversationRecognizer(
                 self.asr, other_language=conversation.other_language, offline_only=self.offline_only,
                 glossary=glossary, on_event=self.emit,
                 device="cpu" if self.torch_device == -1 else f"cuda:{self.torch_device}",
             )
-            translator_engine = translator_engine or OpusTranslator(
+            translator_engine = translator_engine or self.loaded_translator_engine or LocalQualityTranslator(
                 offline_only=self.offline_only, device=self.torch_device,
                 on_hint=lambda text: self.emit("hint", text))
-            if hasattr(translator_engine, "models"):
+            if hasattr(translator_engine, "models") and self.translation_model_name.startswith("Helsinki-NLP/"):
                 translator_engine.models[self.translation_model_name] = self.translator
             self.conversation_pipeline = ConversationPipeline(
                 recognizer, translator_engine, conversation, mode=self.mode, emit=self.emit,
@@ -533,6 +537,10 @@ class ArabicAudioTranscriber:
                     "mode": self.mode,
                     "arabic_text": source_text,
                     "english_text": "",
+                    "captured_at": captured_at,
+                    "speech_end_at": (captured_at - item.endpoint_delay_s
+                                      if captured_at is not None and getattr(item, "endpoint_delay_s", None) is not None
+                                      else None),
                 }
                 self.transcripts.append(transcript_entry)
                 self.emit("transcript", transcript_entry.copy())
@@ -603,7 +611,8 @@ class ArabicAudioTranscriber:
         stopping_criteria = self._generation_stopping_criteria()
         if stopping_criteria is not None:
             kwargs["stopping_criteria"] = stopping_criteria
-        translation = self.translator(source_text, **kwargs)
+        with generation_scope(getattr(self, "_stop_event", None)):
+            translation = self.translator(source_text, **kwargs)
         return translation[0]["translation_text"]
 
     def start_background(self, enable_keyboard_shortcuts=False):

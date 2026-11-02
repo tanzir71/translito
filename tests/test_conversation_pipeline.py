@@ -176,3 +176,12 @@ def test_both_languages_is_an_explicit_secondary_translation():
     assert entries[0]["secondary_translation"]
     assert entries[0]["target_language"] == "ar"
     assert translator.translate.call_args.args[:3] == ("Hello.", "en", "ar")
+
+
+def test_secondary_translation_does_not_use_reverse_direction_context():
+    runtime, translator, _, _, _ = pipeline([recognized("مرحبا.", "ar"), recognized("Hello.", "en")],
+                                            conversation=Conversation(show_both=True))
+    runtime.feed(chunk())
+    runtime.feed(chunk())
+    assert translator.translate.call_args.kwargs["context"] == []
+    assert len(runtime.context) == 1

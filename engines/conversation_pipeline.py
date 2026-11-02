@@ -6,6 +6,7 @@ import time
 import numpy as np
 
 from engines.router import route_utterance
+from engines.cancellation import generation_scope
 from engines.sentence_assembler import SentenceAssembler
 
 
@@ -98,6 +99,11 @@ class ConversationPipeline:
         self._finish(entry, [part[1] for part in sentence.parts], route)
 
     def _finish(self, entry, chunks, route):
+        captured = [chunk.captured_at for chunk in chunks if chunk.captured_at is not None]
+        ended = [chunk.captured_at - chunk.endpoint_delay_s for chunk in chunks
+                 if chunk.captured_at is not None and chunk.endpoint_delay_s is not None]
+        entry.update(captured_at=max(captured) if captured else None,
+                     speech_end_at=max(ended) if ended else None, segment_count=len(chunks))
         if self.stop_event.is_set():
             entry.update(translation_pending=False, translation_cancelled=True)
             self.emit("transcript_update", entry.copy())
@@ -109,10 +115,15 @@ class ConversationPipeline:
                 target = route.secondary_target or target
                 self.emit("status", "translating")
                 entry["mt_called"] = True
-                glossary = self.glossary.translations() if self.glossary and (
-                    route.protect_glossary or route.protect_latin) else {}
-                translated = self.translator.translate(
-                    output, route.source, target, context=self.context[-2:], glossary=glossary)
+                glossary = self.glossary.translations() if self.glossary else {}
+                if route.protect_glossary or route.protect_latin:
+                    glossary = {term: "" for term in glossary}
+                else:
+                    glossary = {term: value for term, value in glossary.items() if value}
+                with generation_scope(self.stop_event):
+                    translated = self.translator.translate(
+                        output, route.source, target,
+                        context=self.context[-2:] if route.translate else [], glossary=glossary)
                 if self.stop_event.is_set():
                     entry.update(translation_pending=False, translation_cancelled=True)
                     self.emit("transcript_update", entry.copy())
@@ -127,7 +138,8 @@ class ConversationPipeline:
             self.emit("target", output)
             self.emit("english", output)
             self.emit("transcript_update", entry.copy())
-            self.context.append((entry["source_text"], output))
+            if route.translate:
+                self.context.append((entry["source_text"], output))
             speaking = False
             if self.mode == "speak" and self.speech_player and not self.stop_event.is_set():
                 if route.speech == "passthrough":
@@ -144,6 +156,10 @@ class ConversationPipeline:
             if not speaking:
                 self.emit("status", "listening")
         except Exception as exc:
+            if self.stop_event.is_set():
+                entry.update(translation_pending=False, translation_cancelled=True)
+                self.emit("transcript_update", entry.copy())
+                return
             entry.update(translation_pending=False, translation_error=str(exc))
             self.emit("transcript_update", entry.copy())
             self.emit("error", str(exc))

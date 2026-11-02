@@ -49,6 +49,15 @@ def protected_ranges(text, *, latin=False, other_script=False, terms=()):
     return merged
 
 
+def apply_preferred_terms(text, glossary):
+    preferred = {term: value for term, value in glossary.items() if term and value}
+    if not preferred:
+        return text
+    lookup = {term.casefold(): value for term, value in preferred.items()}
+    pattern = r"(?<!\w)(?:" + "|".join(re.escape(term) for term in sorted(preferred, key=len, reverse=True)) + r")(?!\w)"
+    return re.sub(pattern, lambda match: lookup[match[0].casefold()], text, flags=re.IGNORECASE)
+
+
 @dataclass(frozen=True)
 class ProtectedText:
     text: str

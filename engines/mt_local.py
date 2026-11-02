@@ -4,8 +4,10 @@ from functools import lru_cache
 import json
 from pathlib import Path
 import re
+import threading
 
-from engines.protect import translate_opus
+from engines.cancellation import check_cancelled, current_stop_event
+from engines.protect import translate_opus, apply_preferred_terms
 from engines.types import MtResult
 
 
@@ -77,6 +79,7 @@ class LocalOpusPipeline:
         from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
         self.model_id = model_id
         self.steps = []
+        self.lock = threading.Lock()
         self.device = "cpu" if device == -1 else f"cuda:{device}"
         if model_id.startswith("identity:"):
             self.tokenizer = None
@@ -90,13 +93,23 @@ class LocalOpusPipeline:
 
     def __call__(self, text, **kwargs):
         import torch
+        from transformers import StoppingCriteria, StoppingCriteriaList
         truncation = kwargs.pop("truncation", True)
-        for tokenizer, model in self.steps:
-            encoded = tokenizer(text, return_tensors="pt", truncation=truncation, max_length=512)
-            encoded = {key: value.to(self.device) for key, value in encoded.items()}
-            with torch.inference_mode():
-                output = model.generate(**encoded, **kwargs)
-            text = tokenizer.batch_decode(output, skip_special_tokens=True)[0].strip()
+        event = current_stop_event()
+        if event is not None and "stopping_criteria" not in kwargs:
+            class Cancelled(StoppingCriteria):
+                def __call__(self, input_ids, scores, **kwargs):
+                    return event.is_set()
+            kwargs["stopping_criteria"] = StoppingCriteriaList([Cancelled()])
+        with self.lock:
+            check_cancelled()
+            for tokenizer, model in self.steps:
+                encoded = tokenizer(text, return_tensors="pt", truncation=truncation, max_length=512)
+                encoded = {key: value.to(self.device) for key, value in encoded.items()}
+                with torch.inference_mode():
+                    output = model.generate(**encoded, **kwargs)
+                check_cancelled()
+                text = tokenizer.batch_decode(output, skip_special_tokens=True)[0].strip()
         return [{"translation_text": text}]
 
 
@@ -126,6 +139,7 @@ class OpusTranslator:
         return self.models[plan.model_id]
 
     def translate(self, text, source, target, *, context, glossary):
+        check_cancelled()
         if source == target:
             return MtResult(text, self.name)
         model = self.preload(source, target)
@@ -138,6 +152,7 @@ class OpusTranslator:
 
         # Arabic/Persian/etc. → English: protect Latin spans. English → Arabic:
         # keep existing Arabic runs plus explicitly selected glossary terms.
+        text = apply_preferred_terms(text, glossary) if source == "en" else text
         translated = translate_opus(text, decode, latin=target == "en", other_script=source == "en",
-                                    terms=glossary.keys(), on_hint=self.on_hint)
+                                    terms=[term for term, value in glossary.items() if not value], on_hint=self.on_hint)
         return MtResult(translated, self.name)

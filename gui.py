@@ -112,6 +112,10 @@ RTL_LANGUAGES = {"ar", "fa", "ur"}
 
 
 def translation_model_for(source_code, target_code):
+    if source_code != target_code:
+        from engines.mt_translategemma import gemma_available
+        if gemma_available(source_code, target_code):
+            return f"translategemma:{source_code}:{target_code}"
     return resolve_local_mt(source_code, target_code, offline=True).model_id
 
 
@@ -354,6 +358,7 @@ class TranslatorGUI:
         self.speak_mic_choices = []
         self.output_choices = []
         self.transcriber = None
+        self.model_setup_busy = False
         self.last_transcriber = None
         self.last_saved_path = None
         self.transcript_entries = []
@@ -445,7 +450,11 @@ class TranslatorGUI:
         self.update_chunk_label()
         self.update_transcript_state()
         if not self.preview_mode:
-            self.root.after(350, self.preload_current_models)
+            from engines.hardware import speed_history_path
+            if speed_history_path().exists():
+                self.root.after(350, self.preload_current_models)
+            else:
+                self.root.after(350, lambda: self.open_speed_check(first_run=True))
             self.root.after(3000, self.auto_refresh_devices)
 
     # ------------------------------------------------------------------
@@ -1118,6 +1127,10 @@ class TranslatorGUI:
                                     command=self.open_arabic_model_setup)
         cohere_button.pack(anchor="w", pady=(3, 8))
         self.settings_controls.append(cohere_button)
+        speed_button = ttk.Button(recognition, text="Check this PC's speed", style="Mac.TButton",
+                                  command=self.open_speed_check)
+        speed_button.pack(anchor="w", pady=(0, 8))
+        self.settings_controls.append(speed_button)
         quality_settings = self._settings_combo(recognition, "Quality", self.quality_var,
                                                 ["Fast", "Balanced", "Best"])
         quality_settings.bind("<<ComboboxSelected>>", lambda _event: self.change_quality_preset())
@@ -1191,6 +1204,14 @@ class TranslatorGUI:
             "Legacy window length is used only by the evaluation comparison mode.",
         )
         self.settings_controls.extend((whisper_settings, chunk_scale, offline))
+
+        translation = self._settings_section(content, "Local translation")
+        gemma_button = ttk.Button(translation, text="Set up TranslateGemma", style="Mac.TButton",
+                                   command=self.open_translation_model_setup)
+        gemma_button.pack(anchor="w", pady=(3, 6))
+        self.settings_controls.append(gemma_button)
+        self._settings_help(translation, "TranslateGemma 4B offers a larger local translator on PCs with at least 8 GB RAM. "
+                            "It is an optional 2.5 GB download. Lite translation is the fallback.")
 
         capture = self._settings_section(content, "Capture")
         gate_row = tk.Frame(capture, bg=COLORS["surface"])
@@ -1458,11 +1479,25 @@ class TranslatorGUI:
             self.show_error(f"Could not open Terms: {exc}")
 
     def open_arabic_model_setup(self):
-        if self.transcriber is not None:
+        if self.transcriber is not None or self.model_setup_busy:
             self.show_hint("Stop the current session before setting up a model.")
             return
         from quality_settings import open_cohere_setup
         open_cohere_setup(self, COLORS, center_window)
+
+    def open_translation_model_setup(self):
+        if self.transcriber is not None or self.model_setup_busy:
+            self.show_hint("Finish the current session or model setup first.")
+            return
+        from quality_settings import open_translategemma_setup
+        open_translategemma_setup(self, COLORS, center_window)
+
+    def open_speed_check(self, first_run=False):
+        if self.transcriber is not None or self.model_setup_busy:
+            self.show_hint("Finish the current session or model setup first.")
+            return
+        from quality_settings import open_speed_check
+        open_speed_check(self, COLORS, center_window, first_run=first_run)
 
     def selected_listen_choice(self):
         index = self.listen_combo.current()

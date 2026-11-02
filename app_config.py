@@ -235,6 +235,15 @@ def save_cohere_cache_dir(folder, path=None):
     write_config(config, path)
 
 
+def save_translategemma_path(model_path, path=None):
+    model_path = Path(model_path).expanduser()
+    if not model_path.is_absolute() or not model_path.is_file():
+        raise ValueError("Choose an existing absolute path to the TranslateGemma model")
+    config = read_config(path)
+    _ensure_section(config, "ENGINES")["translategemma_path"] = str(model_path)
+    write_config(config, path)
+
+
 def load_runtime_config(path=None):
     config = read_config(path)
     section = config["RUNTIME"] if "RUNTIME" in config else {}

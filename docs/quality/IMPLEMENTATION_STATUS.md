@@ -6,7 +6,7 @@ Native macOS code is outside this change.
 | Phase | Current evidence | Remaining work |
 |---|---|---|
 | P0 evaluation | Shared desktop replay, WER/CER/chrF and bilingual metrics, latency/RAM/cost reports, cache-only socket-blocked run; see P0_BASELINE.md | Cohere hardware measurements after runtime upgrade and gated access. Saudi meeting set waived by owner; those accuracy targets are unverified. |
-| P1 local quality | Bilingual runtime/GUI, pair LID and pass-through, sentence assembly, glossary/protection/Terms editor, byte-preserving migration, hallucination guards, VAD endpointing, unbounded speech queue/lag, four-beam MT, hardware-aware faster-whisper, verified Opus pairs/pivots and Transformers 5 adapter. Cohere consent/key/download UI and managed code-switch fallback with a matching offline tokenizer. Actual Windows bidi, Terms and model-setup previews inspected. 135 tests pass. | TranslateGemma, first-run benchmark and remaining end-to-end/latency checks. Update evaluation replay for assembled bilingual rows. Exercise real bilingual audio through the new routing path. Cohere weights still need authorization before speed/accuracy measurement. |
+| P1 local quality | Bilingual runtime/GUI, pair LID/pass-through, assembly, glossary/protection/Terms editor, migration, hallucination guards, VAD endpointing, retained speech/lag, four-beam MT, hardware-aware faster-whisper and verified Opus/pivots. Cohere/CT2 setup plus optional pinned TranslateGemma GGUF with consent, context, cancellation and Lite fallback. First-run 8-second CPU speed check. Replay now exercises the bilingual controller; public/synthetic audio completes with sockets blocked. 149 tests pass. | Real Cohere/Gemma speed/accuracy checks require owner model access/terms. Fallback latency misses 4s; Saudi accuracy is unverified. Free cloud routing and its latency checks remain P2/P3. |
 | P2 provider infrastructure | Engine contracts, pure usage-cost calculation and Credential Manager-only key store | Provider fallback, durable history/caps, settings/test flows and engine chip. |
 | P3 cloud providers | Not implemented yet | Verified adapters, request tests, configured-provider end-to-end checks and optional transcript refinement. |
 | P4 capped booster | No provider selected, enabled or charged | Thin evaluation adapters, owner-approved paid bake-off, measured winner, streaming/reconnect/budget tests. Gemini preview remains opt-in. |
@@ -62,8 +62,34 @@ CT2 → selected stock Whisper; cloud fallback is still pending P2/P3.
 Empty recognition now restores Listening with a rate-limited hint. Speak capture
 is retained while buffered speech plays. The sentence timeout uses capture
 speech activity/end time, avoiding an extra 1.5s delay after slow ASR. More
-complete streaming/player lifecycle verification remains required: inspect
-Stop/restart queue handling before the final Speak end-to-end test.
+complete streaming/player verification remains required before the final Speak
+end-to-end test. Stop/restart now isolates session queues/cancellation: a slow
+old TTS worker cannot consume or play the next session's utterances. Regression
+tests cover that race and output-route retry cancellation.
+
+TranslateGemma uses a pinned Q4_K_M GGUF, checksum and embedded-template check,
+CPU-only llama.cpp wheel, structured language codes, 2,048-token context,
+physical-core threads and a 3x original-input output cap. It retries lost terms
+once, then visibly falls back to Marian. Preferred glossary translations and
+per-call cancellation work in both local MT paths. Weights are not bundled or
+downloaded by this implementation run; the unchecked consent step is in Settings.
+The Gemma setup dialog was inspected in the Windows preview.
+
+The bundled speed check is an attributed, trimmed CC BY 4.0 FLEURS sample. An
+actual socket-blocked run decoded 8.00s in 9.574s (RTF 1.197, CPU int8, 5 threads)
+and recommended Small. Timing is sample-specific and excludes model load.
+
+Current bilingual replay uses the WAV capture clock and measured inference time
+to retain backlog/assembler deadlines. It does not flush after every chunk.
+Read-only glossary loading avoids user-data writes. Public MSA smoke produced
+WER 0.533, CER 0.131, chrF 46.42 and 7.503s speech-end latency with stock
+Whisper/Marian fallback. This fails the latency target and does not establish
+Saudi quality. A synthetic Windows-SAPI English passage followed by the public
+Arabic clip produced three rows, only one MT call, English-term recall 1.0,
+unnecessary-MT rate 0, no pipeline errors and 6.675s speech-end p95. Its reference
+has two utterance lines while ASR split English into two rows; tag alignment and
+overall text scores are smoke evidence only. Local reports are in the quality
+build's eval-results directories 20261102T111144.292623Z and 20261102T111658.078609Z.
 
 Development PRs: P0 <https://github.com/tanzir71/translito/pull/5>; P1 stacked on
 P0 <https://github.com/tanzir71/translito/pull/6>. Both remain drafts. No quality

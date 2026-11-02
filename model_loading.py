@@ -91,10 +91,11 @@ class FastWhisperASR:
 
 
 class LoadedModels:
-    def __init__(self, key, asr, translator):
+    def __init__(self, key, asr, translator, translator_engine=None):
         self.key = key
         self.asr = asr
         self.translator = translator
+        self.translator_engine = translator_engine
 
 
 class ModelLoadManager:
@@ -183,7 +184,7 @@ class ModelLoadManager:
             if fast_model_path is None:
                 whisper_repo = fast_whisper_repo(fast_model) if fast_model else whisper_model
                 _download_repo_with_progress(whisper_repo, "Whisper", 0.0, 0.5, on_event)
-            if not translation_model.startswith("identity:"):
+            if not translation_model.startswith(("identity:", "translategemma:")):
                 repos = translation_model.split("|")
                 for i, repo in enumerate(repos):
                     _download_repo_with_progress(repo, "translation", 0.5 + i * 0.5 / len(repos),
@@ -231,19 +232,30 @@ class ModelLoadManager:
         _emit(
             on_event,
             "model_progress",
-            {"phase": f"Preparing {translation_model}", "fraction": None},
+            {"phase": "Preparing TranslateGemma" if translation_model.startswith("translategemma:")
+             else f"Preparing {translation_model}", "fraction": None},
         )
-        translator = LocalOpusPipeline(translation_model, device=torch_device, offline_only=offline_only)
+        translator_engine = None
+        if translation_model.startswith("translategemma:"):
+            from engines.mt_quality import BoundLocalTranslator, LocalQualityTranslator
+            _, source, target = translation_model.split(":")
+            translator_engine = LocalQualityTranslator(offline_only=offline_only, device=torch_device,
+                                                       on_hint=lambda hint: _emit(on_event, "hint", hint))
+            translator_engine.preload(source, target)
+            translator = BoundLocalTranslator(translator_engine, source, target)
+        else:
+            translator = LocalOpusPipeline(translation_model, device=torch_device, offline_only=offline_only)
         _emit(on_event, "model_progress", {"phase": "Models ready", "fraction": 1.0})
         return LoadedModels(
             key=(whisper_model, translation_model, torch_device, str(torch_dtype), bool(offline_only)),
             asr=asr,
             translator=translator,
+            translator_engine=translator_engine,
         )
 
 
 def _download_repo_with_progress(repo_id, label, offset, span, on_event, *, token=False, cache_dir=None,
-                                 local_dir=None, allow_patterns=None):
+                                 local_dir=None, allow_patterns=None, revision=None):
     try:
         from huggingface_hub import snapshot_download
         from tqdm.auto import tqdm
@@ -269,10 +281,10 @@ def _download_repo_with_progress(repo_id, label, offset, span, on_event, *, toke
             {"phase": f"Downloading {label}", "fraction": offset},
         )
         snapshot_download(repo_id=repo_id, tqdm_class=ProgressTqdm, token=token, cache_dir=cache_dir,
-                          local_dir=local_dir, allow_patterns=allow_patterns)
+                          local_dir=local_dir, allow_patterns=allow_patterns, revision=revision)
     except TypeError:
         snapshot_download(repo_id=repo_id, token=token, cache_dir=cache_dir,
-                          local_dir=local_dir, allow_patterns=allow_patterns)
+                          local_dir=local_dir, allow_patterns=allow_patterns, revision=revision)
     except Exception:
         raise
 

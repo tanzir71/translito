@@ -35,3 +35,10 @@ def test_invalid_glossary_is_preserved(tmp_path):
     with pytest.raises(ValueError):
         Glossary(path)
     assert path.read_bytes() == b"not valid json"
+
+
+def test_read_only_glossary_merges_defaults_in_memory_without_writing(tmp_path):
+    path = tmp_path / "absent.json"
+    glossary = Glossary(path, read_only=True)
+    assert len(glossary.terms) >= 150
+    assert not path.exists()

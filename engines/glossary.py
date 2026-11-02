@@ -9,7 +9,7 @@ DEFAULT_TERMS = Path(__file__).parent / "data" / "glossary.json"
 
 
 class Glossary:
-    def __init__(self, path=None, defaults_path=DEFAULT_TERMS):
+    def __init__(self, path=None, defaults_path=DEFAULT_TERMS, *, read_only=False):
         if path is None:
             from app_config import CONFIG_FILE
             path = CONFIG_FILE.parent / "glossary.json"
@@ -25,7 +25,8 @@ class Glossary:
         added = [term for term in defaults if term["english"].casefold() not in present]
         if added:
             self.data["terms"].extend(added)
-            self.save()
+            if not read_only:
+                self.save()
 
     @staticmethod
     def _validate(terms):

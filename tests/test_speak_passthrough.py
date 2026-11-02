@@ -40,8 +40,8 @@ def test_arabic_voice_passes_through_resampled_without_tts(monkeypatch):
     player.enqueue_audio(audio, 16000)
     original_play = player._play
 
-    def play_and_stop(samples, rate):
-        original_play(samples, rate)
+    def play_and_stop(samples, rate, **kwargs):
+        original_play(samples, rate, **kwargs)
         player._running = False
 
     player._play = play_and_stop

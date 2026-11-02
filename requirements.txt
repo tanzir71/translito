@@ -1,5 +1,7 @@
 # Arabic Audio Transcriber Requirements
 # Install with: pip install -r requirements.txt
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+--only-binary=llama-cpp-python
 
 # Core audio processing
 soundcard>=0.4.2
@@ -20,6 +22,7 @@ soundfile==0.14.0
 librosa==0.11.0
 python-bidi==0.6.12
 arabic-reshaper==3.0.0
+llama-cpp-python==0.3.36
 truststore>=0.10.4,<1; sys_platform == "win32"
 torch>=1.12.0
 sentencepiece>=0.1.97
