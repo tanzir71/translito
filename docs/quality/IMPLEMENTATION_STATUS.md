@@ -19,6 +19,15 @@ cap and configured provider accounts. Until explicit spending approval, the
 paid cap is $0 and no paid provider is contacted. Missing data, credentials or
 model access are not replaced with fabricated acceptance results.
 
+The code-switch fallback now preserves the selected Fast/Balanced/Best decoder
+beam size when replacing stock Whisper, both when Cohere is unavailable at
+setup and when it fails during inference. Previously those paths silently
+returned to Balanced. Six regression cases exercise the actual Whisper adapter
+call; the full suite passes **351 tests**. Windows 1.1.1 packaging is tracked
+in RELEASE_1_1_1.md. A new offline EN → AR → EN synthetic/public replay produced
+the correct three tags, two English pass-through rows, exactly one MT call and
+no pipeline errors. Its latency still missed four seconds; see LOCAL_HARDWARE.md.
+
 The owner waived the private Saudi evaluation clips ("don't have, skip"). Public
 MSA/synthetic reports remain smoke evidence; they do not establish Saudi accuracy.
 

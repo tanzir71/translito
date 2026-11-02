@@ -89,7 +89,10 @@ class LocalConversationRecognizer:
             return
         try:
             from engines.asr_codeswitch import load_cached_codeswitch
-            self.whisper = load_cached_codeswitch(device=self.device)
+            fallback = load_cached_codeswitch(device=self.device)
+            if hasattr(self.whisper, "beam_size"):
+                fallback.beam_size = self.whisper.beam_size
+            self.whisper = fallback
         except (FileNotFoundError, ValueError, RuntimeError):
             pass
 
