@@ -163,6 +163,8 @@ def test_offline_replay_uses_bilingual_assembly_and_english_no_mt(monkeypatch):
     monkeypatch.setattr(main, "save_runtime_config", lambda *a, **kw: pytest.fail("Settings were written"))
     recognizer, translator = Mock(), Mock()
     translator.models = {}
+    recognizer.name = translator.name = "fixture"
+    recognizer.requires_network = translator.requires_network = False
     recognizer.transcribe.side_effect = [
         AsrResult(text, tag, .9, tag, float(tag == "en"), -.2, 0, .1, "fixture-asr")
         for text, tag in [("نراجع", "ar"), ("الخادم.", "ar"), ("The API works.", "en")]]
@@ -205,6 +207,8 @@ def test_offline_replay_sentence_timeout_uses_wav_silence_without_real_wait(monk
                         SimpleNamespace(asr=Mock(), translator=Mock()))
     recognizer, translator = Mock(), Mock()
     translator.models = {}
+    recognizer.name = translator.name = "fixture"
+    recognizer.requires_network = translator.requires_network = False
     recognizer.transcribe.side_effect = [AsrResult("مرحبا", "ar", .9, "ar", 0, -.2, 0, .1, "fixture")]
     translator.translate.return_value = MtResult("Hello", "fixture")
     class Capture:

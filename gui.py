@@ -46,6 +46,7 @@ from hotkeys import GlobalHotkeyManager, format_tk_key_event
 from engines.display import display_text, dominant_rtl
 from engines.mt_local import UnsupportedPairError, resolve_local_mt
 from engines.asr_codeswitch import CODESWITCH_REPO
+from engines.settings import load_engine_settings, migrate_engine_settings, save_engine_settings
 from login import is_open_at_login_enabled, set_open_at_login
 from main import ArabicAudioTranscriber, dependency_failure_message, require_dependencies, torch
 from model_loading import GLOBAL_MODEL_MANAGER
@@ -53,6 +54,7 @@ from speech_output import LocalSpeechSynthesizer
 
 
 APP_NAME = "Translito"
+ENGINE_PROFILES = {"Free (recommended)": "free", "Offline (private)": "offline", "Custom": "custom"}
 
 # Native macOS-inspired palette. Tk's clam theme lets the same colors render
 # consistently on Windows 10 and 11 instead of falling back to legacy widgets.
@@ -345,6 +347,7 @@ class TranslatorGUI:
         self.root.minsize(640, 480)
         self.root.configure(bg=COLORS["bg"])
         self.preview_mode = os.environ.get("TRANSLITO_UI_PREVIEW", "0").strip() == "1"
+        self._initializing = True
 
         icon_path = app_resource_path("Translito.ico")
         if icon_path.exists():
@@ -376,6 +379,7 @@ class TranslatorGUI:
         language_config = load_language_config(CONFIG_FILE)
         speak_config = load_speak_config(CONFIG_FILE)
         runtime_config = load_runtime_config(CONFIG_FILE)
+        engines = load_engine_settings(CONFIG_FILE) if self.preview_mode else migrate_engine_settings(CONFIG_FILE)
         conversation = (load_conversation_config(CONFIG_FILE) if self.preview_mode else
                         migrate_conversation_config(CONFIG_FILE))
         hotkeys = load_hotkey_config(CONFIG_FILE)
@@ -383,7 +387,9 @@ class TranslatorGUI:
         env_offline = os.environ.get("OFFLINE_ONLY")
         offline_default = (
             env_offline.strip() == "1" if env_offline is not None else runtime_config.offline_only
-        )
+        ) or engines.profile == "offline"
+        self.engine_profile_var = tk.StringVar(value=("Offline (private)" if offline_default else
+            next((label for label, value in ENGINE_PROFILES.items() if value == engines.profile), "Free (recommended)")))
         self.mode_var = tk.StringVar(value=runtime_config.last_mode)
         self.listen_device_var = tk.StringVar(value="")
         self.speak_mic_var = tk.StringVar(value=speak_config.mic_name)
@@ -405,6 +411,7 @@ class TranslatorGUI:
         self.engine_var = tk.StringVar(value="ASR: Local · MT: Local")
         self.lag_var = tk.StringVar(value="")
         self.active_engines = {"asr": "Local", "mt": "Local"}
+        self.active_fallbacks = {"asr": False, "mt": False}
         self.offline_only_var = tk.BooleanVar(value=offline_default)
         self.monitor_var = tk.BooleanVar(value=speak_config.monitor_spoken_audio)
         self.voice_var = tk.StringVar(value=speak_config.voice or "Automatic")
@@ -449,6 +456,7 @@ class TranslatorGUI:
         self.update_noise_gate_label()
         self.update_chunk_label()
         self.update_transcript_state()
+        self._initializing = False
         if not self.preview_mode:
             from engines.hardware import speed_history_path
             if speed_history_path().exists():
@@ -1188,7 +1196,7 @@ class TranslatorGUI:
             recognition,
             text="Offline mode (use already-downloaded models only)",
             variable=self.offline_only_var,
-            command=self.persist_settings,
+            command=self.change_offline_mode,
             **self._checkbutton_options(),
         )
         offline.pack(anchor="w", pady=(6, 2))
@@ -1205,6 +1213,12 @@ class TranslatorGUI:
         )
         self.settings_controls.extend((whisper_settings, chunk_scale, offline))
 
+        engines_section = self._settings_section(content, "Translation engine")
+        profile_combo = self._settings_combo(engines_section, "Profile", self.engine_profile_var, list(ENGINE_PROFILES))
+        profile_combo.bind("<<ComboboxSelected>>", lambda _event: self.change_engine_profile())
+        self.settings_controls.append(profile_combo)
+        self._settings_help(engines_section, "Free works with local models and optional tested free-tier keys. "
+                            "Offline makes no cloud requests. Cloud services start disabled and paid caps start at $0.")
         translation = self._settings_section(content, "Local translation")
         gemma_button = ttk.Button(translation, text="Set up TranslateGemma", style="Mac.TButton",
                                    command=self.open_translation_model_setup)
@@ -1499,6 +1513,14 @@ class TranslatorGUI:
         from quality_settings import open_speed_check
         open_speed_check(self, COLORS, center_window, first_run=first_run)
 
+    def change_engine_profile(self):
+        self.offline_only_var.set(ENGINE_PROFILES[self.engine_profile_var.get()] == "offline")
+        self.persist_settings()
+
+    def change_offline_mode(self):
+        self.engine_profile_var.set("Offline (private)" if self.offline_only_var.get() else "Free (recommended)")
+        self.persist_settings()
+
     def selected_listen_choice(self):
         index = self.listen_combo.current()
         if 0 <= index < len(self.listen_choices):
@@ -1658,15 +1680,18 @@ class TranslatorGUI:
             self.voice_var.set("Automatic")
 
     def persist_current_listen_device(self):
-        if self.preview_mode:
+        if self.preview_mode or self._initializing:
             return
         choice = self.selected_listen_choice()
         if choice:
             save_device_config(choice.name, CONFIG_FILE)
 
     def persist_settings(self):
-        if self.preview_mode:
+        if self.preview_mode or self._initializing:
             return
+        from dataclasses import replace
+        engines = load_engine_settings(CONFIG_FILE)
+        save_engine_settings(replace(engines, profile=ENGINE_PROFILES[self.engine_profile_var.get()]), CONFIG_FILE)
         _listen_name, _listen_bcp, listen_source = self.language_entry_by_name(
             self.listen_source_var.get()
         )
@@ -1794,6 +1819,8 @@ class TranslatorGUI:
         self.configure_offline_env()
         self.persist_settings()
         self.hide_banners()
+        self.active_fallbacks = {"asr": False, "mt": False}
+        self.engine_label.configure(fg=COLORS["secondary"])
         mic_noise_gate = float(self.noise_gate_var.get())
 
         if request["mode"] == "speak":
@@ -1997,7 +2024,11 @@ class TranslatorGUI:
                         self.active_engines[key] = payload[key]
                 self.engine_var.set(f"ASR: {self.active_engines['asr']} · MT: {self.active_engines['mt']}")
                 if "fallback" in (payload or {}):
-                    self.engine_label.configure(fg=COLORS["orange"] if payload["fallback"] else COLORS["secondary"])
+                    stages = [payload["stage"]] if payload.get("stage") in {"asr", "mt"} else [
+                        key for key in ("asr", "mt") if payload.get(key)]
+                    for stage in stages:
+                        self.active_fallbacks[stage] = payload["fallback"]
+                    self.engine_label.configure(fg=COLORS["orange"] if any(self.active_fallbacks.values()) else COLORS["secondary"])
 
         self.root.after(0, handle)
 
