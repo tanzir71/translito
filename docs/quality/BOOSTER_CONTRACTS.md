@@ -1,10 +1,12 @@
 # Booster evaluation contracts — 2026-11-02
 
 The desktop does not register these paid candidates. The thin wire contracts
-live in `tools/eval/streaming_protocols.py` and make no network calls. Nine
-synthetic contract tests pass; they are not recorded vendor sessions or quality
-measurements. A transport/accounting runner, approved accounts/spending and a
-measured comparison are still required before selecting a production booster.
+live in `tools/eval/streaming_protocols.py`; the opt-in transport/accounting runner
+is integrated into the P0 CLI. See [PAID_EVALUATION.md](PAID_EVALUATION.md) for its
+zero-default allocation, account-verified session ceilings and measurement limits.
+Synthetic contract/socket tests are not recorded vendor sessions or quality
+measurements. Approved accounts/spending and a measured comparison are still
+required before selecting a production booster. No paid call has been made.
 The owner waived the private Saudi evaluation set, so its acceptance criteria
 remain unverified.
 

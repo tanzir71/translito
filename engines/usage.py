@@ -251,10 +251,11 @@ class UsageLedger:
             return self._window(self._read(), provider, seconds, self.clock())
 
     def reserve(self, provider, units, *, rate=LOCAL_RATE, allowance=Allowance(), quota=MonthlyQuota(),
-                monthly_cap=Decimal("0"), total_monthly_cap=Decimal("0"), windows=()):
+                monthly_cap=Decimal("0"), total_monthly_cap=Decimal("0"), windows=(), history_cap=None):
         if not re.fullmatch(r"[a-z0-9_-]+", provider):
             raise ValueError("Invalid provider identifier")
         cap, total_cap = _money(monthly_cap), _money(total_monthly_cap)
+        history_cap = _money(history_cap) if history_cap is not None else None
         amounts = asdict(units)
         amounts["billed_audio_seconds"] = max(units.audio_seconds, rate.minimum_audio_seconds * units.requests)
         # Validate policy values before creating a reservation or contacting a provider.
@@ -287,7 +288,10 @@ class UsageLedger:
             cost = _incremental_cost(stats, amounts, rate, allowance)
             spent = _money(stats["estimated_usd"])
             total = sum((_money(value["estimated_usd"]) for value in month["providers"].values()), Decimal(0))
-            if cost > 0 and (spent + cost > cap or total + cost > total_cap):
+            history = sum((_money(value["estimated_usd"]) for item in data["months"].values()
+                           for value in item["providers"].values()), Decimal(0)) if history_cap is not None else Decimal(0)
+            if cost > 0 and (spent + cost > cap or total + cost > total_cap
+                             or (history_cap is not None and history + cost > history_cap)):
                 raise BudgetExceeded("The monthly spending cap would be exceeded.")
             token = Reservation(uuid4().hex, provider, month_key, cost, units)
             pricing = {"rate": {key: str(value) for key, value in asdict(rate).items()},
