@@ -1,6 +1,7 @@
 # Windows virtual microphone
 
-Included in Windows 1.1.0. Listen Mode uses loopback and never needs VB-CABLE.
+Included since Windows 1.1.0; the current Windows release is 1.1.1.
+Listen Mode uses loopback and never needs VB-CABLE.
 
 ## Speak setup
 
@@ -66,14 +67,20 @@ packages are not included. Verified 2026-11-02.
   analysis, virtual-only playback/capture, and the GUI pre-start success/failure
   gate without any real model or audio device. Output tests simulate both cable
   and monitor failures without duplicate audio intervals.
-- Inno compiled the optional task/verification/extraction/elevation code using a
-  README-only fixture. That compiler-check EXE cannot serve as an app installer.
-- No CABLE device is installed on the development machine. No driver installer,
-  UAC prompt, reboot or physical tone test was performed. Those checks, actual
-  meeting-app routing, and rebuilt-app/installer verification remain outstanding.
-- The release suite passes 286 tests. Rebuilt packaging and installed startup
-  are verified in `RELEASE_1_1_0.md`; real meeting-app/browser sessions still need
-  acceptance.
+- The initial Inno compiler check used a README-only fixture. Deliverable Windows
+  1.1.0 and 1.1.1 installers were subsequently rebuilt, installed and verified;
+  see `RELEASE_1_1_0.md` and `RELEASE_1_1_1.md`.
+- No CABLE device is installed. The owner approved installation and the tone
+  test, and the installed app extracted the verified ZIP. Windows rejected the
+  standard elevated launch with error 3 before a driver process started. A
+  separate extraction with inherited folder permissions failed identically;
+  the cause is unproven. Manual Windows installation is pending. No reboot or
+  successful physical cable/meeting-app routing test is claimed.
+- The latest full suite passed 351 tests. Rebuilt 1.1.1 playback displayed
+  Arabic source and English target, saved on Stop, and returned to Ready. The
+  installed copy opens normally with original settings/transcripts preserved.
+  Real meeting sessions still need acceptance; the isolated browser-child
+  capture check below establishes only its stated native path.
 
 ## App audio for Listen
 
@@ -108,6 +115,37 @@ meeting-app child-process behavior. No microphone, saved raw audio, or cloud
 inference was involved. Tests also check native PCM copy ownership, frame splitting,
 silence, startup failure cleanup, browser grouping, PID reuse, self-exclusion and
 retaining a silent selection in the actual GUI refresh method.
+
+### Isolated browser-child measurement — 2026-11-02
+
+At source `3e47197c683969b42aea835c36540c0515e913ce`, installed Edge
+156.0.4314.58 ran a local Web Audio 1 kHz oscillator at amplitude 0.03 in a new,
+headless profile. The page was served only on loopback; it used no microphone,
+meeting tab or external media. The Chromium [headless mode](https://developer.chrome.com/docs/automation-and-testing/headless)
+and test-only [autoplay switch](https://developer.chrome.com/blog/autoplay#developer-switches)
+apply to that isolated browser process. Existing browser profiles/settings were
+not modified. Its temporary profile and all test artifacts are preserved.
+
+The Windows audio session belonged to child PID 31584. The desktop
+`active_sources()` function grouped it under browser root PID 22736. Selecting
+that root through the real `ProcessSource`/`ProcessRecorder`/`NativeBridge` path
+captured max RMS 0.021213483, with 0.021213477 in the 950–1050 Hz band. A separate
+owned, silent sibling process captured max RMS 0.000014931 while the browser
+tone continued. This verifies child-tree inclusion and isolation from that
+sibling on this machine. It does not prove every browser/meeting app, full GUI
+browser selection, call quality, VB-CABLE or translated Speak delivery.
+
+Both capture workers stopped, closed their native handles and cleared queued
+PCM. All owned browser/helper processes and the local server stopped. No PCM
+file was saved and no cloud inference was called. The installed 1.1.1 bridge
+hash matched the source DLL used for this measurement.
+
+The result, process tree, fixture source hash, cleanup flags and probe script
+are retained at
+`D:\CodexBuilds\Translito-quality\browser-child-constant-20261102`.
+The earlier HTTP-controlled fixture failed before measurement and is retained
+separately under `browser-child-20261102T1755Z`; it is not a passing capture
+result. No production code or installer changed for this verification.
 
 ## Meeting menu references
 
