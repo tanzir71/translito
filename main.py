@@ -354,13 +354,7 @@ class ArabicAudioTranscriber:
                 print(f"Mic noise gate: {gate:.4f} RMS")
             print("-" * 50)
 
-            processor = AudioChunkProcessor(
-                chunk_duration=self.chunk_duration,
-                input_sample_rate=self.capture_sample_rate,
-                target_sample_rate=self.sample_rate,
-                noise_gate_rms=gate,
-                source_name=device_name,
-            )
+            processor = self.create_audio_processor()
             block_duration = min(0.25, max(0.05, self.chunk_duration / 12.0))
             block_size = max(1, int(self.capture_sample_rate * block_duration))
 
@@ -375,6 +369,17 @@ class ArabicAudioTranscriber:
             self.emit("error", f"Audio capture failed: {exc}")
             print(f"\nError capturing audio: {exc}")
             self.running = False
+
+    def create_audio_processor(self, sample_rate=None):
+        """Use identical capture preprocessing for live audio and evaluation."""
+        return AudioChunkProcessor(
+            chunk_duration=self.chunk_duration,
+            input_sample_rate=sample_rate or self.capture_sample_rate,
+            target_sample_rate=self.sample_rate,
+            noise_gate_rms=(self.mic_noise_gate
+                            if should_apply_mic_noise_gate(self.selected_device) else 0.0),
+            source_name=getattr(self.selected_device, "name", "Evaluation audio"),
+        )
 
     def _handle_capture_result(self, result):
         if self._stop_event.is_set():

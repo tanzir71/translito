@@ -1,2 +1,7 @@
 __pycache__/
 *.py[cod]
+
+# Evaluation inputs and generated outputs may contain private meeting content.
+tools/eval/sets.local.json
+tools/eval/sets/private/
+tools/eval/results/
