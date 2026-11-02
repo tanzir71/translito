@@ -49,7 +49,7 @@ class FastWhisperASR:
         self.beam_size = beam_size
 
     def transcribe(self, audio, language, stop_event=None, initial_prompt=None, hotwords=None):
-        segments, _ = self.model.transcribe(
+        segments, info = self.model.transcribe(
             audio,
             language=language,
             task="transcribe",
@@ -66,11 +66,24 @@ class FastWhisperASR:
             hotwords=hotwords,
         )
         text = []
+        accepted = []
         for segment in segments:
             if stop_event is not None and stop_event.is_set():
                 break
             text.append(segment.text.strip())
-        return " ".join(part for part in text if part).strip()
+            accepted.append(segment)
+        value = " ".join(part for part in text if part).strip()
+        from engines.lid import latin_ratio, language_tag
+        from engines.types import AsrResult
+        scores = [s.avg_logprob for s in accepted if getattr(s, "avg_logprob", None) is not None]
+        silence = [s.no_speech_prob for s in accepted if getattr(s, "no_speech_prob", None) is not None]
+        detected = getattr(info, "language", None) or language
+        self.last_result = AsrResult(
+            value, detected, getattr(info, "language_probability", None),
+            language_tag(value, acoustic_language=detected), latin_ratio(value),
+            sum(scores) / len(scores) if scores else None, max(silence) if silence else None,
+            len(audio) / 16000, "faster-whisper")
+        return value
 
 
 class LoadedModels:

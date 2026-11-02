@@ -35,6 +35,7 @@ class RuntimeConfig:
     last_mode: str = "listen"
     chunk_duration: float = 6.0
     offline_only: bool = False
+    asr_preset: str = "balanced"
 
 
 @dataclass(frozen=True)
@@ -246,6 +247,8 @@ def load_runtime_config(path=None):
         last_mode=last_mode,
         chunk_duration=chunk_duration,
         offline_only=offline_only,
+        asr_preset=section.get("asr_preset", "balanced")
+        if section.get("asr_preset", "balanced") in {"fast", "balanced", "best"} else "balanced",
     )
 
 
@@ -255,6 +258,7 @@ def save_runtime_config(
     last_mode=None,
     chunk_duration=None,
     offline_only=None,
+    asr_preset=None,
 ):
     config = read_config(path)
     section = _ensure_section(config, "RUNTIME")
@@ -268,6 +272,8 @@ def save_runtime_config(
         section["chunk_duration"] = str(min(15.0, max(3.0, float(chunk_duration)))).rstrip("0").rstrip(".")
     if offline_only is not None:
         section["offline_only"] = "1" if offline_only else "0"
+    if asr_preset is not None:
+        section["asr_preset"] = asr_preset if asr_preset in {"fast", "balanced", "best"} else "balanced"
     write_config(config, path)
 
 

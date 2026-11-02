@@ -6,7 +6,7 @@ Native macOS code is outside this change.
 | Phase | Current evidence | Remaining work |
 |---|---|---|
 | P0 evaluation | Shared desktop replay, WER/CER/chrF and bilingual metrics, latency/RAM/cost reports, cache-only socket-blocked run; see P0_BASELINE.md | Cohere hardware measurements after runtime upgrade and gated access. Saudi meeting set waived by owner; those accuracy targets are unverified. |
-| P1 local quality | Tested routing/LID policy, 186-term additive glossary, span protection, byte-preserving config migration, shared hallucination guards, VAD endpointing, sentence assembler, unbounded speech queue with lag events, four-beam MT, turbo alias resolution and CPU/CUDA faster-whisper selection. Verified Opus pair/pivot resolver and direct Transformers 4/5 MT adapter; VAD-gated on-demand Cohere adapter; buffered voice output and bidi display helpers. 118 tests pass on the new runtime. | Wire bilingual routing/assembly/glossary/Cohere into live sessions and GUI; TranslateGemma; graphical display/pass-through and end-to-end acceptance checks. Cohere weights still require model authorization before speed/accuracy can be measured. |
+| P1 local quality | Bilingual pipeline wired into runtime and GUI: pair LID, pass-through, sentence assembly, glossary/protection, cancellation, byte-preserving migration, hallucination guards, VAD endpointing, unbounded speech queue/lag, four-beam MT and hardware-aware faster-whisper. Verified Opus pair/pivot resolver and Transformers 5 adapter; VAD-gated Cohere adapter, buffered voice output, actual Windows bidi preview and screenshot fixture. | Finish Cohere model setup/Terms editor, TranslateGemma, code-switch fallback model, first-run benchmark and remaining end-to-end/latency checks. Update evaluation replay for assembled bilingual rows. Cohere weights still need authorization before speed/accuracy measurement. |
 | P2 provider infrastructure | Engine contracts, pure usage-cost calculation and Credential Manager-only key store | Provider fallback, durable history/caps, settings/test flows and engine chip. |
 | P3 cloud providers | Not implemented yet | Verified adapters, request tests, configured-provider end-to-end checks and optional transcript refinement. |
 | P4 capped booster | No provider selected, enabled or charged | Thin evaluation adapters, owner-approved paid bake-off, measured winner, streaming/reconnect/budget tests. Gemini preview remains opt-in. |
@@ -42,3 +42,12 @@ and translation on that clip, but does not establish Saudi accuracy or the
 4-second latency target. Later runtime upgrades reproduced the recognized and
 translated text. Existing transcript files are now protected by exclusive
 creation with unique suffixes, including repeated Save/Stop/exit saves.
+
+The live bilingual controller is covered by source-before-target, EN no-MT,
+sentence/language boundary, voice/mute/pass-through, timeout, cancellation and
+error-retention tests. Windows preview showed that Tk renders isolate controls
+as boxes; bidi ordering alone also reversed Arabic letters. The verified fix
+shapes Arabic before explicit bidi ordering, leaves stored strings untouched,
+and right-aligns Arabic-matrix rows. See `tests/fixtures/bidi/` for the captured
+reference and verification limits. The installed app has not been replaced by
+this development branch yet.

@@ -169,6 +169,11 @@ class ArabicAudioTranscriber:
         mic_noise_gate=None,
         chunk_duration=None,
         transcript_folder=None,
+        conversation=None,
+        recognizer=None,
+        translator_engine=None,
+        glossary=None,
+        asr_preset=None,
     ):
         print("\nInitializing Translito...")
 
@@ -192,6 +197,7 @@ class ArabicAudioTranscriber:
         self.speech_voice = speech_voice or "Automatic"
         self.monitor_spoken_audio = bool(monitor_spoken_audio)
         runtime_config = load_runtime_config(CONFIG_FILE)
+        self.asr_preset = asr_preset or runtime_config.asr_preset
         self.mic_noise_gate = (
             runtime_config.mic_noise_gate
             if mic_noise_gate is None
@@ -234,6 +240,8 @@ class ArabicAudioTranscriber:
         self._capture_thread = None
         self._process_thread = None
         self.speech_player = None
+        self.conversation = conversation
+        self.conversation_pipeline = None
 
         atexit.register(self.save_transcript)
 
@@ -261,6 +269,8 @@ class ArabicAudioTranscriber:
                 on_event=self.emit,
             )
             self.asr = loaded_models.asr
+            if hasattr(self.asr, "beam_size"):
+                self.asr.beam_size = {"fast": 1, "balanced": 3, "best": 5}.get(self.asr_preset, 3)
             self.translator = loaded_models.translator
             print("Offline models ready.")
         except Exception as exc:
@@ -274,6 +284,27 @@ class ArabicAudioTranscriber:
                 monitor=self.monitor_spoken_audio,
                 on_event=self.emit,
             )
+
+        if conversation is not None and not getattr(conversation, "one_way", False):
+            from engines.asr_local import LocalConversationRecognizer
+            from engines.conversation_pipeline import ConversationPipeline
+            from engines.glossary import Glossary
+            from engines.mt_local import OpusTranslator
+            glossary = glossary or Glossary()
+            recognizer = recognizer or LocalConversationRecognizer(
+                self.asr, other_language=conversation.other_language, offline_only=self.offline_only,
+                glossary=glossary, on_event=self.emit,
+                device="cpu" if self.torch_device == -1 else f"cuda:{self.torch_device}",
+            )
+            translator_engine = translator_engine or OpusTranslator(
+                offline_only=self.offline_only, device=self.torch_device,
+                on_hint=lambda text: self.emit("hint", text))
+            if hasattr(translator_engine, "models"):
+                translator_engine.models[self.translation_model_name] = self.translator
+            self.conversation_pipeline = ConversationPipeline(
+                recognizer, translator_engine, conversation, mode=self.mode, emit=self.emit,
+                transcripts=self.transcripts, stop_event=self._stop_event,
+                speech_player=self.speech_player, voice=self.speech_voice, glossary=glossary)
 
         print("Initialization complete.\n")
 
@@ -432,6 +463,9 @@ class ArabicAudioTranscriber:
             try:
                 item = self.audio_queue.get(timeout=1)
             except queue.Empty:
+                pipeline = getattr(self, "conversation_pipeline", None)
+                if pipeline is not None:
+                    pipeline.poll()
                 continue
 
             try:
@@ -445,6 +479,12 @@ class ArabicAudioTranscriber:
                     self.emit("hint", f"Behind by {lag:.0f}s. Speech is being kept; choose Fast "
                               "or enable a free cloud recognizer to reduce the delay.")
                     self._last_backlog_hint_time = time.monotonic()
+                pipeline = getattr(self, "conversation_pipeline", None)
+                if pipeline is not None:
+                    chunk = item if isinstance(item, AudioChunkResult) else AudioChunkResult(
+                        "audio", audio_data, self.sample_rate, peak, rms)
+                    pipeline.feed(chunk)
+                    continue
 
                 if self.audio_debug:
                     self._debug_counter += 1
@@ -524,6 +564,10 @@ class ArabicAudioTranscriber:
                 hint = " (set OFFLINE_ONLY=0 to allow first-time model download)" if self.offline_only else ""
                 self.emit("error", f"{exc}{hint}")
                 print(f"\nProcessing error: {exc}{hint}")
+
+        pipeline = getattr(self, "conversation_pipeline", None)
+        if pipeline is not None:
+            pipeline.cancel() if self._stop_event.is_set() else pipeline.flush()
 
     def _coerce_audio_item(self, item):
         if isinstance(item, AudioChunkResult):
