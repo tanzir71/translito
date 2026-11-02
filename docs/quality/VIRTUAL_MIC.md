@@ -33,8 +33,9 @@ channels. At least -30 dBFS passes. No real microphone, transcript or cloud engi
 is used. Failure offers Windows Sound settings to check mute/levels.
 
 Regular output-name lookup does not reset PortAudio: resetting it when opening a
-monitor used to invalidate the first active stream. Idle device refresh and the
-post-install poll explicitly refresh enumeration. A failed output write closes
+monitor used to invalidate the first active stream. Idle polling leaves PortAudio
+running. Manual refresh runs off Tk's thread; the post-install poll also refreshes
+enumeration in the background. A failed output write closes
 both of the player's streams before refreshing/reopening them, preserves equal
 playback duration, retries only the failed route's block and respects Stop.
 Device auto-refresh pauses throughout setup, self-test and model startup.

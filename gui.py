@@ -715,7 +715,7 @@ class TranslatorGUI:
         )
         source_field.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         self.btn_refresh_listen = ttk.Button(
-            frame, text="↻", width=2, style="Icon.TButton", command=self.refresh_devices
+            frame, text="↻", width=2, style="Icon.TButton", command=self.manual_refresh_devices
         )
         self.btn_refresh_listen.grid(row=0, column=1, sticky="s", padx=(0, 10))
 
@@ -769,7 +769,7 @@ class TranslatorGUI:
         output_field.grid(row=0, column=1, sticky="ew", padx=(0, 10))
 
         self.btn_refresh_speak = ttk.Button(
-            frame, text="↻", width=2, style="Icon.TButton", command=self.refresh_devices
+            frame, text="↻", width=2, style="Icon.TButton", command=self.manual_refresh_devices
         )
         self.btn_refresh_speak.grid(row=0, column=2, sticky="s", padx=(0, 10))
 
@@ -1556,7 +1556,7 @@ class TranslatorGUI:
 
         try:
             self.input_choices = query_input_devices(include_loopback=True)
-            self.output_choices = query_output_devices(refresh=True)
+            self.output_choices = query_output_devices()
         except Exception as exc:
             if show_error:
                 self.show_error(f"Unable to list audio devices: {exc}")
@@ -1635,6 +1635,33 @@ class TranslatorGUI:
         if self.transcriber is None and not self.model_setup_busy:
             self.refresh_devices(show_error=False)
         self.root.after(3000, self.auto_refresh_devices)
+
+    def manual_refresh_devices(self):
+        if self.transcriber is not None or self.model_setup_busy:
+            return
+        if self.preview_mode:
+            self.refresh_devices()
+            return
+        # Reinitializing PortAudio can block inside a Windows device driver.
+        # Never do that on Tk's thread or every three seconds during idle.
+        self.model_setup_busy = True
+        self.lock_controls(True)
+        self.update_action_button(loading=True)
+        self.set_status("Refreshing devices")
+        def run():
+            query_output_devices(refresh=True)
+            def done():
+                self.model_setup_busy = False
+                self.refresh_devices()
+                self.lock_controls(False)
+                self.update_action_button()
+                self.set_status("Ready")
+            if not self.is_quitting:
+                try:
+                    self.root.after(0, done)
+                except (RuntimeError, tk.TclError):
+                    pass
+        threading.Thread(target=run, daemon=True, name="Translito device refresh").start()
 
     def set_mode(self, mode, force=False):
         if self.model_setup_busy or (self.transcriber is not None and not force):
@@ -1833,7 +1860,7 @@ class TranslatorGUI:
         if self.transcriber is not None:
             return
         if getattr(self, "model_setup_busy", False):
-            self.show_hint("Wait for model setup to finish before starting a session.")
+            self.show_hint("Wait for device or model setup to finish before starting a session.")
             return
         try:
             request = self.current_model_request()

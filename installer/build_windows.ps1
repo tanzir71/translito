@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [switch]$SkipDependencies,
-    [string]$BuildRoot
+    [string]$BuildRoot,
+    [string]$OutputDirectory,
+    [string]$FrozenSource
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,9 +13,27 @@ $BuildRoot = [System.IO.Path]::GetFullPath($BuildRoot)
 New-Item -ItemType Directory -Path $BuildRoot -Force | Out-Null
 $venvDir = Join-Path $BuildRoot ".venv"
 $venvPython = Join-Path $venvDir "Scripts\python.exe"
-$releaseDistRoot = Join-Path $BuildRoot ".packaging\release-dist"
-$pyinstallerWork = Join-Path $BuildRoot ".packaging\pyinstaller-build"
+$version = (Get-Content -LiteralPath (Join-Path $installerDir 'VERSION') -Raw).Trim()
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid installer/VERSION.' }
+$buildId = [Guid]::NewGuid().ToString('N').Substring(0, 8)
+$stageRoot = Join-Path $BuildRoot ".p\$buildId"
+$releaseDistRoot = Join-Path $stageRoot 'd'
+$pyinstallerWork = Join-Path $stageRoot 'w'
 $releaseAppDir = Join-Path $releaseDistRoot "Translito"
+if ($releaseAppDir.Length -gt 70) { throw 'BuildRoot is too long for Inno dependency paths. Use a short path such as D:\TranslitoBuild.' }
+if (-not $OutputDirectory) { $OutputDirectory = Join-Path $BuildRoot "output\$version" }
+$outputDir = [IO.Path]::GetFullPath($OutputDirectory)
+$portableOutput = Join-Path $outputDir "TranslitoPortable-$version.zip"
+$installerOutput = Join-Path $outputDir "TranslitoSetup-$version.exe"
+$windowsChecksums = Join-Path $outputDir 'SHA256SUMS-Windows.txt'
+foreach ($artifact in @($portableOutput, $installerOutput, $windowsChecksums)) {
+    if (Test-Path -LiteralPath $artifact) { throw "Existing release artifact preserved: $artifact. Choose a new OutputDirectory." }
+}
+$innoText = Get-Content -LiteralPath (Join-Path $installerDir 'Translito.iss') -Raw
+$resourceText = Get-Content -LiteralPath (Join-Path $installerDir 'version_info.txt') -Raw
+if (-not $innoText.Contains("#define MyAppVersion `"$version`"") -or -not $resourceText.Contains("u'ProductVersion', u'$version'")) {
+    throw 'Installer and EXE version metadata must match VERSION.'
+}
 
 Push-Location $installerDir
 try {
@@ -29,8 +49,34 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Unable to install build dependencies." }
     }
 
-    & $venvPython -m PyInstaller Translito.spec --noconfirm --clean --workpath $pyinstallerWork --distpath $releaseDistRoot
-    if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed." }
+    if ($FrozenSource) {
+        $FrozenSource = (Resolve-Path -LiteralPath $FrozenSource).Path
+        $frozenExe = Join-Path $FrozenSource 'Translito.exe'
+        if (-not (Test-Path -LiteralPath $frozenExe) -or
+            (Get-Item -LiteralPath $frozenExe).VersionInfo.ProductVersion -ne $version) {
+            throw 'FrozenSource must contain an already-built Translito EXE with the matching version.'
+        }
+        New-Item -ItemType Directory -Path $releaseDistRoot -Force | Out-Null
+        Copy-Item -LiteralPath $FrozenSource -Destination $releaseAppDir -Recurse
+    }
+    else {
+        & $venvPython -m PyInstaller Translito.spec --noconfirm --clean --workpath $pyinstallerWork --distpath $releaseDistRoot
+        if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed." }
+    }
+
+    $engineData = Join-Path (Split-Path -Parent $installerDir) 'engines\data'
+    foreach ($sourceData in Get-ChildItem -LiteralPath $engineData -File -Recurse) {
+        $relativeData = $sourceData.FullName.Substring($engineData.TrimEnd('\').Length + 1)
+        $frozenData = Join-Path $releaseAppDir "_internal\engines\data\$relativeData"
+        if (-not (Test-Path -LiteralPath $frozenData) -or
+            (Get-FileHash -LiteralPath $sourceData.FullName -Algorithm SHA256).Hash -ne
+            (Get-FileHash -LiteralPath $frozenData -Algorithm SHA256).Hash) {
+            throw "Frozen engine data is missing or changed: $relativeData"
+        }
+    }
+    $tooLong = Get-ChildItem -LiteralPath $releaseAppDir -File -Recurse |
+        Where-Object { $_.FullName.Length -gt 259 } | Select-Object -First 1
+    if ($tooLong) { throw 'A packaged dependency path exceeds Inno limits. Use a shorter BuildRoot.' }
 
     $cablePackage = Join-Path $installerDir "redist\vbcable\VBCABLE_Driver_Pack45.zip"
     $cablePin = ((Get-Content -LiteralPath (Join-Path $installerDir "vbcable.sha256") -Raw).Trim() -split '\s+')[0]
@@ -43,13 +89,8 @@ try {
     Copy-Item -LiteralPath (Join-Path $installerDir "redist\vbcable\NOTICE.txt") -Destination $cableDestination -Force
     Copy-Item -LiteralPath (Join-Path $installerDir "vbcable.sha256") -Destination $cableDestination -Force
 
-    $outputDir = Join-Path $BuildRoot "output"
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
-    $portableOutput = Join-Path $outputDir "TranslitoPortable-1.0.5.zip"
-    if (Test-Path -LiteralPath $portableOutput) {
-        Remove-Item -LiteralPath $portableOutput -Force
-    }
     & tar.exe -a -c -f $portableOutput -C $releaseDistRoot "Translito"
     if ($LASTEXITCODE -ne 0) { throw "Portable ZIP build failed." }
 
@@ -66,7 +107,11 @@ try {
     & $iscc "/DSourceDir=$releaseAppDir" "/DOutputDir=$outputDir" Translito.iss
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup build failed." }
 
-    $installerOutput = Join-Path $outputDir "TranslitoSetup-1.0.5.exe"
+    @($installerOutput, $portableOutput) | ForEach-Object {
+        $artifactHash = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()
+        "$artifactHash  $([IO.Path]::GetFileName($_))"
+    } | Set-Content -LiteralPath $windowsChecksums -Encoding ASCII
+
     Write-Host "Portable Windows app ready: $portableOutput"
     Write-Host "Windows installer ready: $installerOutput"
 }
