@@ -126,3 +126,31 @@ gap or justify a production-wide thread change. Its data is retained in
 `D:\CodexBuilds\Translito-quality\mt-thread-probe-20261102T170934.539211Z.json`.
 The probe helper now applies its explicit Cohere thread setting after VAD
 initialization and reports the actual Torch count, including direct calls.
+
+## Bilingual switching smoke — 2026-11-02
+
+At source revision `7b58358d435fad32aac9cc4bdca45003f57f438e`, a cache-only
+Offline replay combined two locally synthesized Microsoft Hazel English
+utterances with the same public Arabic clip, separated by 1.4-second silences.
+This is a 19.447-second synthetic/public MSA fixture, not a Saudi meeting or a
+natural mixed-language utterance. The selected source was Arabic and target
+English, using the existing Balanced preset; sockets/DNS were blocked.
+
+The desktop controller produced three rows tagged EN → AR → EN. Both English
+rows passed through unchanged apart from punctuation, with zero English WER,
+no MT calls and all 18 English reference terms retained. The Arabic row made
+the only MT call (94 characters). There were no pipeline errors or repetition
+loops. Arabic WER remained 0.533 and overall target chrF was 70.69; the English
+rows must not be used to claim improved Arabic quality.
+
+Observed speech-end-to-completed-row times were 3.698, 10.838 and 5.138 seconds
+(three-row p95 10.268 seconds). The four-second latency target remains unmet.
+This replay verifies the functional language switching/pass-through path only;
+three rows do not establish the required language-ID accuracy distribution.
+The later code-switch preset fix does not affect this run, whose prepared
+code-switch weights were unavailable.
+
+Fixture metadata, source hashes and exact timeline are retained at
+`D:\CodexBuilds\Translito-quality\bilingual-smoke-20261102T172903.5519989Z\composite.json`.
+Reports and raw row predictions are retained at
+`D:\CodexBuilds\Translito-quality\bilingual-smoke-results\20261102T173129.669922Z`.
