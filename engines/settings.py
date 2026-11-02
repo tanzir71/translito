@@ -6,7 +6,7 @@ import json
 import re
 
 
-PROVIDERS = ("azure", "deepl", "google", "gemini", "cohere-api", "groq")
+PROVIDERS = ("azure", "deepl", "google", "gemini", "cohere-api", "groq", "gemini-live")
 PROFILES = {"free", "offline", "custom", "booster", "live-preview"}
 
 

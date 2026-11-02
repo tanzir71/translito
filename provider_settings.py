@@ -21,7 +21,7 @@ def open_provider_settings(app, colors, center):
     notebook.pack(fill="both", expand=True, padx=12, pady=12)
     settings = load_engine_settings(CONFIG_FILE)
     controller = ProviderSetup(path=CONFIG_FILE, on_event=app.on_event)
-    short_names = {"cohere-api": "Cohere", "groq": "Groq", "azure": "Azure", "deepl": "DeepL", "google": "Google", "gemini": "Gemini"}
+    short_names = {"cohere-api": "Cohere", "groq": "Groq", "azure": "Azure", "deepl": "DeepL", "google": "Google", "gemini": "Gemini", "gemini-live": "Live"}
 
     def card(factory):
         preference = settings.provider(factory.name)
@@ -42,7 +42,8 @@ def open_provider_settings(app, colors, center):
         account_text = {"azure": "This is an Azure Translator F0 key", "deepl": "This is a DeepL API Free key (ends in :fx)",
                         "google": "This project has unused monthly Translation credit and is dedicated to Translito",
                         "cohere-api": "This is a Cohere free trial key (no payment method)",
-                        "gemini": "This is a Gemini free-tier project key", "groq": "This is a Groq Free account key"}[factory.name]
+                        "gemini": "This is a Gemini free-tier project key", "groq": "This is a Groq Free account key",
+                        "gemini-live": "This is a Gemini free-tier project key; paid billing is not enabled"}[factory.name]
         tk.Checkbutton(body, text=account_text, variable=confirmed,
                        **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=3)
         if factory.training_required:

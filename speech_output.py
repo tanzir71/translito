@@ -1,5 +1,6 @@
 import base64
 from dataclasses import dataclass, field
+import math
 import os
 from pathlib import Path
 import queue
@@ -173,11 +174,25 @@ class BufferedVoice:
     sample_rate: int
 
 
+@dataclass(frozen=True)
+class StreamVoice(BufferedVoice):
+    epoch: int
+    stopped: threading.Event
+
+
+@dataclass(frozen=True)
+class _StreamBoundary:
+    epoch: int
+
+
 @dataclass
 class _SpeechSession:
     items: queue.Queue = field(default_factory=queue.Queue)
     stopped: threading.Event = field(default_factory=threading.Event)
     playing: threading.Event = field(default_factory=threading.Event)
+    stream_stopped: threading.Event = field(default_factory=threading.Event)
+    stream_epoch: int = 0
+    routes: object = None
 
 
 # pyttsx3/SAPI may share process-wide engine state across player instances.
@@ -221,7 +236,10 @@ class SpeechOutputPlayer:
             session, worker = self._session, self._thread
             if session:
                 session.stopped.set()
+                session.stream_stopped.set()
                 session.playing.clear()
+                if session.routes:
+                    session.routes.abort()
             while True:
                 try:
                     self._queue.get_nowait()
@@ -256,80 +274,106 @@ class SpeechOutputPlayer:
     def _active(self, session):
         return self._running and self._session is session and not session.stopped.is_set()
 
+    def play_stream(self, pcm_bytes, rate=24000):
+        """Queue PCM16 chunks into persistent output streams; never invoke TTS."""
+        if len(pcm_bytes) % 2 or int(rate) <= 0:
+            raise ValueError("Streaming output requires whole PCM16 samples and a valid rate")
+        if not pcm_bytes:
+            return False
+        audio = np.frombuffer(pcm_bytes, dtype="<i2").astype(np.float32) / 32768
+        with self._lifecycle_lock:
+            if not self._running:
+                return False
+            self._queue.put(StreamVoice(audio, int(rate), self._session.stream_epoch, self._session.stream_stopped))
+            return True
+
+    def reset_stream(self):
+        """Discard queued/in-flight old stream audio after reconnect or Stop."""
+        with self._lifecycle_lock:
+            session = self._session
+            if session is None:
+                return
+            previous = session.stream_stopped
+            previous.set()
+            session.stream_stopped = threading.Event()
+            session.stream_epoch += 1
+            if session.routes and session.routes.stop_event is previous:
+                session.routes.abort()
+            session.items.put(_StreamBoundary(session.stream_epoch))
+
     def _worker(self, session=None):
         if session is None:
             session = self._session or _SpeechSession(items=self._queue, playing=self._playing)
             self._session = session
-        while self._active(session):
-            item = session.items.get()
-            if item is None:
-                continue
-            if not self._active(session):
-                break
-            try:
-                self._emit("status", "speaking")
-                session.playing.set()
-                if isinstance(item, BufferedVoice):
-                    samples, sample_rate = item.samples, item.sample_rate
-                else:
-                    text, language, voice = item
-                    with self._synthesis_lock:
-                        if not self._active(session):
+        stream_epoch = None
+        try:
+            while self._active(session):
+                item = session.items.get()
+                if item is None:
+                    continue
+                if not self._active(session):
+                    break
+                try:
+                    if isinstance(item, _StreamBoundary):
+                        if session.routes:
+                            session.routes.close()
+                            session.routes = None
+                        stream_epoch = None
+                        continue
+                    self._emit("status", "speaking")
+                    session.playing.set()
+                    if isinstance(item, StreamVoice):
+                        if item.epoch != session.stream_epoch:
                             continue
-                        samples, sample_rate = self.synthesizer.synthesize(text, language, voice)
-                if samples.size and self._active(session):
-                    self._play(samples, sample_rate, stop_event=session.stopped)
-            except Exception as exc:
-                if self._active(session):
-                    self._emit("error", f"Speech output failed: {exc}")
-            finally:
-                session.playing.clear()
-                if self._active(session) and session.items.empty():
-                    self._emit("status", "listening")
+                        if stream_epoch != item.epoch or session.routes is None:
+                            if session.routes:
+                                session.routes.close()
+                            session.routes = _PlaybackRoutes(self, item.stopped)
+                            stream_epoch = item.epoch
+                        session.routes.write(item.samples, item.sample_rate)
+                        continue
+                    if session.routes:
+                        session.routes.close()
+                        session.routes = None
+                        stream_epoch = None
+                    if isinstance(item, BufferedVoice):
+                        samples, sample_rate = item.samples, item.sample_rate
+                    else:
+                        text, language, voice = item
+                        with self._synthesis_lock:
+                            if not self._active(session):
+                                continue
+                            samples, sample_rate = self.synthesizer.synthesize(text, language, voice)
+                    if samples.size and self._active(session):
+                        self._play(samples, sample_rate, stop_event=session.stopped)
+                except Exception as exc:
+                    if session.routes:
+                        session.routes.close()
+                        session.routes = None
+                    if self._active(session):
+                        self._emit("error", f"Speech output failed: {exc}")
+                finally:
+                    session.playing.clear()
+                    if self._active(session) and session.items.empty():
+                        self._emit("status", "listening")
+        finally:
+            if session.routes:
+                session.routes.close()
+                session.routes = None
 
     def _play(self, samples, sample_rate, stop_event=None):
-        import sounddevice as sd
-
-        targets = [self.output_device_name]
-        if self.monitor and self.output_device_name:
-            targets.append("")
-
-        streams = []
+        routes = _PlaybackRoutes(self, stop_event)
+        with self._lifecycle_lock:
+            session = self._session
+            if session and session.stopped is stop_event:
+                session.routes = routes
         try:
-            if stop_event is not None and stop_event.is_set():
-                return
-            for target in targets:
-                stream, rate = self._open_stream(sd, target)
-                streams.append((stream, rate, target))
-            translated_streams = []
-            for stream, rate, target in streams:
-                if rate != sample_rate:
-                    translated = resample_audio(samples, sample_rate, rate)
-                else:
-                    translated = samples.astype(np.float32, copy=False)
-                translated_streams.append((stream, translated, target, rate))
-            frame = 0
-            max_len = max(len(translated) for _stream, translated, _target, _rate in translated_streams)
-            block = 2048
-            while frame < max_len and self._running and not (stop_event and stop_event.is_set()):
-                for stream, translated, target, rate in translated_streams:
-                    if stop_event is not None and stop_event.is_set():
-                        break
-                    data = translated[frame : frame + block]
-                    if data.size == 0:
-                        continue
-                    try:
-                        stream.write(data)
-                    except Exception:
-                        self._retry_write(sd, target, data, rate, stop_event)
-                frame += block
+            routes.write(samples, sample_rate)
+            routes.flush()
         finally:
-            for stream, _rate, _target in streams:
-                try:
-                    stream.stop()
-                    stream.close()
-                except Exception:
-                    pass
+            routes.close()
+            if session and session.routes is routes:
+                session.routes = None
 
     def _open_stream(self, sd, output_device_name):
         from device_utils import resolve_output_device_index
@@ -365,6 +409,126 @@ class SpeechOutputPlayer:
                 self.on_event(event_type, payload)
             except Exception:
                 pass
+
+
+class _StreamResampler:
+    """Linear interpolation with a retained boundary and no per-chunk drift."""
+    def __init__(self, source_rate, target_rate):
+        self.source_rate, self.target_rate = source_rate, target_rate
+        self.input_count = self.output_count = 0
+        self.last = None
+
+    def push(self, samples):
+        if not samples.size:
+            return samples
+        offset = self.input_count - int(self.last is not None)
+        values = np.concatenate(([self.last], samples)) if self.last is not None else samples
+        self.input_count += len(samples)
+        end = math.floor((self.input_count - 1) * self.target_rate / self.source_rate) + 1
+        positions = np.arange(self.output_count, end, dtype=np.float64) * self.source_rate / self.target_rate - offset
+        output = np.interp(positions, np.arange(len(values)), values).astype(np.float32)
+        self.output_count = end
+        self.last = float(samples[-1])
+        return output
+
+    def flush(self):
+        end = round(self.input_count * self.target_rate / self.source_rate)
+        output = np.full(max(0, end - self.output_count), self.last or 0, dtype=np.float32)
+        self.output_count = end
+        return output
+
+
+@dataclass
+class _OutputRoute:
+    target: str
+    stream: object
+    rate: int
+    resampler: object = None
+
+
+class _PlaybackRoutes:
+    def __init__(self, player, stop_event=None):
+        self.player, self.stop_event = player, stop_event
+        self.routes = []
+
+    def active(self):
+        return self.player._running and not (self.stop_event and self.stop_event.is_set())
+
+    def _open(self):
+        import sounddevice as sd
+        targets = [self.player.output_device_name]
+        if self.player.monitor and targets[0]:
+            targets.append("")
+        for target in targets:
+            if not self.active():
+                return
+            stream, rate = self.player._open_stream(sd, target)
+            self.routes.append(_OutputRoute(target, stream, rate))
+            if not self.active():
+                self.abort()
+
+    def write(self, samples, rate):
+        if not self.active():
+            return
+        if not self.routes:
+            self._open()
+        # Every route consumes the same time interval, even at 44.1/48 kHz.
+        block = max(1, round(rate * .02))
+        for offset in range(0, len(samples), block):
+            if not self.active():
+                return
+            for route in self.routes:
+                if not route.resampler or route.resampler.source_rate != rate:
+                    if route.resampler:
+                        self._write(route, route.resampler.flush())
+                    route.resampler = _StreamResampler(rate, route.rate)
+                self._write(route, route.resampler.push(samples[offset:offset + block]))
+
+    def _write(self, route, data):
+        if not data.size or not self.active():
+            return
+        try:
+            route.stream.write(data)
+        except Exception:
+            if not self.active():
+                return
+            import sounddevice as sd
+            old_rate = route.rate
+            self._close_stream(route.stream)
+            route.stream, route.rate = self.player._open_stream(sd, route.target)
+            if route.rate != old_rate:
+                data = resample_audio(data, old_rate, route.rate)
+                route.resampler = None
+            if self.active():
+                route.stream.write(data)
+
+    def flush(self):
+        for route in self.routes:
+            if route.resampler:
+                self._write(route, route.resampler.flush())
+
+    def abort(self):
+        for route in tuple(self.routes):
+            try:
+                route.stream.abort()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _close_stream(stream):
+        try:
+            stream.stop()
+        except Exception:
+            pass
+        try:
+            stream.close()
+        except Exception:
+            pass
+
+    def close(self):
+        for route in self.routes:
+            self._close_stream(route.stream)
+        self.routes.clear()
 
 
 def read_wav_mono_float32(path):
