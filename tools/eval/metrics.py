@@ -42,10 +42,12 @@ def repetition_loops(text):
 
 
 def score_clip(reference_source, reference_target, reference_tags, entries,
-               transliterations=None, target_language="en"):
+               transliterations=None, target_language="en", *, hypothesis_target=None):
     source = " ".join(e.get("source_text", "") for e in entries)
     target = " ".join(e.get("translated_text") or (
         e.get("source_text", "") if e.get("pass_through") else "") for e in entries)
+    if hypothesis_target is not None:
+        target = hypothesis_target
     ref, hyp = normalize(reference_source), normalize(source)
     expected = Counter(latin_words(reference_source))
     observed = Counter(latin_words(source))
@@ -66,6 +68,17 @@ def score_clip(reference_source, reference_target, reference_tags, entries,
             for alias in aliases:
                 hits += min(occurrences, len(re.findall(
                     r"(?<!\w)" + re.escape(alias) + r"(?!\w)", source)))
+    reference_lines = reference_source.splitlines()
+    aligned = bool(reference_tags) and len(reference_lines) == len(reference_tags) == len(entries)
+    groups = {"group_metrics_aligned": aligned}
+    for tag in ("en", "ar", "mix"):
+        indices = [i for i, value in enumerate(reference_tags) if value == tag]
+        group_ref = " ".join(reference_lines[i] for i in indices) if aligned else ""
+        group_hyp = " ".join(entries[i].get("source_text", "") for i in indices) if aligned else ""
+        groups[f"{tag}_wer"] = jiwer.wer(normalize(group_ref), normalize(group_hyp)) if aligned and indices else None
+        if tag == "mix":
+            wanted, actual = Counter(latin_words(group_ref)), Counter(latin_words(group_hyp))
+            groups["mix_english_term_recall"] = sum((wanted & actual).values()) / sum(wanted.values()) if wanted else None
     return {
         "wer": jiwer.wer(ref, hyp),
         "cer": jiwer.cer(ref, hyp),
@@ -82,5 +95,5 @@ def score_clip(reference_source, reference_target, reference_tags, entries,
         "unnecessary_mt_rate": unnecessary / len(en_indices)
         if en_indices and target_language == "en" else None,
         "repetition_loops": repetition_loops(source) + repetition_loops(target),
-        "reference_words": len(ref.split()), "reference_characters": len(ref),
+        "reference_words": len(ref.split()), "reference_characters": len(ref), **groups,
     }

@@ -32,6 +32,8 @@ class StreamUpdate:
     done: bool = False
     endpoint: bool = False
     warning: bool = False
+    annotations: tuple[StreamPiece, ...] = ()
+    boundaries: tuple[int, ...] = ()  # Soniox source boundaries, in piece order.
 
 
 def _object(value):
@@ -107,21 +109,24 @@ class SonioxProtocol:
         tokens = message.get("tokens", [])
         if not isinstance(tokens, list):
             raise ProviderError()
-        pieces, endpoint = [], False
+        pieces, boundaries = [], []
         for token in tokens:
             token = _object(token)
             text, final = _text(token.get("text")), token.get("is_final")
             if not isinstance(final, bool):
                 raise ProviderError()
             if text == "<end>":
-                endpoint = endpoint or final
+                if not final:
+                    raise ProviderError()
+                boundaries.append(len(pieces))
                 continue
             status = token.get("translation_status", "none")
             if status not in {"none", "original", "translation"}:
                 raise ProviderError()
             pieces.append(StreamPiece(text, final, status == "translation", token.get("language"), token.get("speaker"),
                                       _time(token.get("start_ms"), 1000), _time(token.get("end_ms"), 1000), status))
-        return StreamUpdate(tuple(pieces), done=message.get("finished") is True, endpoint=endpoint)
+        return StreamUpdate(tuple(pieces), done=message.get("finished") is True,
+                            endpoint=bool(boundaries), boundaries=tuple(boundaries))
 
 
 class SpeechmaticsProtocol:
@@ -203,6 +208,34 @@ class ElevenLabsProtocol:
             _error(kind)
         if kind in {"partial_transcript", "committed_transcript"}:
             return StreamUpdate((StreamPiece(_text(message.get("text")), kind == "committed_transcript"),))
-        # Timestamp/language events annotate a previously committed transcript;
-        # emitting their text a second time would double WER/cost/MT calls.
+        if kind == "committed_transcript_with_timestamps":
+            words = message.get("words")
+            words = [] if words is None else words
+            if not isinstance(words, list):
+                raise ProviderError()
+            starts, ends, speakers, complete = [], [], [], True
+            for word in words:
+                word = _object(word)
+                start, end = _time(word.get("start")), _time(word.get("end"))
+                if start is not None and end is not None and end < start:
+                    raise ProviderError()
+                if word.get("type", "word") != "word":
+                    continue  # Spacing/audio-event timing isn't speech-end timing.
+                complete = complete and start is not None and end is not None
+                if start is not None:
+                    starts.append(start)
+                if end is not None:
+                    ends.append(end)
+                speaker = word.get("speaker_id")
+                if isinstance(speaker, str) and speaker not in speakers:
+                    speakers.append(speaker)
+            language = message.get("language_code")
+            language = {"ara": "ar", "eng": "en"}.get(language, language) if isinstance(language, str) else None
+            language = language if language in {"ar", "en"} else None
+            annotation = StreamPiece(_text(message.get("text")), True, language=language,
+                speaker=speakers[0] if len(speakers) == 1 else None,
+                start_s=min(starts) if starts and complete else None,
+                end_s=max(ends) if ends and complete else None)
+            # Metadata never becomes another source/MT event.
+            return StreamUpdate(annotations=(annotation,))
         return StreamUpdate(ready=kind == "session_started", warning=kind == "warning")

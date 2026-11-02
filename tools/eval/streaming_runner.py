@@ -24,6 +24,7 @@ import numpy as np
 from engines.provider import ProviderError, ProviderNetworkError
 from engines.usage import Rate, Units, UsageLedger
 from tools.eval.streaming_protocols import ElevenLabsProtocol, SonioxProtocol, SpeechmaticsProtocol
+from tools.eval.streaming_rows import CascadedRows, SonioxRows
 
 
 PROFILES = ("soniox", "speechmatics", "speechmatics-melia", "elevenlabs")
@@ -164,9 +165,10 @@ async def stream_clip(protocol, samples, headers, *, on_update, connector=websoc
             cancelled()
             if done.is_set():
                 raise ProviderError()  # A premature server finish truncates the clip.
-            if pace:
-                await asyncio.sleep(max(0, origin + offset / 16000 - time.perf_counter()))
             block = samples[offset:offset + 1600]
+            if pace:
+                # A captured frame is available at its end, not its start.
+                await asyncio.sleep(max(0, origin + (offset + len(block)) / 16000 - time.perf_counter()))
             pcm = (np.clip(block, -1, 1) * 32767).astype("<i2").tobytes()
             await send(socket, protocol.audio(pcm))
             state["frames"] += 1
@@ -234,51 +236,6 @@ async def stream_clip(protocol, samples, headers, *, on_update, connector=websoc
     return state
 
 
-class CascadedRows:
-    """Use desktop sentence assembly, routing, glossary protection and MT."""
-    def __init__(self, provider, target, translator, glossary, stop_event):
-        from engines.conversation_pipeline import ConversationPipeline
-        from engines.router import Conversation
-        self.provider, self.target, self.glossary = provider, target, glossary
-        self.entries, self.errors, self.completed = [], [], {}
-        self.mt_calls = []
-        self.origin = None
-        self.current = None
-        self.pipeline = ConversationPipeline(
-            SimpleNamespace(transcribe=lambda *a, **kw: self.current),
-            SimpleNamespace(translate=self.translate), Conversation(my_language=target),
-            mode="listen", emit=self.event, transcripts=self.entries, stop_event=stop_event, glossary=glossary)
-        self.translator = translator
-
-    def translate(self, text, *args, **kwargs):
-        self.mt_calls.append(text)
-        return self.translator.translate(text, *args, **kwargs)
-
-    def event(self, kind, payload):
-        if kind == "error":
-            self.errors.append("The evaluation MT pipeline could not complete a row.")
-        if kind == "transcript_update" and not payload.get("translation_pending"):
-            self.completed.setdefault(payload["id"], time.perf_counter())
-
-    def feed(self, piece, origin):
-        from engines.lid import language_tag, latin_ratio
-        from engines.postprocess import postprocess
-        from engines.types import AsrResult
-        text, hits = self.glossary.restore_english(piece.text)
-        text = postprocess(text).text
-        if not text:
-            return
-        tag = language_tag(text, transliteration_hits=hits, acoustic_language=piece.language)
-        self.current = AsrResult(text, piece.language or ("en" if tag == "en" else "ar"), None,
-                                 tag, latin_ratio(text), None, None,
-                                 max(0, (piece.end_s or 0) - (piece.start_s or 0)), self.provider)
-        # Missing vendor timestamps stay missing; don't manufacture latency.
-        end = origin + piece.end_s if origin is not None and piece.end_s is not None else None
-        chunk = SimpleNamespace(kind="audio", samples=np.empty(0, dtype=np.float32), sample_rate=16000,
-                                captured_at=end, endpoint_delay_s=0 if end is not None else None)
-        self.pipeline.feed(chunk)
-
-
 class StreamingRuntime:
     def __init__(self, profile, *, policy, monthly_path, run_path, target="en", credentials=None,
                  translator=None, connector=websocket_connection, allow_cloud_mt=False):
@@ -342,30 +299,72 @@ class StreamingRuntime:
         rows = CascadedRows(self.protocol.name, self.target, translator, glossary, threading.Event())
         setup_seconds = time.perf_counter() - setup_started
         tokens = self.budget.reserve(self.protocol.name)
-        updates, native_source, native_target = [], [], []
+        updates = []
+        native = SonioxRows(self.target) if self.protocol.name == "soniox" else None
+        queue = None
 
         async def receive(update, now, origin):
             updates.append({"received_s": now - started, "final_pieces": sum(p.final for p in update.pieces),
-                            "endpoint": update.endpoint, "warning": update.warning})
-            if self.protocol.name == "soniox":
-                for piece in update.pieces:
-                    if piece.final:
-                        if not piece.translated:
-                            native_source.append(piece.text)
-                        if ((piece.translated and piece.language == self.target)
-                                or (piece.translation_status == "none" and piece.language == self.target)):
-                            native_target.append(piece.text)
+                            "annotations": len(update.annotations), "endpoint": update.endpoint, "warning": update.warning})
+            if native is not None:
+                native.push(update, now, origin)
                 return
+            for piece in update.annotations:
+                rows.annotate(piece, origin)
+            if any(not p.final and not p.translated for p in update.pieces):
+                queue.put_nowait(("speech", now, None))
             for piece in update.pieces:
                 if piece.final and not piece.translated:
-                    await asyncio.to_thread(rows.feed, piece, origin)
+                    queue.put_nowait(("feed", piece, origin))
+
+        async def replay():
+            nonlocal queue
+            queue = asyncio.Queue()  # Retain final text while MT is busy.
+
+            async def consume():
+                while True:
+                    try:
+                        item = await asyncio.wait_for(queue.get(), .05)
+                    except TimeoutError:
+                        if native is not None:
+                            native.poll(time.perf_counter())
+                        else:
+                            await asyncio.to_thread(rows.pipeline.poll)
+                        continue
+                    if item is None:
+                        if native is not None:
+                            native.flush(time.perf_counter())
+                        else:
+                            await asyncio.to_thread(rows.pipeline.flush)
+                        return
+                    kind, value, origin = item
+                    if kind == "speech":
+                        await asyncio.to_thread(rows.pipeline.notify_speech, value)
+                    else:
+                        await asyncio.to_thread(rows.feed, value, origin)
+
+            consumer = asyncio.create_task(consume())
+            streaming = asyncio.create_task(stream_clip(self.protocol, samples, headers, on_update=receive,
+                connector=self.connector, force_end_frames=force_end_frames, telemetry=state))
+            try:
+                done, _ = await asyncio.wait((streaming, consumer), return_when=asyncio.FIRST_COMPLETED)
+                if consumer in done:
+                    consumer.result()
+                    raise ProviderError()
+                result = await streaming
+                queue.put_nowait(None)
+                await consumer
+                return result
+            finally:
+                for task in (streaming, consumer):
+                    if not task.done():
+                        rows.pipeline.stop_event.set()
+                        task.cancel()
+                await asyncio.gather(streaming, consumer, return_exceptions=True)
 
         state, errors, outcome = {}, [], "completed"
         try:
-            state = asyncio.run(stream_clip(self.protocol, samples, headers, on_update=receive, connector=self.connector,
-                                           force_end_frames=force_end_frames, telemetry=state))
-            if self.protocol.name != "soniox":
-                rows.pipeline.flush()
+            state = asyncio.run(replay())
         except (KeyboardInterrupt, asyncio.CancelledError):
             rows.pipeline.stop_event.set()
             outcome = "cancelled"
@@ -375,25 +374,22 @@ class StreamingRuntime:
             errors.append(exc.public_message if isinstance(exc, ProviderError) else ProviderNetworkError.public_message)
         finally:
             self.budget.settle(tokens, outcome)
-        if self.protocol.name == "soniox":
-            # Native translated tokens have no audio timestamps or 1:1 source
-            # alignment. Score the complete clip; per-utterance tag/latency
-            # claims require a separately verified alignment implementation.
-            rows.entries = [{"source_text": "".join(native_source), "translated_text": "".join(native_target),
-                             "mt_called": False, "asr_engine": "soniox", "mt_engine": "soniox"}]
-        ends = []
-        for entry in rows.entries:
-            completed = rows.completed.get(entry.get("id"))
-            end = entry.get("speech_end_at")
-            entry["speech_end_latency_s"] = max(0, completed - end) if completed is not None and end is not None else None
-            if entry["speech_end_latency_s"] is not None:
-                ends.append(entry["speech_end_latency_s"])
+        if native is not None:
+            native.flush(time.perf_counter())
+            rows.entries = native.entries
+            ends, expected = [], len(rows.entries)
+        else:
+            ends, expected = rows.finish_timing(len(samples) / sample_rate)
         return {"entries": rows.entries, "segment_count": len(rows.entries),
-                "processing_latencies_s": [], "speech_end_latencies_s": ends,
+                "processing_latencies_s": [], "speech_end_latencies_s": ends if len(ends) == expected else [],
+                "observed_speech_end_latencies_s": ends,
+                "latency_expected_rows": expected, "latency_measured_rows": len(ends),
+                "latency_coverage": len(ends) / expected if expected else None,
                 "elapsed_s": time.perf_counter() - started,
                 "mt_characters": sum(map(len, rows.mt_calls)), "mt_requests": len(rows.mt_calls),
                 "estimated_cost_usd": str(self.policy.ceiling), "cost_status": "full session allocation retained; invoice unavailable",
                 "setup_s": setup_seconds,
                 "errors": errors + rows.errors, "stream": state, "updates": updates,
-                "utterance_tag_metrics": self.protocol.name != "soniox",
+                "utterance_tag_metrics": True,
+                **({"target_text": native.target_text, "native_target_alignment": "clip only"} if native is not None else {}),
                 "latency_method": "Real-time 100ms PCM; desktop MT completion versus vendor final-word timestamps where available"}
