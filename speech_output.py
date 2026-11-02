@@ -1,4 +1,5 @@
 import base64
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
 import queue
@@ -166,6 +167,24 @@ try {{
             return read_wav_mono_float32(out_path)
 
 
+@dataclass(frozen=True)
+class BufferedVoice:
+    samples: np.ndarray
+    sample_rate: int
+
+
+@dataclass
+class _SpeechSession:
+    items: queue.Queue = field(default_factory=queue.Queue)
+    stopped: threading.Event = field(default_factory=threading.Event)
+    playing: threading.Event = field(default_factory=threading.Event)
+
+
+# pyttsx3/SAPI may share process-wide engine state across player instances.
+# A new transcriber can be created while the old worker finishes synthesis.
+_SYNTHESIS_LOCK = threading.Lock()
+
+
 class SpeechOutputPlayer:
     def __init__(self, output_device_name="", monitor=False, synthesizer=None, on_event=None):
         self.output_device_name = output_device_name or ""
@@ -176,49 +195,99 @@ class SpeechOutputPlayer:
         self._running = False
         self._thread = None
         self._playing = threading.Event()
+        self._session = None
+        self._lifecycle_lock = threading.RLock()
+        self._synthesis_lock = _SYNTHESIS_LOCK
 
     @property
     def is_playing(self):
         return self._playing.is_set()
 
     def start(self):
-        if self._running:
-            return
-        self._running = True
-        self._thread = threading.Thread(target=self._worker, daemon=True)
-        self._thread.start()
+        with self._lifecycle_lock:
+            if self._running:
+                return
+            session = _SpeechSession()
+            self._session = session
+            self._queue = session.items
+            self._playing = session.playing
+            self._running = True
+            self._thread = threading.Thread(target=self._worker, args=(session,), daemon=True)
+            self._thread.start()
 
-    def stop(self):
-        self._running = False
-        self._queue.put(None)
-        if self._thread:
-            self._thread.join(timeout=2)
-        self._thread = None
-        self._playing.clear()
+    def stop(self, join_timeout=2):
+        with self._lifecycle_lock:
+            self._running = False
+            session, worker = self._session, self._thread
+            if session:
+                session.stopped.set()
+                session.playing.clear()
+            while True:
+                try:
+                    self._queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._queue.put(None)
+            self._playing.clear()
+        if worker and worker is not threading.current_thread():
+            worker.join(timeout=join_timeout)
+        with self._lifecycle_lock:
+            if self._thread is worker:
+                self._thread = None
 
     def enqueue(self, text, language, voice="Automatic"):
-        if not self._running:
-            self.start()
-        self._queue.put((text, language, voice))
+        with self._lifecycle_lock:
+            if not self._running:
+                self.start()
+            self._queue.put((text, language, voice))
 
-    def _worker(self):
-        while self._running:
-            item = self._queue.get()
+    def enqueue_audio(self, samples, sample_rate):
+        """Queue one completed mic utterance; never open a live mic/output loop."""
+        audio = np.asarray(samples, dtype=np.float32)
+        if audio.ndim != 1 or int(sample_rate) <= 0 or not np.isfinite(audio).all():
+            raise ValueError("Pass-through requires finite mono audio and a valid sample rate")
+        if not audio.size:
+            return
+        with self._lifecycle_lock:
+            if not self._running:
+                self.start()
+            self._queue.put(BufferedVoice(audio.copy(), int(sample_rate)))
+
+    def _active(self, session):
+        return self._running and self._session is session and not session.stopped.is_set()
+
+    def _worker(self, session=None):
+        if session is None:
+            session = self._session or _SpeechSession(items=self._queue, playing=self._playing)
+            self._session = session
+        while self._active(session):
+            item = session.items.get()
             if item is None:
                 continue
-            text, language, voice = item
+            if not self._active(session):
+                break
             try:
                 self._emit("status", "speaking")
-                self._playing.set()
-                samples, sample_rate = self.synthesizer.synthesize(text, language, voice)
-                if samples.size:
-                    self._play(samples, sample_rate)
+                session.playing.set()
+                if isinstance(item, BufferedVoice):
+                    samples, sample_rate = item.samples, item.sample_rate
+                else:
+                    text, language, voice = item
+                    with self._synthesis_lock:
+                        if not self._active(session):
+                            continue
+                        samples, sample_rate = self.synthesizer.synthesize(text, language, voice)
+                if samples.size and self._active(session):
+                    self._play(samples, sample_rate, stop_event=session.stopped)
             except Exception as exc:
-                self._emit("error", f"Speech output failed: {exc}")
+                if self._active(session):
+                    self._emit("error", f"Speech output failed: {exc}")
             finally:
-                self._playing.clear()
+                session.playing.clear()
+                if self._active(session) and session.items.empty():
+                    self._emit("status", "listening")
 
-    def _play(self, samples, sample_rate):
+    def _play(self, samples, sample_rate, stop_event=None):
         import sounddevice as sd
 
         targets = [self.output_device_name]
@@ -227,6 +296,8 @@ class SpeechOutputPlayer:
 
         streams = []
         try:
+            if stop_event is not None and stop_event.is_set():
+                return
             for target in targets:
                 stream, rate = self._open_stream(sd, target)
                 streams.append((stream, rate, target))
@@ -236,19 +307,21 @@ class SpeechOutputPlayer:
                     translated = resample_audio(samples, sample_rate, rate)
                 else:
                     translated = samples.astype(np.float32, copy=False)
-                translated_streams.append((stream, translated, target))
+                translated_streams.append((stream, translated, target, rate))
             frame = 0
-            max_len = max(len(translated) for _stream, translated, _target in translated_streams)
+            max_len = max(len(translated) for _stream, translated, _target, _rate in translated_streams)
             block = 2048
-            while frame < max_len and self._running:
-                for stream, translated, target in translated_streams:
+            while frame < max_len and self._running and not (stop_event and stop_event.is_set()):
+                for stream, translated, target, rate in translated_streams:
+                    if stop_event is not None and stop_event.is_set():
+                        break
                     data = translated[frame : frame + block]
                     if data.size == 0:
                         continue
                     try:
                         stream.write(data)
                     except Exception:
-                        self._retry_write(sd, target, data)
+                        self._retry_write(sd, target, data, rate, stop_event)
                 frame += block
         finally:
             for stream, _rate, _target in streams:
@@ -268,11 +341,16 @@ class SpeechOutputPlayer:
         stream.start()
         return stream, rate
 
-    def _retry_write(self, sd, output_device_name, data):
+    def _retry_write(self, sd, output_device_name, data, sample_rate=None, stop_event=None):
         stream = None
         try:
-            stream, _rate = self._open_stream(sd, output_device_name)
-            stream.write(data)
+            if stop_event is not None and stop_event.is_set():
+                return
+            stream, rate = self._open_stream(sd, output_device_name)
+            if sample_rate is not None and rate != sample_rate:
+                data = resample_audio(data, sample_rate, rate)
+            if stop_event is None or not stop_event.is_set():
+                stream.write(data)
         finally:
             if stream is not None:
                 try:

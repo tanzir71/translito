@@ -22,6 +22,7 @@ class RejectSpeech:
 def test_emits_early_when_speech_is_followed_by_pause():
     sample_rate = 16000
     processor = AudioChunkProcessor(
+        legacy_fixed_window=True,
         chunk_duration=6.0,
         input_sample_rate=sample_rate,
         target_sample_rate=sample_rate,
@@ -42,6 +43,7 @@ def test_emits_early_when_speech_is_followed_by_pause():
 def test_steady_ambient_noise_waits_for_the_full_window():
     sample_rate = 16000
     processor = AudioChunkProcessor(
+        legacy_fixed_window=True,
         chunk_duration=6.0,
         input_sample_rate=sample_rate,
         target_sample_rate=sample_rate,
@@ -62,6 +64,7 @@ def test_steady_ambient_noise_waits_for_the_full_window():
 def test_mic_noise_gate_drops_quiet_chunks_before_gain():
     sample_rate = 16000
     processor = AudioChunkProcessor(
+        legacy_fixed_window=True,
         chunk_duration=1.0,
         input_sample_rate=sample_rate,
         target_sample_rate=sample_rate,
@@ -80,6 +83,7 @@ def test_mic_noise_gate_drops_quiet_chunks_before_gain():
 def test_zero_noise_gate_allows_quiet_audio_to_be_gain_boosted():
     sample_rate = 16000
     processor = AudioChunkProcessor(
+        legacy_fixed_window=True,
         chunk_duration=1.0,
         input_sample_rate=sample_rate,
         target_sample_rate=sample_rate,
@@ -99,6 +103,7 @@ def test_zero_noise_gate_allows_quiet_audio_to_be_gain_boosted():
 def test_loopback_noise_without_speech_is_dropped_before_gain():
     sample_rate = 16000
     processor = AudioChunkProcessor(
+        legacy_fixed_window=True,
         chunk_duration=1.0,
         input_sample_rate=sample_rate,
         target_sample_rate=sample_rate,
@@ -129,6 +134,7 @@ def test_voice_activity_detector_rejects_non_speech_audio():
 def test_digital_silence_reports_digital_silence_not_noise_gate():
     sample_rate = 16000
     processor = AudioChunkProcessor(
+        legacy_fixed_window=True,
         chunk_duration=1.0,
         input_sample_rate=sample_rate,
         target_sample_rate=sample_rate,

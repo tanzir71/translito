@@ -15,17 +15,21 @@ configure_native_tls()
 
 from app_config import (
     CONFIG_FILE,
+    ConversationConfig,
     DEFAULT_HOTKEYS,
     default_transcript_folder,
     load_device_config,
     load_hotkey_config,
     load_language_config,
+    load_conversation_config,
+    migrate_conversation_config,
     load_runtime_config,
     load_speak_config,
     load_transcript_folder,
     save_device_config,
     save_hotkey_config,
     save_language_config,
+    save_conversation_config,
     save_runtime_config,
     save_speak_config,
     save_transcript_folder,
@@ -39,6 +43,9 @@ from device_utils import (
     same_physical_device,
 )
 from hotkeys import GlobalHotkeyManager, format_tk_key_event
+from engines.display import display_text, dominant_rtl
+from engines.mt_local import UnsupportedPairError, resolve_local_mt
+from engines.asr_codeswitch import CODESWITCH_REPO
 from login import is_open_at_login_enabled, set_open_at_login
 from main import ArabicAudioTranscriber, dependency_failure_message, require_dependencies, torch
 from model_loading import GLOBAL_MODEL_MANAGER
@@ -90,6 +97,8 @@ WHISPER_MODELS = [
     "openai/whisper-small",
     "openai/whisper-medium",
     "openai/whisper-large-v3",
+    "openai/whisper-large-v3-turbo",
+    CODESWITCH_REPO,
 ]
 
 HOTKEY_LABELS = {
@@ -103,7 +112,11 @@ RTL_LANGUAGES = {"ar", "fa", "ur"}
 
 
 def translation_model_for(source_code, target_code):
-    return f"Helsinki-NLP/opus-mt-{source_code}-{target_code}"
+    if source_code != target_code:
+        from engines.mt_translategemma import gemma_available
+        if gemma_available(source_code, target_code):
+            return f"translategemma:{source_code}:{target_code}"
+    return resolve_local_mt(source_code, target_code, offline=True).model_id
 
 
 def hide_console_window():
@@ -345,6 +358,7 @@ class TranslatorGUI:
         self.speak_mic_choices = []
         self.output_choices = []
         self.transcriber = None
+        self.model_setup_busy = False
         self.last_transcriber = None
         self.last_saved_path = None
         self.transcript_entries = []
@@ -362,6 +376,8 @@ class TranslatorGUI:
         language_config = load_language_config(CONFIG_FILE)
         speak_config = load_speak_config(CONFIG_FILE)
         runtime_config = load_runtime_config(CONFIG_FILE)
+        conversation = (load_conversation_config(CONFIG_FILE) if self.preview_mode else
+                        migrate_conversation_config(CONFIG_FILE))
         hotkeys = load_hotkey_config(CONFIG_FILE)
 
         env_offline = os.environ.get("OFFLINE_ONLY")
@@ -377,6 +393,18 @@ class TranslatorGUI:
         self.speak_source_var = tk.StringVar(value=self.language_name_for_iso(speak_config.source))
         self.speak_target_var = tk.StringVar(value=self.language_name_for_iso(speak_config.target))
         self.whisper_var = tk.StringVar(value=language_config.whisper_model)
+        self.quality_var = tk.StringVar(value=runtime_config.asr_preset.title())
+        self.conversation_other_var = tk.StringVar(value=self.language_name_for_iso(conversation.other_language))
+        self.my_language_var = tk.StringVar(value=self.language_name_for_iso(conversation.my_language))
+        self.audience_language_var = tk.StringVar(value=self.language_name_for_iso(conversation.audience_language))
+        self.both_languages_var = tk.BooleanVar(value=conversation.show_both)
+        self.keep_english_var = tk.BooleanVar(value=conversation.keep_english_terms)
+        self.same_language_speech_var = tk.StringVar(value={"passthrough": "Pass my voice through",
+            "voice": "Read it with the voice", "mute": "Mute"}[conversation.same_language_speech])
+        self.one_way_var = tk.BooleanVar(value=conversation.one_way)
+        self.engine_var = tk.StringVar(value="ASR: Local · MT: Local")
+        self.lag_var = tk.StringVar(value="")
+        self.active_engines = {"asr": "Local", "mt": "Local"}
         self.offline_only_var = tk.BooleanVar(value=offline_default)
         self.monitor_var = tk.BooleanVar(value=speak_config.monitor_spoken_audio)
         self.voice_var = tk.StringVar(value=speak_config.voice or "Automatic")
@@ -400,6 +428,7 @@ class TranslatorGUI:
         self.apply_styles()
         self.build_ui()
         self.bind_events()
+        self.update_conversation_controls(persist=False)
 
         self.hotkey_manager = GlobalHotkeyManager(
             callbacks={
@@ -421,7 +450,11 @@ class TranslatorGUI:
         self.update_chunk_label()
         self.update_transcript_state()
         if not self.preview_mode:
-            self.root.after(350, self.preload_current_models)
+            from engines.hardware import speed_history_path
+            if speed_history_path().exists():
+                self.root.after(350, self.preload_current_models)
+            else:
+                self.root.after(350, lambda: self.open_speed_check(first_run=True))
             self.root.after(3000, self.auto_refresh_devices)
 
     # ------------------------------------------------------------------
@@ -693,14 +726,16 @@ class TranslatorGUI:
         self.btn_refresh_listen.grid(row=0, column=1, sticky="s", padx=(0, 10))
 
         from_field, self.listen_source_combo = self._field(
-            frame, "From", self.listen_source_var, width=12
+            frame, "English +", self.conversation_other_var, width=12
         )
+        self.listen_source_label = from_field.winfo_children()[0]
         self.listen_source_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
         from_field.grid(row=0, column=2, sticky="ew", padx=(0, 10))
 
         to_field, self.listen_target_combo = self._field(
-            frame, "To", self.listen_target_var, width=12
+            frame, "My language", self.my_language_var, width=12
         )
+        self.listen_target_label = to_field.winfo_children()[0]
         self.listen_target_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
         to_field.grid(row=0, column=3, sticky="ew", padx=(0, 12))
 
@@ -737,14 +772,16 @@ class TranslatorGUI:
         self.btn_refresh_speak.grid(row=0, column=2, sticky="s", padx=(0, 10))
 
         from_field, self.speak_source_combo = self._field(
-            frame, "From", self.speak_source_var, width=8
+            frame, "English +", self.conversation_other_var, width=8
         )
+        self.speak_source_label = from_field.winfo_children()[0]
         self.speak_source_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
         from_field.grid(row=0, column=3, sticky="ew", padx=(0, 10))
 
         to_field, self.speak_target_combo = self._field(
-            frame, "To", self.speak_target_var, width=8
+            frame, "Audience", self.audience_language_var, width=8
         )
+        self.speak_target_label = to_field.winfo_children()[0]
         self.speak_target_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
         to_field.grid(row=0, column=4, sticky="ew", padx=(0, 12))
 
@@ -822,6 +859,11 @@ class TranslatorGUI:
         ).pack(side="left", padx=(6, 0))
         self.level_frame.grid(row=0, column=5, sticky="e")
         self.level_frame.grid_remove()
+        self.engine_label = tk.Label(self.status_bar, textvariable=self.engine_var, bg=COLORS["bg"],
+                                     fg=COLORS["secondary"], font=("Segoe UI", 8), anchor="w")
+        self.engine_label.grid(row=1, column=1, columnspan=4, sticky="w", pady=(5, 0))
+        tk.Label(self.status_bar, textvariable=self.lag_var, bg=COLORS["bg"], fg=COLORS["orange"],
+                 font=("Segoe UI", 8)).grid(row=1, column=5, sticky="e", pady=(5, 0))
 
     def _build_banners(self):
         self.banner_host = tk.Frame(self.root, bg=COLORS["bg"])
@@ -1030,7 +1072,41 @@ class TranslatorGUI:
             "Hotkeys work system-wide. Toggle starts the last-used mode or switches between listening and speaking.",
         )
 
-        languages = self._settings_section(content, "Languages")
+        languages = self._settings_section(content, "Bilingual conversation")
+        other_settings = self._settings_combo(languages, "English +", self.conversation_other_var,
+                                             [name for name, _, iso in LANGUAGES if iso != "en"])
+        my_settings = self._settings_combo(languages, "My language", self.my_language_var,
+                                          ["English", self.conversation_other_var.get()])
+        audience_settings = self._settings_combo(languages, "Audience language", self.audience_language_var,
+                                                ["English", self.conversation_other_var.get()])
+        self.conversation_settings_combos = (my_settings, audience_settings)
+        for combo in (other_settings, my_settings, audience_settings):
+            combo.bind("<<ComboboxSelected>>", lambda _event: self.update_conversation_controls())
+        for text, variable in (("Show both languages for every line", self.both_languages_var),
+                               ("Keep English technical terms in English", self.keep_english_var)):
+            control = tk.Checkbutton(languages, text=text, variable=variable,
+                                     command=self.persist_settings, **self._checkbutton_options())
+            control.pack(anchor="w", pady=3)
+            self.settings_controls.append(control)
+        speech_settings = self._settings_combo(languages, f"When I speak {self.audience_language_var.get()}", self.same_language_speech_var,
+            ["Pass my voice through", "Read it with the voice", "Mute"])
+        self.speech_routing_settings_label = speech_settings.master.winfo_children()[0]
+        speech_settings.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
+        self._settings_help(languages, "Listen shows your language. Speak translates for your audience. "
+                            "Speech already in the audience language can use your own voice.")
+        terms_button = ttk.Button(languages, text="Edit terms", style="Mac.TButton", command=self.open_terms)
+        terms_button.pack(anchor="w", pady=(8, 0))
+        self.settings_controls.append(terms_button)
+
+        advanced_languages = self._settings_section(content, "Advanced one-way pair")
+        advanced_toggle = tk.Checkbutton(advanced_languages, text="Use a fixed source → target pair",
+            variable=self.one_way_var, command=self.update_conversation_controls, **self._checkbutton_options())
+        advanced_toggle.pack(anchor="w")
+        self.settings_controls.append(advanced_toggle)
+        languages = tk.Frame(advanced_languages, bg=COLORS["surface"])
+        self.advanced_language_frame = languages
+        if self.one_way_var.get():
+            languages.pack(fill="x")
         listen_source_settings = self._settings_combo(
             languages,
             "Source language",
@@ -1047,15 +1123,42 @@ class TranslatorGUI:
             combo.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
 
         recognition = self._settings_section(content, "Speech Recognition")
+        cohere_button = ttk.Button(recognition, text="Set up Saudi Arabic recognition", style="Mac.TButton",
+                                    command=self.open_arabic_model_setup)
+        cohere_button.pack(anchor="w", pady=(3, 8))
+        self.settings_controls.append(cohere_button)
+        speed_button = ttk.Button(recognition, text="Check this PC's speed", style="Mac.TButton",
+                                  command=self.open_speed_check)
+        speed_button.pack(anchor="w", pady=(0, 8))
+        self.settings_controls.append(speed_button)
+        quality_settings = self._settings_combo(recognition, "Quality", self.quality_var,
+                                                ["Fast", "Balanced", "Best"])
+        quality_settings.bind("<<ComboboxSelected>>", lambda _event: self.change_quality_preset())
+        self._settings_help(recognition, "Cohere Arabic is the recommended recognizer after model setup. "
+                            "This preset controls the local Whisper fallback; Best can lag on a CPU.")
+        advanced_recognition = tk.Frame(recognition, bg=COLORS["surface"])
+
+        def toggle_advanced_recognition():
+            if advanced_recognition.winfo_manager():
+                advanced_recognition.pack_forget()
+                advanced_recognition_button.configure(text="Advanced ▸")
+            else:
+                advanced_recognition.pack(fill="x", after=advanced_recognition_button)
+                advanced_recognition_button.configure(text="Advanced ▾")
+
+        advanced_recognition_button = ttk.Button(recognition, text="Advanced ▸", style="Mac.TButton",
+                                                  command=toggle_advanced_recognition)
+        advanced_recognition_button.pack(anchor="w", pady=5)
+        self.settings_controls.append(advanced_recognition_button)
         whisper_settings = self._settings_combo(
-            recognition, "Whisper model", self.whisper_var, WHISPER_MODELS
+            advanced_recognition, "Model ID", self.whisper_var, WHISPER_MODELS
         )
         whisper_settings.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
-        slider_row = tk.Frame(recognition, bg=COLORS["surface"])
+        slider_row = tk.Frame(advanced_recognition, bg=COLORS["surface"])
         slider_row.pack(fill="x", pady=5)
         tk.Label(
             slider_row,
-            text="Chunk length",
+            text="Legacy window",
             bg=COLORS["surface"],
             fg=COLORS["text"],
             width=19,
@@ -1097,9 +1200,18 @@ class TranslatorGUI:
         ).pack(anchor="w", pady=(5, 0))
         self._settings_help(
             recognition,
-            "Models download once, then run locally. Smaller Whisper models start faster; larger models are more accurate.",
+            "Models download once, then run locally. Live segments close after a pause, up to 15 seconds. "
+            "Legacy window length is used only by the evaluation comparison mode.",
         )
         self.settings_controls.extend((whisper_settings, chunk_scale, offline))
+
+        translation = self._settings_section(content, "Local translation")
+        gemma_button = ttk.Button(translation, text="Set up TranslateGemma", style="Mac.TButton",
+                                   command=self.open_translation_model_setup)
+        gemma_button.pack(anchor="w", pady=(3, 6))
+        self.settings_controls.append(gemma_button)
+        self._settings_help(translation, "TranslateGemma 4B offers a larger local translator on PCs with at least 8 GB RAM. "
+                            "It is an optional 2.5 GB download. Lite translation is the fallback.")
 
         capture = self._settings_section(content, "Capture")
         gate_row = tk.Frame(capture, bg=COLORS["surface"])
@@ -1232,6 +1344,9 @@ class TranslatorGUI:
         )
         combo.pack(side="left", fill="x", expand=True, padx=(8, 0))
         self.settings_controls.append(combo)
+        # ttk otherwise changes a focused language/provider selection while the
+        # user is merely scrolling the settings page.
+        combo.bind("<MouseWheel>", lambda _event: "break")
         return combo
 
     def _settings_help(self, parent, text, color=None):
@@ -1267,11 +1382,11 @@ class TranslatorGUI:
         self.speak_output_combo.bind(
             "<<ComboboxSelected>>", lambda _event: (self.update_routing_banner(), self.persist_settings())
         )
-        self.listen_source_combo.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
-        self.listen_target_combo.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
-        self.speak_source_combo.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
+        self.listen_source_combo.bind("<<ComboboxSelected>>", lambda _event: self.update_conversation_controls())
+        self.listen_target_combo.bind("<<ComboboxSelected>>", lambda _event: self.update_conversation_controls())
+        self.speak_source_combo.bind("<<ComboboxSelected>>", lambda _event: self.update_conversation_controls())
         self.speak_target_combo.bind(
-            "<<ComboboxSelected>>", lambda _event: (self.refresh_voices(), self.persist_settings())
+            "<<ComboboxSelected>>", lambda _event: (self.refresh_voices(), self.update_conversation_controls())
         )
         self.root.bind_all("<KeyPress>", self.on_key_press)
         self.root.bind("<Configure>", self.on_root_configure, add="+")
@@ -1303,6 +1418,86 @@ class TranslatorGUI:
             if entry[0] == name:
                 return entry
         return LANGUAGES[0]
+
+    def current_conversation(self):
+        other = self.language_entry_by_name(self.conversation_other_var.get())[2]
+        my_language = self.language_entry_by_name(self.my_language_var.get())[2]
+        audience = self.language_entry_by_name(self.audience_language_var.get())[2]
+        return ConversationConfig(
+            other_language=other, my_language=my_language, audience_language=audience,
+            show_both=self.both_languages_var.get(), keep_english_terms=self.keep_english_var.get(),
+            same_language_speech={"Pass my voice through": "passthrough", "Read it with the voice": "voice",
+                                  "Mute": "mute"}.get(self.same_language_speech_var.get(), "passthrough"),
+            one_way=self.one_way_var.get())
+
+    def update_conversation_controls(self, persist=True):
+        all_names = [name for name, _, _ in LANGUAGES]
+        other = self.conversation_other_var.get()
+        if other == "English":
+            other = "Arabic"
+            self.conversation_other_var.set(other)
+        pair = ["English", other]
+        if self.my_language_var.get() not in pair:
+            self.my_language_var.set("English")
+        if self.audience_language_var.get() not in pair:
+            self.audience_language_var.set(other)
+        one_way = self.one_way_var.get()
+        for combo, variable in ((self.listen_source_combo, self.listen_source_var),
+                                (self.speak_source_combo, self.speak_source_var)):
+            combo.configure(textvariable=variable if one_way else self.conversation_other_var,
+                            values=all_names if one_way else [x for x in all_names if x != "English"])
+        self.listen_target_combo.configure(textvariable=self.listen_target_var if one_way else self.my_language_var,
+                                           values=all_names if one_way else pair)
+        self.speak_target_combo.configure(textvariable=self.speak_target_var if one_way else self.audience_language_var,
+                                          values=all_names if one_way else pair)
+        for label in (self.listen_source_label, self.speak_source_label):
+            label.configure(text="From" if one_way else "English +")
+        self.listen_target_label.configure(text="To" if one_way else "My language")
+        self.speak_target_label.configure(text="To" if one_way else "Audience")
+        for combo in getattr(self, "conversation_settings_combos", ()):
+            if combo.winfo_exists():
+                combo.configure(values=pair)
+        speech_label = getattr(self, "speech_routing_settings_label", None)
+        if speech_label is not None and speech_label.winfo_exists():
+            speech_label.configure(text=f"When I speak {self.audience_language_var.get()}")
+        advanced = getattr(self, "advanced_language_frame", None)
+        if advanced is not None and advanced.winfo_exists():
+            advanced.pack(fill="x") if one_way else advanced.pack_forget()
+        if persist:
+            self.persist_settings()
+
+    def change_quality_preset(self):
+        self.whisper_var.set({"Fast": "openai/whisper-small", "Balanced": "openai/whisper-small",
+                              "Best": "openai/whisper-large-v3-turbo"}[self.quality_var.get()])
+        self.persist_settings()
+
+    def open_terms(self):
+        from quality_settings import open_terms_editor
+        try:
+            open_terms_editor(self, COLORS, center_window)
+        except Exception as exc:
+            self.show_error(f"Could not open Terms: {exc}")
+
+    def open_arabic_model_setup(self):
+        if self.transcriber is not None or self.model_setup_busy:
+            self.show_hint("Stop the current session before setting up a model.")
+            return
+        from quality_settings import open_cohere_setup
+        open_cohere_setup(self, COLORS, center_window)
+
+    def open_translation_model_setup(self):
+        if self.transcriber is not None or self.model_setup_busy:
+            self.show_hint("Finish the current session or model setup first.")
+            return
+        from quality_settings import open_translategemma_setup
+        open_translategemma_setup(self, COLORS, center_window)
+
+    def open_speed_check(self, first_run=False):
+        if self.transcriber is not None or self.model_setup_busy:
+            self.show_hint("Finish the current session or model setup first.")
+            return
+        from quality_settings import open_speed_check
+        open_speed_check(self, COLORS, center_window, first_run=first_run)
 
     def selected_listen_choice(self):
         index = self.listen_combo.current()
@@ -1445,7 +1640,8 @@ class TranslatorGUI:
         self.persist_settings()
 
     def refresh_voices(self):
-        _name, _bcp47, target_iso = self.language_entry_by_name(self.speak_target_var.get())
+        variable = self.speak_target_var if self.one_way_var.get() else self.audience_language_var
+        _name, _bcp47, target_iso = self.language_entry_by_name(variable.get())
         def load():
             voices = self.synthesizer.available_voices(target_iso)
             try:
@@ -1484,6 +1680,7 @@ class TranslatorGUI:
             self.speak_target_var.get()
         )
         save_language_config(listen_source, listen_target, self.whisper_var.get(), CONFIG_FILE)
+        save_conversation_config(self.current_conversation(), CONFIG_FILE)
         mic_choice = self.selected_speak_mic_choice()
         output_choice = self.selected_output_choice()
         save_speak_config(
@@ -1501,6 +1698,7 @@ class TranslatorGUI:
             last_mode=self.mode_var.get(),
             chunk_duration=self.chunk_duration_var.get(),
             offline_only=self.offline_only_var.get(),
+            asr_preset=self.quality_var.get().lower(),
         )
 
     def choose_folder(self):
@@ -1539,7 +1737,12 @@ class TranslatorGUI:
 
     def current_model_request(self):
         mode = self.mode_var.get()
-        if mode == "speak":
+        conversation = self.current_conversation()
+        if not conversation.one_way:
+            tgt_iso = conversation.my_language if mode == "listen" else conversation.audience_language
+            src_iso = conversation.other_language if tgt_iso == "en" else "en"
+            src_bcp47 = next(bcp for _name, bcp, iso in LANGUAGES if iso == src_iso)
+        elif mode == "speak":
             _src_name, src_bcp47, src_iso = self.language_entry_by_name(
                 self.speak_source_var.get()
             )
@@ -1560,6 +1763,7 @@ class TranslatorGUI:
             "tgt_iso": tgt_iso,
             "whisper_model": self.whisper_var.get().strip() or "openai/whisper-small",
             "translation_model": translation_model_for(src_iso, tgt_iso),
+            "conversation": conversation,
         }
 
     def toggle_capture(self):
@@ -1571,7 +1775,14 @@ class TranslatorGUI:
     def start(self):
         if self.transcriber is not None:
             return
-        request = self.current_model_request()
+        if getattr(self, "model_setup_busy", False):
+            self.show_hint("Wait for model setup to finish before starting a session.")
+            return
+        try:
+            request = self.current_model_request()
+        except UnsupportedPairError as exc:
+            messagebox.showwarning("Translation engine", str(exc), parent=self.root)
+            return
         if request["src_iso"] == request["tgt_iso"]:
             messagebox.showwarning(
                 "Language",
@@ -1635,6 +1846,8 @@ class TranslatorGUI:
                     mic_noise_gate=mic_noise_gate,
                     chunk_duration=self.chunk_duration_var.get(),
                     transcript_folder=self.transcript_folder_var.get(),
+                    conversation=request["conversation"],
+                    asr_preset=self.quality_var.get().lower(),
                 )
             except Exception as exc:
                 self.root.after(0, lambda exc=exc: self.start_failed(exc))
@@ -1683,6 +1896,7 @@ class TranslatorGUI:
                 self.set_status("Ready")
                 self.level_frame.grid_remove()
                 self.update_level(0)
+                self.lag_var.set("")
                 self.update_action_button(running=False)
                 if callable(after):
                     after()
@@ -1774,6 +1988,16 @@ class TranslatorGUI:
                 self.update_transcript_card(payload or {})
             elif event_type == "level":
                 self.update_level(float((payload or {}).get("peak", 0)))
+            elif event_type == "lag":
+                seconds = float((payload or {}).get("seconds", 0))
+                self.lag_var.set(f"Behind by {seconds:.0f}s" if seconds >= 1 else "")
+            elif event_type == "engine":
+                for key in ("asr", "mt"):
+                    if (payload or {}).get(key):
+                        self.active_engines[key] = payload[key]
+                self.engine_var.set(f"ASR: {self.active_engines['asr']} · MT: {self.active_engines['mt']}")
+                if "fallback" in (payload or {}):
+                    self.engine_label.configure(fg=COLORS["orange"] if payload["fallback"] else COLORS["secondary"])
 
         self.root.after(0, handle)
 
@@ -1868,6 +2092,9 @@ class TranslatorGUI:
             fg=COLORS["secondary"],
             font=("Cascadia Mono", 8),
         ).pack(side="left")
+        tk.Label(header, text=entry.get("language_tag", entry.get("source_language", "")).upper(),
+                 bg=COLORS["field"], fg=COLORS["blue"], padx=5,
+                 font=("Segoe UI Semibold", 8)).pack(side="left", padx=(8, 0))
         source_info = self.current_source_info(entry)
         tk.Label(
             header,
@@ -1882,11 +2109,13 @@ class TranslatorGUI:
         self.latest_translation = translated_text or source_text
         source_language = entry.get("source_language", "")
         target_language = entry.get("target_language", "")
-        source_anchor = "e" if source_language in RTL_LANGUAGES else "w"
-        target_anchor = "e" if target_language in RTL_LANGUAGES else "w"
+        tag = entry.get("language_tag", source_language)
+        source_rtl = dominant_rtl(source_text) or (source_language in RTL_LANGUAGES and tag != "en")
+        source_anchor = "e" if source_rtl else "w"
+        target_anchor = "e" if dominant_rtl(translated_text) else "w"
         source_label = tk.Label(
             card,
-            text=source_text,
+            text=display_text(source_text),
             bg=card_bg,
             fg=COLORS["text"],
             anchor=source_anchor,
@@ -1908,9 +2137,11 @@ class TranslatorGUI:
                 font=("Segoe UI", 10),
             )
             translated_label.pack(fill="x", pady=(5, 0))
+            if not self.transcript_target_text(entry):
+                translated_label.pack_forget()
             self.transcript_text_labels.append(translated_label)
             if entry.get("id"):
-                self.transcript_targets[entry["id"]] = (entry, translated_label)
+                self.transcript_targets[entry["id"]] = (entry, translated_label, source_label)
         self.update_transcript_state()
         self.refresh_tray_menu()
         self.root.after(10, lambda: self.transcript_scroll.canvas.yview_moveto(1.0))
@@ -1923,15 +2154,29 @@ class TranslatorGUI:
             return "Translation stopped."
         if entry.get("translation_error"):
             return f"Translation failed: {entry['translation_error']}"
-        return entry.get("translated_text", entry.get("english_text", ""))
+        if entry.get("pass_through") and not entry.get("secondary_translation"):
+            return ""
+        return display_text(entry.get("translated_text", entry.get("english_text", "")))
 
     def update_transcript_card(self, entry):
         target = self.transcript_targets.get(entry.get("id"))
         if target is None:
             return
-        stored_entry, label = target
+        stored_entry, label, source_label = target
         stored_entry.update(entry)
         label.configure(text=self.transcript_target_text(stored_entry))
+        source = stored_entry.get("source_text", "")
+        source_rtl = dominant_rtl(source) or (stored_entry.get("source_language") in RTL_LANGUAGES
+                     and stored_entry.get("language_tag") != "en")
+        source_label.configure(text=display_text(source), anchor="e" if source_rtl else "w",
+                               justify="right" if source_rtl else "left")
+        translated = stored_entry.get("translated_text", "")
+        label.configure(anchor="e" if dominant_rtl(translated) else "w",
+                         justify="right" if dominant_rtl(translated) else "left")
+        if self.transcript_target_text(stored_entry):
+            label.pack(fill="x", pady=(5, 0))
+        else:
+            label.pack_forget()
         self.latest_translation = stored_entry.get("translated_text") or stored_entry.get("source_text", "")
         self.refresh_tray_menu()
 
@@ -1998,7 +2243,11 @@ class TranslatorGUI:
     def preload_current_models(self, force_online=False):
         if self.preview_mode or self.transcriber is not None:
             return
-        request = self.current_model_request()
+        try:
+            request = self.current_model_request()
+        except UnsupportedPairError as exc:
+            self.show_hint(str(exc))
+            return
         offline_only = False if force_online else self.offline_only_var.get()
         if offline_only:
             os.environ.setdefault("HF_HUB_OFFLINE", "1")

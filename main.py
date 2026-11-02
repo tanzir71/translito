@@ -38,6 +38,8 @@ from audio_processing import (
     resample_audio,
 )
 from device_utils import should_apply_mic_noise_gate
+from engines.postprocess import postprocess
+from engines.cancellation import generation_scope
 from model_loading import GLOBAL_MODEL_MANAGER
 from speech_output import SpeechOutputPlayer
 
@@ -93,11 +95,7 @@ def dependency_failure_message():
 
     lines.append("")
     lines.append("Install or repair dependencies:")
-    transformers_error = str(dependency_errors.get("transformers", ""))
-    if "huggingface-hub" in transformers_error:
-        lines.append('  pip install "huggingface-hub>=0.34.0,<1.0"')
-    else:
-        lines.append("  pip install -r requirements.txt")
+    lines.append("  pip install -r requirements.txt")
 
     lines.append("")
     lines.append("If torch installs as CPU-only and you want GPU (CUDA):")
@@ -151,6 +149,8 @@ def find_device_by_name(device_name):
 
 
 def translation_target_from_model(model_name, fallback="en"):
+    if (model_name or "").startswith("translategemma:"):
+        return model_name.rsplit(":", 1)[-1]
     tail = (model_name or "").rsplit("/", 1)[-1]
     parts = tail.split("-")
     return (parts[-1] if len(parts) >= 2 else fallback).strip().lower() or fallback
@@ -172,6 +172,11 @@ class ArabicAudioTranscriber:
         mic_noise_gate=None,
         chunk_duration=None,
         transcript_folder=None,
+        conversation=None,
+        recognizer=None,
+        translator_engine=None,
+        glossary=None,
+        asr_preset=None,
     ):
         print("\nInitializing Translito...")
 
@@ -195,6 +200,7 @@ class ArabicAudioTranscriber:
         self.speech_voice = speech_voice or "Automatic"
         self.monitor_spoken_audio = bool(monitor_spoken_audio)
         runtime_config = load_runtime_config(CONFIG_FILE)
+        self.asr_preset = asr_preset or runtime_config.asr_preset
         self.mic_noise_gate = (
             runtime_config.mic_noise_gate
             if mic_noise_gate is None
@@ -226,7 +232,7 @@ class ArabicAudioTranscriber:
 
         self.transcripts = []
         self.session_start_time = datetime.now()
-        self.audio_queue = queue.Queue(maxsize=2)
+        self.audio_queue = queue.Queue()
         self._stop_event = threading.Event()
         self._last_backlog_hint_time = 0.0
         self._last_empty_text_hint_time = 0.0
@@ -237,6 +243,8 @@ class ArabicAudioTranscriber:
         self._capture_thread = None
         self._process_thread = None
         self.speech_player = None
+        self.conversation = conversation
+        self.conversation_pipeline = None
 
         atexit.register(self.save_transcript)
 
@@ -264,7 +272,10 @@ class ArabicAudioTranscriber:
                 on_event=self.emit,
             )
             self.asr = loaded_models.asr
+            if hasattr(self.asr, "beam_size"):
+                self.asr.beam_size = {"fast": 1, "balanced": 3, "best": 5}.get(self.asr_preset, 3)
             self.translator = loaded_models.translator
+            self.loaded_translator_engine = getattr(loaded_models, "translator_engine", None)
             print("Offline models ready.")
         except Exception as exc:
             if self.offline_only:
@@ -277,6 +288,27 @@ class ArabicAudioTranscriber:
                 monitor=self.monitor_spoken_audio,
                 on_event=self.emit,
             )
+
+        if conversation is not None and not getattr(conversation, "one_way", False):
+            from engines.asr_local import LocalConversationRecognizer
+            from engines.conversation_pipeline import ConversationPipeline
+            from engines.glossary import Glossary
+            from engines.mt_quality import LocalQualityTranslator
+            glossary = glossary or Glossary()
+            recognizer = recognizer or LocalConversationRecognizer(
+                self.asr, other_language=conversation.other_language, offline_only=self.offline_only,
+                glossary=glossary, on_event=self.emit,
+                device="cpu" if self.torch_device == -1 else f"cuda:{self.torch_device}",
+            )
+            translator_engine = translator_engine or self.loaded_translator_engine or LocalQualityTranslator(
+                offline_only=self.offline_only, device=self.torch_device,
+                on_hint=lambda text: self.emit("hint", text))
+            if hasattr(translator_engine, "models") and self.translation_model_name.startswith("Helsinki-NLP/"):
+                translator_engine.models[self.translation_model_name] = self.translator
+            self.conversation_pipeline = ConversationPipeline(
+                recognizer, translator_engine, conversation, mode=self.mode, emit=self.emit,
+                transcripts=self.transcripts, stop_event=self._stop_event,
+                speech_player=self.speech_player, voice=self.speech_voice, glossary=glossary)
 
         print("Initialization complete.\n")
 
@@ -294,11 +326,12 @@ class ArabicAudioTranscriber:
         if not self.asr:
             raise RuntimeError("Offline ASR is not initialized")
         if hasattr(self.asr, "transcribe"):
-            return self.asr.transcribe(
+            text = self.asr.transcribe(
                 audio_array.astype(np.float32),
                 language=(self.whisper_language or "ar"),
                 stop_event=getattr(self, "_stop_event", None),
             )
+            return postprocess(text).text
         duration = len(audio_array) / self.sample_rate
         generate_kwargs = {
             "task": "transcribe",
@@ -317,11 +350,11 @@ class ArabicAudioTranscriber:
         result = self.asr(payload, generate_kwargs=generate_kwargs, return_timestamps=False)
 
         if isinstance(result, str):
-            return result.strip()
+            return postprocess(result).text
         if isinstance(result, dict):
-            return (result.get("text", "") or "").strip()
+            return postprocess(result.get("text", "") or "").text
         try:
-            return str(result).strip()
+            return postprocess(str(result)).text
         except Exception:
             return ""
 
@@ -361,6 +394,10 @@ class ArabicAudioTranscriber:
             with self.selected_device.recorder(samplerate=self.capture_sample_rate) as recorder:
                 while self.running:
                     audio_data = recorder.record(numframes=block_size)
+                    self.emit("level", {
+                        "peak": float(np.max(np.abs(audio_data))) if audio_data.size else 0.0,
+                        "rms": float(np.sqrt(np.mean(np.square(audio_data)))) if audio_data.size else 0.0,
+                    })
                     for result in processor.append(audio_data, self.capture_sample_rate):
                         self._handle_capture_result(result)
                 for result in processor.flush():
@@ -379,7 +416,13 @@ class ArabicAudioTranscriber:
             noise_gate_rms=(self.mic_noise_gate
                             if should_apply_mic_noise_gate(self.selected_device) else 0.0),
             source_name=getattr(self.selected_device, "name", "Evaluation audio"),
+            on_speech=self.notify_capture_speech,
         )
+
+    def notify_capture_speech(self, timestamp):
+        pipeline = getattr(self, "conversation_pipeline", None)
+        if pipeline is not None:
+            pipeline.notify_speech(timestamp)
 
     def _handle_capture_result(self, result):
         if self._stop_event.is_set():
@@ -387,23 +430,7 @@ class ArabicAudioTranscriber:
         self.emit("level", {"peak": result.peak, "rms": result.rms})
         if result.kind == "audio":
             self._silence_run = 0
-            if self.mode == "speak" and self.speech_player and self.speech_player.is_playing:
-                return
-            try:
-                self.audio_queue.put_nowait(result)
-            except queue.Full:
-                try:
-                    self.audio_queue.get_nowait()
-                except queue.Empty:
-                    pass
-                self.audio_queue.put_nowait(result)
-                if time.monotonic() - self._last_backlog_hint_time > 10:
-                    self.emit(
-                        "hint",
-                        "Skipped older audio to keep up with playback. Choose a smaller "
-                        "Whisper model in Settings for faster results on this computer.",
-                    )
-                    self._last_backlog_hint_time = time.monotonic()
+            self.audio_queue.put_nowait(result)
             return
 
         self._silence_run += 1
@@ -442,13 +469,30 @@ class ArabicAudioTranscriber:
             if self._stop_event.is_set():
                 break
             try:
-                item = self.audio_queue.get(timeout=1)
+                item = self.audio_queue.get(timeout=0.2)
             except queue.Empty:
+                pipeline = getattr(self, "conversation_pipeline", None)
+                if pipeline is not None:
+                    pipeline.poll()
                 continue
 
             try:
                 audio_data, peak, rms = self._coerce_audio_item(item)
                 if audio_data.size == 0:
+                    continue
+                captured_at = getattr(item, "captured_at", None)
+                lag = max(0.0, time.monotonic() - captured_at) if captured_at is not None else 0.0
+                self.emit("lag", {"seconds": lag, "queued_segments": self.audio_queue.qsize()})
+                if lag > 10 and time.monotonic() - self._last_backlog_hint_time > 10:
+                    self.emit("hint", f"Behind by {lag:.0f}s. Speech is being kept; choose Fast "
+                              "or enable a free cloud recognizer to reduce the delay.")
+                    self._last_backlog_hint_time = time.monotonic()
+                pipeline = getattr(self, "conversation_pipeline", None)
+                if pipeline is not None:
+                    chunk = item if isinstance(item, AudioChunkResult) else AudioChunkResult(
+                        "audio", audio_data, self.sample_rate, peak, rms)
+                    pipeline.feed(chunk)
+                    pipeline.poll()
                     continue
 
                 if self.audio_debug:
@@ -493,6 +537,10 @@ class ArabicAudioTranscriber:
                     "mode": self.mode,
                     "arabic_text": source_text,
                     "english_text": "",
+                    "captured_at": captured_at,
+                    "speech_end_at": (captured_at - item.endpoint_delay_s
+                                      if captured_at is not None and getattr(item, "endpoint_delay_s", None) is not None
+                                      else None),
                 }
                 self.transcripts.append(transcript_entry)
                 self.emit("transcript", transcript_entry.copy())
@@ -530,6 +578,10 @@ class ArabicAudioTranscriber:
                 self.emit("error", f"{exc}{hint}")
                 print(f"\nProcessing error: {exc}{hint}")
 
+        pipeline = getattr(self, "conversation_pipeline", None)
+        if pipeline is not None:
+            pipeline.cancel() if self._stop_event.is_set() else pipeline.flush()
+
     def _coerce_audio_item(self, item):
         if isinstance(item, AudioChunkResult):
             return item.samples, item.peak, item.rms
@@ -552,11 +604,15 @@ class ArabicAudioTranscriber:
         return audio_data.astype(np.float32, copy=False), peak, rms
 
     def translate_text(self, source_text):
-        kwargs = {"max_length": 512, "truncation": True, "num_beams": 1, "do_sample": False}
+        tokenizer = getattr(self.translator, "tokenizer", None)
+        tokens = len(tokenizer.encode(source_text)) if tokenizer else max(1, len(source_text.split()) * 2)
+        kwargs = {"max_new_tokens": max(32, min(512, tokens * 3)), "truncation": True,
+                  "num_beams": 4, "do_sample": False}
         stopping_criteria = self._generation_stopping_criteria()
         if stopping_criteria is not None:
             kwargs["stopping_criteria"] = stopping_criteria
-        translation = self.translator(source_text, **kwargs)
+        with generation_scope(getattr(self, "_stop_event", None)):
+            translation = self.translator(source_text, **kwargs)
         return translation[0]["translation_text"]
 
     def start_background(self, enable_keyboard_shortcuts=False):
@@ -667,8 +723,16 @@ class ArabicAudioTranscriber:
             os.makedirs(transcript_dir, exist_ok=True)
             timestamp = self.session_start_time.strftime("%Y%m%d_%H%M%S")
             filepath = os.path.join(transcript_dir, f"transcript_{timestamp}.txt")
+            suffix = 0
+            while True:
+                try:
+                    handle = open(filepath, "x", encoding="utf-8")
+                    break
+                except FileExistsError:
+                    suffix += 1
+                    filepath = os.path.join(transcript_dir, f"transcript_{timestamp}_{suffix:03d}.txt")
 
-            with open(filepath, "w", encoding="utf-8") as handle:
+            with handle:
                 handle.write("=" * 60 + "\n")
                 handle.write("TRANSLITO — TRANSCRIPT\n")
                 handle.write("=" * 60 + "\n")
@@ -685,12 +749,15 @@ class ArabicAudioTranscriber:
                     entry_time = datetime.fromisoformat(entry["timestamp"]).strftime("%H:%M:%S")
                     source_text = entry.get("source_text", entry.get("arabic_text", ""))
                     translated_text = entry.get("translated_text", entry.get("english_text", ""))
-                    source_language = entry.get("source_language", "source")
+                    source_language = entry.get("language_tag", entry.get("source_language", "source"))
                     target_language = entry.get("target_language", "target")
                     handle.write(f"[{index:03d}] {entry_time}\n")
                     handle.write("-" * 40 + "\n")
                     handle.write(f"Source ({source_language}): {source_text}\n")
-                    handle.write(f"Target ({target_language}): {translated_text}\n\n")
+                    if entry.get("pass_through") and not entry.get("secondary_translation"):
+                        handle.write("Target: (same as source)\n\n")
+                    else:
+                        handle.write(f"Target ({target_language}): {translated_text}\n\n")
 
             print(f"\nTranscript saved to: {filepath}")
             print(f"   Total entries: {len(self.transcripts)}")

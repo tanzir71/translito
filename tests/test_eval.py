@@ -151,3 +151,83 @@ def test_replay_runs_desktop_events_without_capture_or_config_write(monkeypatch)
 def test_unknown_profile_is_never_silently_evaluated_as_local():
     with pytest.raises(ValueError, match="not implemented"):
         DesktopRuntime("free_cloud")
+
+
+def test_offline_replay_uses_bilingual_assembly_and_english_no_mt(monkeypatch):
+    import main
+    from audio_processing import AudioChunkResult
+    from engines.types import AsrResult, MtResult
+    from unittest.mock import Mock
+    monkeypatch.setattr(main.GLOBAL_MODEL_MANAGER, "load_models", lambda **kwargs:
+                        SimpleNamespace(asr=Mock(), translator=Mock()))
+    monkeypatch.setattr(main, "save_runtime_config", lambda *a, **kw: pytest.fail("Settings were written"))
+    recognizer, translator = Mock(), Mock()
+    translator.models = {}
+    recognizer.transcribe.side_effect = [
+        AsrResult(text, tag, .9, tag, float(tag == "en"), -.2, 0, .1, "fixture-asr")
+        for text, tag in [("نراجع", "ar"), ("الخادم.", "ar"), ("The API works.", "en")]]
+    translator.translate.return_value = MtResult("Review the server.", "fixture-mt")
+
+    class Capture:
+        step = 0
+        def append(self, samples, rate):
+            self.step += 1
+            if self.step not in (1, 3, 6):
+                return []
+            self.on_speech(self.clock() - .032)
+            return [AudioChunkResult("audio", samples, rate, .1, .1,
+                                     captured_at=self.clock(), endpoint_delay_s=.032)]
+        def flush(self):
+            return []
+
+    monkeypatch.setattr(main.ArabicAudioTranscriber, "create_audio_processor", lambda *a, **kw: Capture())
+    with block_network():
+        runtime = DesktopRuntime("offline", runtime_kwargs={"recognizer": recognizer, "translator_engine": translator})
+        result = runtime.evaluate(np.full(16000, .1, dtype=np.float32), 16000)
+    assert runtime.runtime.conversation is not None
+    assert result["segment_count"] == 3 and len(result["entries"]) == 2
+    assert result["entries"][0]["source_text"] == "نراجع الخادم."
+    assert result["entries"][0]["segment_count"] == 2
+    assert result["entries"][1]["pass_through"] and not result["entries"][1]["mt_called"]
+    assert result["mt_requests"] == 1
+    assert result["mt_characters"] == len("نراجع الخادم.")
+    assert min(result["speech_end_latencies_s"]) >= .032
+    translator.translate.assert_called_once()
+    assert not runtime.runtime.running and result["errors"] == []
+
+
+def test_offline_replay_sentence_timeout_uses_wav_silence_without_real_wait(monkeypatch):
+    import main
+    from audio_processing import AudioChunkResult
+    from engines.types import AsrResult, MtResult
+    from unittest.mock import Mock
+    monkeypatch.setattr(main.GLOBAL_MODEL_MANAGER, "load_models", lambda **kwargs:
+                        SimpleNamespace(asr=Mock(), translator=Mock()))
+    recognizer, translator = Mock(), Mock()
+    translator.models = {}
+    recognizer.transcribe.side_effect = [AsrResult("مرحبا", "ar", .9, "ar", 0, -.2, 0, .1, "fixture")]
+    translator.translate.return_value = MtResult("Hello", "fixture")
+    class Capture:
+        step = 0
+        def append(self, samples, rate):
+            self.step += 1
+            if self.step == 1:
+                self.on_speech(self.clock() - .032)
+                return [AudioChunkResult("audio", samples, rate, .1, .1, captured_at=self.clock(), endpoint_delay_s=.032)]
+            return []
+        def flush(self):
+            return []
+    monkeypatch.setattr(main.ArabicAudioTranscriber, "create_audio_processor", lambda *a, **kw: Capture())
+    runtime = DesktopRuntime("offline", runtime_kwargs={"recognizer": recognizer, "translator_engine": translator})
+    # Keep a later capture event in the timeline; it must first service the
+    # assembler's 1.5s deadline, rather than translating only at EOF.
+    original = Capture.append
+    def append(self, samples, rate):
+        result = original(self, samples, rate)
+        if self.step == 30:
+            self.on_speech(self.clock())
+        return result
+    monkeypatch.setattr(Capture, "append", append)
+    result = runtime.evaluate(np.full(48000, .1, dtype=np.float32), 16000)
+    assert 1.5 <= result["entries"][0]["speech_end_latency_s"] < 2
+    assert result["elapsed_s"] < 1

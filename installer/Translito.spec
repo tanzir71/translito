@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
 
 hiddenimports = [
@@ -21,6 +21,8 @@ for package in (
     "pyttsx3",
     "transformers.models.marian",
     "transformers.models.whisper",
+    "transformers.models.cohere_asr",
+    "keyring.backends.Windows",
 ):
     try:
         hiddenimports += collect_submodules(package)
@@ -31,8 +33,9 @@ for package in (
 a = Analysis(
     ["..\\gui.py"],
     pathex=[".."],
-    binaries=[],
-    datas=[("Translito.ico", "."), *collect_data_files("silero_vad")],
+    binaries=collect_dynamic_libs("llama_cpp"),
+    datas=[("Translito.ico", "."), *collect_data_files("silero_vad"),
+           *collect_data_files("engines")],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
@@ -43,12 +46,10 @@ a = Analysis(
         "flax",
         "jax",
         "keras",
-        "librosa",
         "matplotlib",
         "moviepy",
         "onnxruntime",
         "pandas",
-        "scipy",
         "sklearn",
         "tensorflow",
         "torchaudio",

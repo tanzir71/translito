@@ -54,14 +54,23 @@ produce **n/a**, not a misleading zero. Tag scoring aligns utterances by order;
 missing/extra output rows count as wrong, so segmentation differences affect it.
 Use one utterance per clip for isolated recognizer comparisons.
 
-Latency excludes model load. Faster-than-real-time replay reports computation;
-speech-end latency additionally needs the segmenter's endpoint timestamps (P1).
-This does not model a growing real-time processing queue. Benchmark `--bench`
+Latency excludes model load. Faster-than-real-time replay advances capture time
+from WAV offsets and adds measured inference time to the consumer clock. It
+keeps all segments, services the real sentence assembler's idle deadline and
+includes simulated backlog plus endpoint silence in speech-end latency. EOF
+flushes the last pending sentence, as ending capture normally would. This is a
+single-consumer simulation; it does not measure live capture/device contention.
+The Offline profile uses the actual bilingual controller. MT counts come from
+that controller's translator, including assembled rows and English pass-through.
+Glossary defaults are read/merged in memory, without changing user files.
+Benchmark `--bench`
 reports RTF and sampled peak process-tree RSS for Cohere fp32/bf16/int8, turbo
 int8 and base language-ID. Missing runtime/gated weights are **unavailable**,
 never assumed to pass. Dynamic quantization is experimental and must be measured.
 
-The baseline uses the unmodified local one-way decoding/MT behavior at commit
-`d1e4092`. P0 only extracts capture-processor construction for shared replay.
+The archived P0 baseline records commit `d1e4092` through the P0 extraction.
+The current `baseline` option selects legacy windows and one-way routing in the
+current runtime; it is not a frozen copy of old model adapters/generation code.
+Use the P0 checkout when reproducing the historical baseline exactly.
 Public MSA or synthetic clips can smoke-test the harness, but cannot establish
 Saudi dialect accuracy, code-switching recall or provider superiority.

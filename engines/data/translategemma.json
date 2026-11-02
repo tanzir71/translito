@@ -1,0 +1,14 @@
+{
+  "source_model": "google/translategemma-4b-it",
+  "repo": "mradermacher/translategemma-4b-it-GGUF",
+  "revision": "d37868f759d2f817a43d28dd80cf9f982ffa62fd",
+  "filename": "translategemma-4b-it.Q4_K_M.gguf",
+  "bytes": 2489909760,
+  "sha256": "81200d03e843d2ec1ece6eeafe7d13cb6e5211e1fcd336ade55790b683a08330",
+  "template_sha256": "5e85514635b80a62b64c9982810bfdfbdd482be9a59ed12c25ded2bf3aabddaf",
+  "license_url": "https://ai.google.dev/gemma/terms",
+  "supported_languages": ["ar", "en", "fr", "es", "de", "it", "pt", "ru", "tr", "fa", "ur"],
+  "verified_utc": "2026-11-02",
+  "language_evidence": "https://huggingface.co/datasets/google/wmt24pp",
+  "verified_subsets": ["en-ar_EG", "en-ar_SA", "en-fa_IR", "en-ur_PK"]
+}
