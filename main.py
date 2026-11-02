@@ -42,6 +42,7 @@ from engines.postprocess import postprocess
 from engines.cancellation import generation_scope
 from model_loading import GLOBAL_MODEL_MANAGER
 from speech_output import SpeechOutputPlayer
+from windows_audio import audio_com_context
 
 
 missing_packages = []
@@ -139,6 +140,7 @@ def save_device_config(device_name):
     print(f"Device '{device_name}' saved as default.")
 
 
+@audio_com_context()
 def find_device_by_name(device_name):
     if not sc:
         return None
@@ -419,43 +421,47 @@ class ArabicAudioTranscriber:
 
     def capture_audio(self):
         try:
-            if self.selected_device is None:
-                raise RuntimeError("No audio device selected")
-
-            device_name = getattr(self.selected_device, "name", "<unknown>")
-            print(f"Capturing audio from: {device_name}")
-            if getattr(self.selected_device, "isloopback", False):
-                print(
-                    f"Loopback capture sample rate: {self.capture_sample_rate} Hz "
-                    f"(ASR runs at {self.sample_rate} Hz)"
-                )
-            gate = self.mic_noise_gate if should_apply_mic_noise_gate(self.selected_device) else 0.0
-            if gate > 0:
-                print(f"Mic noise gate: {gate:.4f} RMS")
-            print("-" * 50)
-
-            processor = self.create_audio_processor()
-            live = getattr(self, "live_pipeline", None)
-            block_duration = .1 if live is not None else min(0.25, max(0.05, self.chunk_duration / 12.0))
-            block_size = max(1, int(self.capture_sample_rate * block_duration))
-
-            with self.selected_device.recorder(samplerate=self.capture_sample_rate) as recorder:
-                while self.running:
-                    audio_data = recorder.record(numframes=block_size)
-                    self.emit("level", {
-                        "peak": float(np.max(np.abs(audio_data))) if audio_data.size else 0.0,
-                        "rms": float(np.sqrt(np.mean(np.square(audio_data)))) if audio_data.size else 0.0,
-                    })
-                    if live is not None:
-                        live.push_capture(audio_data, self.capture_sample_rate)
-                    for result in processor.append(audio_data, self.capture_sample_rate):
-                        self._handle_capture_result(result)
-                for result in processor.flush():
-                    self._handle_capture_result(result)
+            with audio_com_context():
+                self._capture_audio_initialized()
         except Exception as exc:
             self.emit("error", f"Audio capture failed: {exc}")
             print(f"\nError capturing audio: {exc}")
             self.running = False
+
+    def _capture_audio_initialized(self):
+        if self.selected_device is None:
+            raise RuntimeError("No audio device selected")
+
+        device_name = getattr(self.selected_device, "name", "<unknown>")
+        print(f"Capturing audio from: {device_name}")
+        if getattr(self.selected_device, "isloopback", False):
+            print(
+                f"Loopback capture sample rate: {self.capture_sample_rate} Hz "
+                f"(ASR runs at {self.sample_rate} Hz)"
+            )
+        gate = self.mic_noise_gate if should_apply_mic_noise_gate(self.selected_device) else 0.0
+        if gate > 0:
+            print(f"Mic noise gate: {gate:.4f} RMS")
+        print("-" * 50)
+
+        processor = self.create_audio_processor()
+        live = getattr(self, "live_pipeline", None)
+        block_duration = .1 if live is not None else min(0.25, max(0.05, self.chunk_duration / 12.0))
+        block_size = max(1, int(self.capture_sample_rate * block_duration))
+
+        with self.selected_device.recorder(samplerate=self.capture_sample_rate) as recorder:
+            while self.running:
+                audio_data = recorder.record(numframes=block_size)
+                self.emit("level", {
+                    "peak": float(np.max(np.abs(audio_data))) if audio_data.size else 0.0,
+                    "rms": float(np.sqrt(np.mean(np.square(audio_data)))) if audio_data.size else 0.0,
+                })
+                if live is not None:
+                    live.push_capture(audio_data, self.capture_sample_rate)
+                for result in processor.append(audio_data, self.capture_sample_rate):
+                    self._handle_capture_result(result)
+            for result in processor.flush():
+                self._handle_capture_result(result)
 
     def create_audio_processor(self, sample_rate=None):
         """Use identical capture preprocessing for live audio and evaluation."""
@@ -794,6 +800,7 @@ class ArabicAudioTranscriber:
         print("\nDevice change cancelled.")
         return False
 
+    @audio_com_context()
     def save_transcript(self):
         if not self.transcripts:
             print("No transcripts to save.")

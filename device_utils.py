@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import re
 
+from windows_audio import audio_com_context
+
 
 VIRTUAL_DEVICE_KEYWORDS = (
     "blackhole",
@@ -106,18 +108,19 @@ def query_input_devices(include_loopback=True):
     try:
         import soundcard as sc
 
-        devices = sc.all_microphones(include_loopback=include_loopback)
+        with audio_com_context():
+            devices = sc.all_microphones(include_loopback=include_loopback)
+            return [
+                InputDeviceChoice(
+                    name=getattr(device, "name", ""),
+                    raw=device,
+                    is_loopback=bool(getattr(device, "isloopback", False)),
+                    is_virtual=is_virtual_device_name(getattr(device, "name", "")),
+                )
+                for device in devices
+            ]
     except Exception:
         return []
-    return [
-        InputDeviceChoice(
-            name=getattr(device, "name", ""),
-            raw=device,
-            is_loopback=bool(getattr(device, "isloopback", False)),
-            is_virtual=is_virtual_device_name(getattr(device, "name", "")),
-        )
-        for device in devices
-    ]
 
 
 def query_output_devices(*, refresh=False):

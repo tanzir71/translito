@@ -1,6 +1,6 @@
 #define MyAppName "Translito"
 #define MyAppExeName "Translito.exe"
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.1.2"
 #ifndef SourceDir
   #define SourceDir "dist\Translito"
 #endif

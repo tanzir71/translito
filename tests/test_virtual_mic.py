@@ -1,4 +1,5 @@
 import hashlib
+from contextlib import contextmanager
 import io
 import json
 from pathlib import Path
@@ -64,7 +65,20 @@ def test_tone_is_08_seconds_minus12_db_peak_and_band_rejects_unrelated_audio():
     assert cable.tone_band_dbfs(np.column_stack((tone, -tone)), 48000) > -16
 
 
-def test_self_test_targets_only_cable_and_records_the_virtual_endpoint():
+def test_self_test_targets_only_cable_and_records_the_virtual_endpoint(monkeypatch):
+    local = threading.local()
+    entered, exited = [], []
+    @contextmanager
+    def com_context():
+        assert not getattr(local, "active", False)
+        local.active = True
+        entered.append(threading.get_ident())
+        try:
+            yield
+        finally:
+            local.active = False
+            exited.append(threading.get_ident())
+    monkeypatch.setattr(cable, "audio_com_context", com_context)
     played = threading.Event()
     recorded = np.zeros((57600, 2), np.float32)
     tone = cable.test_tone()
@@ -77,11 +91,13 @@ def test_self_test_targets_only_cable_and_records_the_virtual_endpoint():
         def __exit__(self, *a):
             pass
         def record(self, numframes):
+            assert local.active
             assert played.wait(1)
             start = offset[0]
             offset[0] += numframes
             return recorded[start:offset[0]]
     def recorder(**kwargs):
+        assert local.active
         assert kwargs == {"samplerate": 48000, "channels": 2}
         return Recorder()
     class Stream:
@@ -97,7 +113,10 @@ def test_self_test_targets_only_cable_and_records_the_virtual_endpoint():
         def close(self):
             pass
     sd = SimpleNamespace(OutputStream=Stream)
-    sc = SimpleNamespace(all_microphones=lambda **kw: [SimpleNamespace(name="CABLE Output (VB-Audio)", recorder=recorder)])
+    def microphones(**kwargs):
+        assert local.active
+        return [SimpleNamespace(name="CABLE Output (VB-Audio)", recorder=recorder)]
+    sc = SimpleNamespace(all_microphones=microphones)
     output = SimpleNamespace(name="CABLE Input (VB-Audio)", index=42, default_samplerate=48000)
     result = cable.self_test(output, sounddevice=sd, soundcard=sc)
     assert result.passed and result.band_dbfs >= -30
@@ -106,6 +125,8 @@ def test_self_test_targets_only_cable_and_records_the_virtual_endpoint():
     assert not missing.passed and len(calls) == 1
     speakers = cable.self_test(SimpleNamespace(name="Speakers"), sounddevice=sd, soundcard=sc)
     assert not speakers.passed and len(calls) == 1
+    assert len(set(entered)) == 2 and sorted(entered) == sorted(exited)
+    assert not local.active
 
 
 def test_polling_selects_only_cable_input_and_cancellation_does_not_wait():
