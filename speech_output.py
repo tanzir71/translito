@@ -1,4 +1,5 @@
 import base64
+from dataclasses import dataclass
 import os
 from pathlib import Path
 import queue
@@ -166,6 +167,12 @@ try {{
             return read_wav_mono_float32(out_path)
 
 
+@dataclass(frozen=True)
+class BufferedVoice:
+    samples: np.ndarray
+    sample_rate: int
+
+
 class SpeechOutputPlayer:
     def __init__(self, output_device_name="", monitor=False, synthesizer=None, on_event=None):
         self.output_device_name = output_device_name or ""
@@ -201,16 +208,30 @@ class SpeechOutputPlayer:
             self.start()
         self._queue.put((text, language, voice))
 
+    def enqueue_audio(self, samples, sample_rate):
+        """Queue one completed mic utterance; never open a live mic/output loop."""
+        audio = np.asarray(samples, dtype=np.float32)
+        if audio.ndim != 1 or int(sample_rate) <= 0 or not np.isfinite(audio).all():
+            raise ValueError("Pass-through requires finite mono audio and a valid sample rate")
+        if not audio.size:
+            return
+        if not self._running:
+            self.start()
+        self._queue.put(BufferedVoice(audio.copy(), int(sample_rate)))
+
     def _worker(self):
         while self._running:
             item = self._queue.get()
             if item is None:
                 continue
-            text, language, voice = item
             try:
                 self._emit("status", "speaking")
                 self._playing.set()
-                samples, sample_rate = self.synthesizer.synthesize(text, language, voice)
+                if isinstance(item, BufferedVoice):
+                    samples, sample_rate = item.samples, item.sample_rate
+                else:
+                    text, language, voice = item
+                    samples, sample_rate = self.synthesizer.synthesize(text, language, voice)
                 if samples.size:
                     self._play(samples, sample_rate)
             except Exception as exc:

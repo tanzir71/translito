@@ -94,11 +94,7 @@ def dependency_failure_message():
 
     lines.append("")
     lines.append("Install or repair dependencies:")
-    transformers_error = str(dependency_errors.get("transformers", ""))
-    if "huggingface-hub" in transformers_error:
-        lines.append('  pip install "huggingface-hub>=0.34.0,<1.0"')
-    else:
-        lines.append("  pip install -r requirements.txt")
+    lines.append("  pip install -r requirements.txt")
 
     lines.append("")
     lines.append("If torch installs as CPU-only and you want GPU (CUDA):")
@@ -669,8 +665,16 @@ class ArabicAudioTranscriber:
             os.makedirs(transcript_dir, exist_ok=True)
             timestamp = self.session_start_time.strftime("%Y%m%d_%H%M%S")
             filepath = os.path.join(transcript_dir, f"transcript_{timestamp}.txt")
+            suffix = 0
+            while True:
+                try:
+                    handle = open(filepath, "x", encoding="utf-8")
+                    break
+                except FileExistsError:
+                    suffix += 1
+                    filepath = os.path.join(transcript_dir, f"transcript_{timestamp}_{suffix:03d}.txt")
 
-            with open(filepath, "w", encoding="utf-8") as handle:
+            with handle:
                 handle.write("=" * 60 + "\n")
                 handle.write("TRANSLITO — TRANSCRIPT\n")
                 handle.write("=" * 60 + "\n")
@@ -687,12 +691,15 @@ class ArabicAudioTranscriber:
                     entry_time = datetime.fromisoformat(entry["timestamp"]).strftime("%H:%M:%S")
                     source_text = entry.get("source_text", entry.get("arabic_text", ""))
                     translated_text = entry.get("translated_text", entry.get("english_text", ""))
-                    source_language = entry.get("source_language", "source")
+                    source_language = entry.get("language_tag", entry.get("source_language", "source"))
                     target_language = entry.get("target_language", "target")
                     handle.write(f"[{index:03d}] {entry_time}\n")
                     handle.write("-" * 40 + "\n")
                     handle.write(f"Source ({source_language}): {source_text}\n")
-                    handle.write(f"Target ({target_language}): {translated_text}\n\n")
+                    if entry.get("pass_through") and not entry.get("secondary_translation"):
+                        handle.write("Target: (same as source)\n\n")
+                    else:
+                        handle.write(f"Target ({target_language}): {translated_text}\n\n")
 
             print(f"\nTranscript saved to: {filepath}")
             print(f"   Total entries: {len(self.transcripts)}")

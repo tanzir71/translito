@@ -21,6 +21,8 @@ for package in (
     "pyttsx3",
     "transformers.models.marian",
     "transformers.models.whisper",
+    "transformers.models.cohere_asr",
+    "keyring.backends.Windows",
 ):
     try:
         hiddenimports += collect_submodules(package)
@@ -44,12 +46,10 @@ a = Analysis(
         "flax",
         "jax",
         "keras",
-        "librosa",
         "matplotlib",
         "moviepy",
         "onnxruntime",
         "pandas",
-        "scipy",
         "sklearn",
         "tensorflow",
         "torchaudio",

@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 import threading
 
+from engines.mt_local import LocalOpusPipeline
+
 
 FAST_WHISPER_MODELS = {
     "openai/whisper-tiny": "tiny",
@@ -158,7 +160,11 @@ class ModelLoadManager:
             if fast_model_path is None:
                 whisper_repo = fast_whisper_repo(fast_model) if fast_model else whisper_model
                 _download_repo_with_progress(whisper_repo, "Whisper", 0.0, 0.5, on_event)
-            _download_repo_with_progress(translation_model, "translation", 0.5, 0.5, on_event)
+            if not translation_model.startswith("identity:"):
+                repos = translation_model.split("|")
+                for i, repo in enumerate(repos):
+                    _download_repo_with_progress(repo, "translation", 0.5 + i * 0.5 / len(repos),
+                                                 0.5 / len(repos), on_event)
 
         _emit(
             on_event,
@@ -202,7 +208,7 @@ class ModelLoadManager:
             "model_progress",
             {"phase": f"Preparing {translation_model}", "fraction": None},
         )
-        translator = pipeline("translation", model=translation_model, device=torch_device)
+        translator = LocalOpusPipeline(translation_model, device=torch_device, offline_only=offline_only)
         _emit(on_event, "model_progress", {"phase": "Models ready", "fraction": 1.0})
         return LoadedModels(
             key=(whisper_model, translation_model, torch_device, str(torch_dtype), bool(offline_only)),
@@ -211,7 +217,7 @@ class ModelLoadManager:
         )
 
 
-def _download_repo_with_progress(repo_id, label, offset, span, on_event):
+def _download_repo_with_progress(repo_id, label, offset, span, on_event, *, token=False, cache_dir=None):
     try:
         from huggingface_hub import snapshot_download
         from tqdm.auto import tqdm
@@ -236,9 +242,9 @@ def _download_repo_with_progress(repo_id, label, offset, span, on_event):
             "model_progress",
             {"phase": f"Downloading {label}", "fraction": offset},
         )
-        snapshot_download(repo_id=repo_id, tqdm_class=ProgressTqdm)
+        snapshot_download(repo_id=repo_id, tqdm_class=ProgressTqdm, token=token, cache_dir=cache_dir)
     except TypeError:
-        snapshot_download(repo_id=repo_id)
+        snapshot_download(repo_id=repo_id, token=token, cache_dir=cache_dir)
     except Exception:
         raise
 

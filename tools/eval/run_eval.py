@@ -245,7 +245,7 @@ def main(argv=None):
     results = []
     for index, name in enumerate(names):
         result_path = output / f"worker-{index}.json"
-        cmd = [sys.executable, "-X", "utf8", str(Path(__file__).resolve()), "--worker",
+        cmd = [sys.executable, "-B", "-X", "utf8", str(Path(__file__).resolve()), "--worker",
                "bench" if args.bench else "eval", "--result-file", str(result_path),
                "--source", args.source, "--target", args.target,
                "--whisper-model", args.whisper_model,

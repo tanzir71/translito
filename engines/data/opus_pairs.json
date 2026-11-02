@@ -1,0 +1,118 @@
+{
+  "verified_utc": "2026-11-02",
+  "source": "https://huggingface.co/api/models/{repo_id}",
+  "pairs": [
+    {
+      "source": "ar",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-ar-en",
+      "revision": "c5b2a50db78d6be98ae207223f8d4f63bc7a0ff1"
+    },
+    {
+      "source": "fr",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-fr-en",
+      "revision": "c4aed37b318c763fd177aa449b44e3b783cc6c02"
+    },
+    {
+      "source": "es",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-es-en",
+      "revision": "c96e2c5399ebfae4fc43d9669556b9afa74bb69d"
+    },
+    {
+      "source": "de",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-de-en",
+      "revision": "1a922f3b32a8e809e17a47d4b32142d8105924e5"
+    },
+    {
+      "source": "it",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-it-en",
+      "revision": "42556a0848fc726f4d27399f20b19ff6f01afe11"
+    },
+    {
+      "source": "ru",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-ru-en",
+      "revision": "fbd6dc73284f95536648512cc21d57f19191961a"
+    },
+    {
+      "source": "tr",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-tr-en",
+      "revision": "19c65427cc2af5f191337d4899e0348c4af25902"
+    },
+    {
+      "source": "ur",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-ur-en",
+      "revision": "1425fec421641ff8b064596e77d42a2450d684c2"
+    },
+    {
+      "source": "en",
+      "target": "ar",
+      "repo": "Helsinki-NLP/opus-mt-en-ar",
+      "revision": "03087980e8ce753d64b3248ed0a912444545b840"
+    },
+    {
+      "source": "en",
+      "target": "fr",
+      "repo": "Helsinki-NLP/opus-mt-en-fr",
+      "revision": "dd7f6540a7a48a7f4db59e5c0b9c42c8eea67f18"
+    },
+    {
+      "source": "en",
+      "target": "es",
+      "repo": "Helsinki-NLP/opus-mt-en-es",
+      "revision": "5bc4493d463cf000c1f0b50f8d56886a392ed4ab"
+    },
+    {
+      "source": "en",
+      "target": "de",
+      "repo": "Helsinki-NLP/opus-mt-en-de",
+      "revision": "6183067f769a302e3861815543b9f312c71b0ca4"
+    },
+    {
+      "source": "en",
+      "target": "it",
+      "repo": "Helsinki-NLP/opus-mt-en-it",
+      "revision": "be5a254d936f1a8c8da080406ca582a6615e6658"
+    },
+    {
+      "source": "en",
+      "target": "ru",
+      "repo": "Helsinki-NLP/opus-mt-en-ru",
+      "revision": "bb09c99d180016eac6819df3dae68edb1690fdee"
+    },
+    {
+      "source": "en",
+      "target": "ur",
+      "repo": "Helsinki-NLP/opus-mt-en-ur",
+      "revision": "ceb6e22b680f55eda918c3612200ace766898456"
+    }
+  ],
+  "unavailable_standard_pairs": [
+    [
+      "pt",
+      "en"
+    ],
+    [
+      "fa",
+      "en"
+    ],
+    [
+      "en",
+      "pt"
+    ],
+    [
+      "en",
+      "tr"
+    ],
+    [
+      "en",
+      "fa"
+    ]
+  ]
+}
