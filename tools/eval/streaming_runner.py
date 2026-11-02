@@ -25,6 +25,7 @@ from engines.provider import ProviderError, ProviderNetworkError
 from engines.usage import Rate, Units, UsageLedger
 from tools.eval.streaming_protocols import ElevenLabsProtocol, SonioxProtocol, SpeechmaticsProtocol
 from tools.eval.streaming_rows import CascadedRows, SonioxRows
+from tools.eval.runtime import is_opus_unmasked_fallback
 
 
 PROFILES = ("soniox", "speechmatics", "speechmatics-melia", "elevenlabs")
@@ -244,9 +245,12 @@ class StreamingRuntime:
         self.credentials, self.translator = credentials, translator
         self.budget = EvaluationBudget(policy, monthly_path=monthly_path, run_path=run_path)
         self.connector, self.allow_cloud_mt = connector, allow_cloud_mt
+        self._mt_hints = []
+        self._observe_mt_hints = translator is None
 
     def evaluate(self, samples, sample_rate):
         setup_started = time.perf_counter()
+        self._mt_hints.clear()
         if (sample_rate != 16000 or samples.ndim != 1 or not len(samples)
                 or len(samples) / sample_rate > MAX_CLIP_SECONDS or not np.isfinite(samples).all()):
             raise ValueError("Streaming evaluation needs finite mono 16kHz audio, at most 90 seconds")
@@ -277,7 +281,7 @@ class StreamingRuntime:
             translator = SimpleNamespace()
         if translator is None:
             from engines.mt_quality import LocalQualityTranslator
-            translator = LocalQualityTranslator(offline_only=True)
+            translator = LocalQualityTranslator(offline_only=True, on_hint=self._mt_hints.append)
             if self.allow_cloud_mt:
                 from dataclasses import replace
                 from engines.registry import build_session_routers, provider_factories
@@ -390,6 +394,8 @@ class StreamingRuntime:
                 "estimated_cost_usd": str(self.policy.ceiling), "cost_status": "full session allocation retained; invoice unavailable",
                 "setup_s": setup_seconds,
                 "errors": errors + rows.errors, "stream": state, "updates": updates,
+                "opus_unmasked_fallbacks": (sum(map(is_opus_unmasked_fallback, self._mt_hints))
+                                              if self._observe_mt_hints else None),
                 "utterance_tag_metrics": True,
                 **({"target_text": native.target_text, "native_target_alignment": "clip only"} if native is not None else {}),
                 "latency_method": "Real-time 100ms PCM; desktop MT completion versus vendor final-word timestamps where available"}

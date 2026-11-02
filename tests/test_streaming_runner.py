@@ -295,6 +295,35 @@ def test_native_soniox_does_not_load_a_local_mt_model(tmp_path, monkeypatch):
     assert not value.evaluate(np.zeros(1600), 16000)["errors"]
 
 
+def test_cached_stream_mt_records_real_protection_warning_and_resets_per_clip(tmp_path, monkeypatch):
+    from engines.protect import translate_opus
+    monkeypatch.delenv("OFFLINE_ONLY", raising=False)
+    built = []
+
+    def local_factory(*, offline_only, on_hint):
+        assert offline_only
+        built.append(1)
+
+        def translate(text, *args, **kwargs):
+            outputs = iter(["lost markers", "Review API."])
+            result = translate_opus(text, lambda _value: next(outputs), latin=True, on_hint=on_hint)
+            return MtResult(result, "fake-local-mt")
+
+        return SimpleNamespace(preload=lambda *a: None, translate=translate)
+
+    monkeypatch.setattr("engines.mt_quality.LocalQualityTranslator", local_factory)
+    value = StreamingRuntime("speechmatics", policy=policy(), monthly_path=tmp_path / "month.json",
+        run_path=tmp_path / "run.json", credentials=SimpleNamespace(get=lambda _: KEY),
+        connector=lambda protocol, _headers: FakeSocket(protocol, [{"message": "AddTranscript",
+            "metadata": {"transcript": "نراجع API.", "start_time": 0, "end_time": .1}}]))
+    first = value.evaluate(np.zeros(1600), 16000)
+    second = value.evaluate(np.zeros(1600), 16000)
+    assert not first["errors"] and not second["errors"]
+    assert first["opus_unmasked_fallbacks"] == second["opus_unmasked_fallbacks"] == 1
+    assert len(built) == 1 and len(second["entries"]) == 1
+    assert KEY not in json.dumps(first) and KEY not in json.dumps(second)
+
+
 def test_p0_report_uses_retained_paid_allocation_instead_of_local_zero(tmp_path, monkeypatch):
     from tools.eval import run_eval
     monkeypatch.delenv("OFFLINE_ONLY", raising=False)
@@ -304,6 +333,7 @@ def test_p0_report_uses_retained_paid_allocation_instead_of_local_zero(tmp_path,
     result = {"entries": [{"source_text": "hello", "translated_text": "hello", "pass_through": True}],
               "processing_latencies_s": [], "speech_end_latencies_s": [], "segment_count": 1,
               "elapsed_s": .1, "mt_characters": 0, "mt_requests": 0, "errors": [],
+              "opus_unmasked_fallbacks": 2,
               "estimated_cost_usd": "0.01", "cost_status": "allocation retained", "utterance_tag_metrics": False}
     monkeypatch.setattr(run_eval, "StreamingRuntime", lambda *a, **kw: SimpleNamespace(evaluate=lambda *args: result))
     args = SimpleNamespace(source="ar", target="en", paid_policy=write_policy(tmp_path), allow_cloud=True,
@@ -314,6 +344,7 @@ def test_p0_report_uses_retained_paid_allocation_instead_of_local_zero(tmp_path,
     assert report["rows"][0]["estimated_cost_usd"] == "0.01"
     assert report["rows"][0]["cost_status"] == "allocation retained"
     assert report["rows"][0]["tag_accuracy"] is None
+    assert report["rows"][0]["opus_unmasked_fallbacks"] == 2
 
 
 def test_websocket_options_prevent_redirect_proxy_and_private_debug_logs(monkeypatch):

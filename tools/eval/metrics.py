@@ -5,6 +5,9 @@ import unicodedata
 import jiwer
 from sacrebleu.metrics import CHRF
 
+from engines.lid import LATIN_LANGUAGES
+from engines.protect import latin_ranges
+
 
 def normalize(text):
     """Preserve spelling/diacritics and scripts; ignore case and punctuation."""
@@ -39,6 +42,42 @@ def repetition_loops(text):
         else:
             i += 1
     return count
+
+
+def mt_latin_survival(entries, target_language):
+    """Exact-case Latin-run multiset survival for observed non-Latin → English MT.
+
+    This measures the MT input/output contract, separately from ASR term recall.
+    It does not establish semantic quality, word alignment, glossary punctuation
+    outside Latin runs, native clip-only translation, or other directions.
+    """
+    lines = passed = expected_total = preserved = 0
+    for entry in entries:
+        source = entry.get("source_language")
+        target = entry.get("target_language", target_language)
+        if not isinstance(source, str) or not isinstance(target, str):
+            continue
+        source = source.replace("_", "-").split("-")[0].lower()
+        target = target.replace("_", "-").split("-")[0].lower()
+        if (not source or source in LATIN_LANGUAGES or source in {"und", "unknown", "auto"}
+                or target != "en" or not entry.get("mt_called")):
+            continue
+        text = entry.get("source_text", "")
+        expected = Counter(text[start:end] for start, end in latin_ranges(text))
+        if not expected:
+            continue
+        lines += 1
+        expected_total += sum(expected.values())
+        completed = not (entry.get("translation_pending") or entry.get("translation_error")
+                         or entry.get("translation_cancelled"))
+        output = entry.get("translated_text", "") if completed else ""
+        actual = Counter(output[start:end] for start, end in latin_ranges(output))
+        preserved += sum((expected & actual).values())
+        passed += bool(output.strip()) and not (expected - actual)
+    return {"mt_latin_lines": lines, "mt_latin_lines_passed": passed,
+            "mt_latin_line_rate": passed / lines if lines else None,
+            "mt_latin_runs": expected_total, "mt_latin_runs_preserved": preserved,
+            "mt_latin_run_recall": preserved / expected_total if expected_total else None}
 
 
 def score_clip(reference_source, reference_target, reference_tags, entries,
@@ -96,4 +135,5 @@ def score_clip(reference_source, reference_target, reference_tags, entries,
         if en_indices and target_language == "en" else None,
         "repetition_loops": repetition_loops(source) + repetition_loops(target),
         "reference_words": len(ref.split()), "reference_characters": len(ref), **groups,
+        **mt_latin_survival(entries, target_language),
     }
