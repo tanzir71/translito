@@ -23,6 +23,7 @@ SetupIconFile=Translito.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
+ArchiveExtraction=full
 WizardStyle=modern
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -31,9 +32,12 @@ ArchitecturesInstallIn64BitMode=x64compatible
 [Tasks]
 Name: "startup"; Description: "Open at login"; Flags: unchecked
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
+Name: "virtualmic"; Description: "Install virtual microphone for Speak Mode (VB-CABLE by VB-Audio, donationware)"; GroupDescription: "Optional audio driver:"; Flags: unchecked
 
 [Files]
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "redist\vbcable\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "redist\vbcable\*"; DestDir: "{app}\redist\vbcable"; Flags: ignoreversion
+Source: "vbcable.sha256"; DestDir: "{app}\redist\vbcable"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
@@ -41,7 +45,51 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
-Filename: "https://vb-audio.com/Cable/"; Description: "Open VB-Audio Virtual Cable download page"; Flags: shellexec postinstall skipifsilent unchecked
+Filename: "https://vb-audio.com/Services/licensing.htm"; Description: "Support VB-Audio / donate for VB-CABLE"; Flags: shellexec postinstall skipifsilent unchecked
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Translito"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: startup; Flags: uninsdeletevalue
+
+[Code]
+const
+  VBCableHash = 'b950e39f01af1d04ea623c8f6d8eb9b6ea5c477c637295fabf20631c85116bfb';
+  VBCableSetupHash = '734c35dfa6d98f48782a451633ceb471166ec70d60482fd89a1123d0ee3c4f41';
+
+procedure InstallVirtualMic;
+var
+  ArchivePath, DriverDir, DriverExe: String;
+  ErrorCode: Integer;
+begin
+  if WizardSilent or not WizardIsTaskSelected('virtualmic') then
+    Exit;
+  if MsgBox('Install VB-CABLE by VB-Audio for Speak Mode?' + #13#10#13#10 +
+    'VB-CABLE is donationware. Origin: https://vb-audio.com/Cable/' + #13#10 +
+    'Donate / licensing: https://vb-audio.com/Services/licensing.htm' + #13#10#13#10 +
+    'Review the included vendor license in redist\vbcable\VBCABLE_Driver_Pack45.zip before continuing.' + #13#10 +
+    'Only the driver installer will ask for administrator permission. Windows may also show its driver-publisher prompt. A restart may be needed.' + #13#10#13#10 +
+    'Install the optional driver now?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) <> IDYES then
+    Exit;
+  try
+    ArchivePath := ExpandConstant('{app}\redist\vbcable\VBCABLE_Driver_Pack45.zip');
+    if Lowercase(GetSHA256OfFile(ArchivePath)) <> VBCableHash then
+      RaiseException('VB-CABLE package verification failed. The driver was not started.');
+    DriverDir := ExpandConstant('{tmp}\vbcable');
+    ForceDirectories(DriverDir);
+    ExtractArchive(ArchivePath, DriverDir, '', True, nil);
+    DriverExe := DriverDir + '\VBCABLE_Setup_x64.exe';
+    if Lowercase(GetSHA256OfFile(DriverExe)) <> VBCableSetupHash then
+      RaiseException('VB-CABLE setup verification failed. The driver was not started.');
+    if not ShellExec('runas', DriverExe, '-i -h', DriverDir, SW_SHOWNORMAL, ewWaitUntilTerminated, ErrorCode) then
+      MsgBox('Windows cancelled or could not start the optional VB-CABLE installer. Translito is installed; use Speak setup to try again.', mbInformation, MB_OK)
+    else
+      MsgBox('VB-CABLE setup has finished. If CABLE Input / CABLE Output are missing, restart Windows to finish installation. Then open Speak Mode and run Test virtual mic.', mbInformation, MB_OK);
+  except
+    MsgBox(GetExceptionMessage, mbError, MB_OK);
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    InstallVirtualMic;
+end;

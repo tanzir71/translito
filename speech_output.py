@@ -493,12 +493,25 @@ class _PlaybackRoutes:
             if not self.active():
                 return
             import sounddevice as sd
+            from device_utils import refresh_portaudio_devices
             old_rate = route.rate
-            self._close_stream(route.stream)
-            route.stream, route.rate = self.player._open_stream(sd, route.target)
+            # PortAudio enumerates hot-plugged endpoints only after a reset.
+            # A reset invalidates every stream in this player, including its
+            # monitor, so close all routes before refreshing and reopening.
+            for candidate in self.routes:
+                self._close_stream(candidate.stream)
+            if not self.active():
+                return
+            refresh_portaudio_devices()
+            for candidate in self.routes:
+                if not self.active():
+                    return
+                previous_rate = candidate.rate
+                candidate.stream, candidate.rate = self.player._open_stream(sd, candidate.target)
+                if candidate.rate != previous_rate:
+                    candidate.resampler = None
             if route.rate != old_rate:
                 data = resample_audio(data, old_rate, route.rate)
-                route.resampler = None
             if self.active():
                 route.stream.write(data)
 

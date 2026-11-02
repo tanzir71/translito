@@ -33,7 +33,7 @@ for package in (
 a = Analysis(
     ["..\\gui.py"],
     pathex=[".."],
-    binaries=collect_dynamic_libs("llama_cpp"),
+    binaries=collect_dynamic_libs("llama_cpp") + collect_dynamic_libs("engines"),
     datas=[("Translito.ico", "."), *collect_data_files("silero_vad"),
            *collect_data_files("engines")],
     hiddenimports=hiddenimports,

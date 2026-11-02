@@ -1,6 +1,7 @@
 import numpy as np
 import threading
 import sys
+import pytest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -116,21 +117,28 @@ def output_fixture(monkeypatch):
     return streams
 
 
-def test_outputs_consume_equal_time_at_48k_and_44100_and_rebind_only_once(monkeypatch):
+@pytest.mark.parametrize("fail_index", [1, 2])
+def test_outputs_consume_equal_time_at_48k_and_44100_and_rebind_after_hotplug(monkeypatch, fail_index):
     streams = output_fixture(monkeypatch)
+    def reset():
+        assert len(streams) == 2 and all(s.closed for s in streams)
+    refresh = Mock(side_effect=reset)
+    monkeypatch.setattr("device_utils.refresh_portaudio_devices", refresh)
     player = SpeechOutputPlayer(output_device_name="CABLE Input", monitor=True)
     player._running = True
-    # Fail just the first cable stream; later blocks must use the replacement.
+    # Either route can fail. Reopening must not duplicate an interval that the
+    # other route has already played, and later blocks use replacement streams.
     opened = player._open_stream
     def open_stream(sd, target):
         stream, rate = opened(sd, target)
-        if len(streams) == 1:
+        if len(streams) == fail_index:
             stream.write = Mock(side_effect=RuntimeError("route changed"))
         return stream, rate
     player._open_stream = open_stream
     player._play(np.ones(24000, dtype=np.float32), 24000)
-    assert len(streams) == 3 and all(s.closed for s in streams)
-    streams[0].write.assert_called_once()
+    assert len(streams) == 4 and all(s.closed for s in streams)
+    refresh.assert_called_once()
+    streams[fail_index - 1].write.assert_called_once()
     assert sum(len(x) for s in streams if s.device == 0 for x in s.written) == 48000
     assert sum(len(x) for s in streams if s.device is None for x in s.written) == 44100
 

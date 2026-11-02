@@ -1,0 +1,9 @@
+{
+  "compiler": "MSVC x64 /std:c++17 /O2 /MT; linker /Brepro",
+  "format": "48000 Hz stereo PCM16",
+  "architecture": "x64",
+  "source": "native_windows/process_loopback.cpp",
+  "sha256": "d368cc53465f6551a56299d6ee2d6478c777d97495a397a463107311562dbb6e",
+  "source_sha256": "a85d4c3efffe7ab1347435f2bae38197ab4fa331cfe48408a03f31be70900a80",
+  "abi": 1
+}

@@ -35,7 +35,6 @@ from app_config import (
     save_transcript_folder,
 )
 from device_utils import (
-    conference_mic_hint,
     first_real_microphone,
     first_virtual_output,
     query_input_devices,
@@ -51,6 +50,7 @@ from login import is_open_at_login_enabled, set_open_at_login
 from main import ArabicAudioTranscriber, dependency_failure_message, require_dependencies, torch
 from model_loading import GLOBAL_MODEL_MANAGER
 from speech_output import LocalSpeechSynthesizer
+from virtual_mic_ui import VirtualMicSetup
 
 
 APP_NAME = "Translito"
@@ -398,6 +398,7 @@ class TranslatorGUI:
             next((label for label, value in ENGINE_PROFILES.items() if value == engines.profile), "Free (recommended)")))
         self.mode_var = tk.StringVar(value=runtime_config.last_mode)
         self.listen_device_var = tk.StringVar(value="")
+        self.listen_source_type_var = tk.StringVar(value="Device")
         self.speak_mic_var = tk.StringVar(value=speak_config.mic_name)
         self.speak_output_var = tk.StringVar(value=speak_config.output_device_name)
         self.listen_source_var = tk.StringVar(value=self.language_name_for_iso(language_config.source))
@@ -665,30 +666,9 @@ class TranslatorGUI:
         self.listen_frame = self._build_listen_controls(self.controls_host)
         self.speak_frame = self._build_speak_controls(self.controls_host)
 
-        self.routing_banner = tk.Frame(self.root, bg=COLORS["yellow_bg"])
-        self.routing_icon = tk.Label(
-            self.routing_banner,
-            text="!",
-            bg=COLORS["yellow_bg"],
-            fg=COLORS["orange"],
-            padx=12,
-            pady=10,
-            font=("Segoe UI Semibold", 10),
-        )
-        self.routing_icon.pack(side="left", anchor="n")
-        self.routing_label = tk.Label(
-            self.routing_banner,
-            textvariable=self.routing_var,
-            bg=COLORS["yellow_bg"],
-            fg=COLORS["secondary"],
-            justify="left",
-            anchor="w",
-            wraplength=820,
-            padx=0,
-            pady=10,
-            font=("Segoe UI", 9),
-        )
-        self.routing_label.pack(side="left", fill="x", expand=True, padx=(0, 12))
+        self.virtual_mic_setup = VirtualMicSetup(self, COLORS)
+        self.routing_banner = self.virtual_mic_setup.frame
+        self.routing_label = self.virtual_mic_setup.label
 
         self._separator(4)
         self._build_status_bar()
@@ -761,6 +741,14 @@ class TranslatorGUI:
             command=self.toggle_capture,
         )
         self.listen_action_button.grid(row=0, column=4, sticky="s")
+        source_kind = tk.Frame(frame, bg=COLORS["bg"])
+        source_kind.grid(row=1, column=0, columnspan=5, sticky="ew", pady=(6, 0))
+        self.listen_source_type_combo = ttk.Combobox(source_kind, textvariable=self.listen_source_type_var,
+            values=["Device", "App audio"], state="readonly", width=12, style="Dark.TCombobox")
+        self.listen_source_type_combo.pack(side="left")
+        self.listen_source_type_combo.bind("<<ComboboxSelected>>", lambda _event: self.refresh_devices())
+        self.app_audio_hint = tk.Label(source_kind, text="", bg=COLORS["bg"], fg=COLORS["secondary"], font=("Segoe UI", 8))
+        self.app_audio_hint.pack(side="left", padx=10)
         return frame
 
     def _build_speak_controls(self, parent):
@@ -807,6 +795,8 @@ class TranslatorGUI:
             command=self.toggle_capture,
         )
         self.speak_action_button.grid(row=0, column=5, sticky="s")
+        ttk.Button(frame, text="Virtual-mic setup…", style="Mac.TButton",
+                   command=self.show_virtual_mic_setup).grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
         return frame
 
     def _build_status_bar(self):
@@ -1566,13 +1556,40 @@ class TranslatorGUI:
 
         try:
             self.input_choices = query_input_devices(include_loopback=True)
-            self.output_choices = query_output_devices()
+            self.output_choices = query_output_devices(refresh=True)
         except Exception as exc:
             if show_error:
                 self.show_error(f"Unable to list audio devices: {exc}")
             return
 
         self.listen_choices = self.input_choices
+        if self.listen_source_type_var.get() == "App audio":
+            from device_utils import InputDeviceChoice
+            from engines.process_audio import ProcessSource, active_sources, supported
+            if supported():
+                try:
+                    sources = active_sources()
+                    self.listen_choices = [InputDeviceChoice(source.name, source, True, False) for source in sources]
+                    previous = current_listen.raw if current_listen else None
+                    if isinstance(previous, ProcessSource):
+                        matching = next((source for source in sources if (source.pid, source.birth) == (previous.pid, previous.birth)), None)
+                        if matching:
+                            listen_name = matching.name
+                        else:
+                            # A silent/closed app must never broaden selection
+                            # to All apps during the automatic refresh.
+                            retained = InputDeviceChoice(f"{previous.name} — not playing", previous, True, False)
+                            self.listen_choices.insert(0, retained)
+                            listen_name = retained.name
+                    self.app_audio_hint.configure(text="Windows 11 / build 20348+ · includes app children · refreshes every 3 s")
+                except Exception:
+                    self.listen_choices = []
+                    self.app_audio_hint.configure(text="App list unavailable. Refresh or choose Device.")
+            else:
+                self.listen_choices = []
+                self.app_audio_hint.configure(text="App audio needs 64-bit Windows build 20348+; use Device here.")
+        else:
+            self.app_audio_hint.configure(text="")
         self.speak_mic_choices = [
             choice for choice in self.input_choices if not choice.is_loopback and not choice.is_virtual
         ]
@@ -1615,12 +1632,12 @@ class TranslatorGUI:
             combo.current(0)
 
     def auto_refresh_devices(self):
-        if self.transcriber is None:
+        if self.transcriber is None and not self.model_setup_busy:
             self.refresh_devices(show_error=False)
         self.root.after(3000, self.auto_refresh_devices)
 
     def set_mode(self, mode, force=False):
-        if self.transcriber is not None and not force:
+        if self.model_setup_busy or (self.transcriber is not None and not force):
             return
         mode = mode if mode in {"listen", "speak"} else "listen"
         self.mode_var.set(mode)
@@ -1633,26 +1650,19 @@ class TranslatorGUI:
         if mode == "speak":
             self.listen_frame.grid_remove()
             self.speak_frame.grid(row=0, column=0, sticky="ew")
-            self.routing_banner.grid(row=3, column=0, sticky="ew")
         else:
             self.speak_frame.grid_remove()
             self.listen_frame.grid(row=0, column=0, sticky="ew")
             self.routing_banner.grid_remove()
+        self.update_routing_banner()
         self.persist_settings()
 
+    def show_virtual_mic_setup(self):
+        self.virtual_mic_setup.force_visible = True
+        self.virtual_mic_setup.update()
+
     def update_routing_banner(self):
-        output = self.selected_output_choice()
-        output_name = output.name if output else ""
-        self.routing_var.set(conference_mic_hint(output_name))
-        is_virtual = bool(output and output.is_virtual)
-        background = COLORS["green_bg"] if is_virtual else COLORS["yellow_bg"]
-        self.routing_banner.configure(bg=background)
-        self.routing_label.configure(bg=background)
-        self.routing_icon.configure(
-            text="✓" if is_virtual else "!",
-            bg=background,
-            fg=COLORS["green"] if is_virtual else COLORS["orange"],
-        )
+        self.virtual_mic_setup.update()
 
     def update_noise_gate_label(self):
         value = float(self.noise_gate_var.get())
@@ -1697,7 +1707,7 @@ class TranslatorGUI:
             self.voice_var.set("Automatic")
 
     def persist_current_listen_device(self):
-        if self.preview_mode or self._initializing:
+        if self.preview_mode or self._initializing or self.listen_source_type_var.get() == "App audio":
             return
         choice = self.selected_listen_choice()
         if choice:
@@ -1864,6 +1874,10 @@ class TranslatorGUI:
                 return
             selected_device = mic_choice.raw
             output_name = output_choice.name if output_choice else ""
+            if not output_choice or "cable input" not in output_name.lower():
+                self.show_virtual_mic_setup()
+                self.show_hint("Choose CABLE Input under Speak to, then test the virtual microphone before starting.")
+                return
         else:
             listen_choice = self.selected_listen_choice()
             if listen_choice is None:
@@ -1873,14 +1887,30 @@ class TranslatorGUI:
                 return
             selected_device = listen_choice.raw
             output_name = ""
-            save_device_config(listen_choice.name, CONFIG_FILE)
+            if self.listen_source_type_var.get() == "Device":
+                save_device_config(listen_choice.name, CONFIG_FILE)
+            else:
+                try:
+                    selected_device.validate()
+                except Exception as exc:
+                    self.show_error(str(exc))
+                    return
 
+        self.model_setup_busy = True
         self.lock_controls(True)
-        self.set_status("Loading models")
+        self.set_status("Testing virtual microphone" if request["mode"] == "speak" else "Loading models")
         self.update_action_button(running=False, loading=True)
 
         def run_start():
             try:
+                if request["mode"] == "speak":
+                    from engines.virtual_mic import self_test
+                    result = self_test(output_choice)
+                    self.root.after(0, lambda: self.virtual_mic_setup.test_result(output_choice, result))
+                    if not result.passed:
+                        self.root.after(0, lambda: self.start_failed(RuntimeError(result.message)))
+                        return
+                    self.root.after(0, lambda: self.set_status("Loading models"))
                 transcriber = ArabicAudioTranscriber(
                     selected_device=selected_device,
                     on_event=self.on_event,
@@ -1903,7 +1933,9 @@ class TranslatorGUI:
                 return
 
             def finish_start():
+                self.model_setup_busy = False
                 self.transcriber = transcriber
+                self.update_routing_banner()
                 self.set_status("Listening")
                 self.phase_var.set("")
                 self.progress.stop()
@@ -1918,10 +1950,12 @@ class TranslatorGUI:
         threading.Thread(target=run_start, daemon=True).start()
 
     def start_failed(self, exc):
+        self.model_setup_busy = False
         self.lock_controls(False)
         self.set_status("Error")
         self.update_action_button(running=False)
         self.show_error(str(exc))
+        self.update_routing_banner()
 
     def stop(self, after=None):
         transcriber = self.transcriber
@@ -1977,6 +2011,7 @@ class TranslatorGUI:
         normal_state = "disabled" if locked else "normal"
         for widget in (
             self.listen_combo,
+            self.listen_source_type_combo,
             self.listen_source_combo,
             self.listen_target_combo,
             self.speak_mic_combo,
@@ -1994,6 +2029,7 @@ class TranslatorGUI:
         ):
             widget.configure(state=normal_state)
         self._set_settings_controls_state(not locked)
+        self.update_routing_banner()
 
     def _set_settings_controls_state(self, enabled):
         for widget in self.settings_controls:
@@ -2479,6 +2515,7 @@ class TranslatorGUI:
 
     def quit_app(self):
         self.is_quitting = True
+        self.virtual_mic_setup.poll_stop.set()
         if self.tray_icon is not None:
             try:
                 self.tray_icon.stop()

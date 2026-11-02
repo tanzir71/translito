@@ -32,6 +32,17 @@ try {
     & $venvPython -m PyInstaller Translito.spec --noconfirm --clean --workpath $pyinstallerWork --distpath $releaseDistRoot
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed." }
 
+    $cablePackage = Join-Path $installerDir "redist\vbcable\VBCABLE_Driver_Pack45.zip"
+    $cablePin = ((Get-Content -LiteralPath (Join-Path $installerDir "vbcable.sha256") -Raw).Trim() -split '\s+')[0]
+    if ((Get-FileHash -LiteralPath $cablePackage -Algorithm SHA256).Hash.ToLowerInvariant() -ne $cablePin) {
+        throw "Bundled VB-CABLE package checksum mismatch."
+    }
+    $cableDestination = Join-Path $releaseAppDir "redist\vbcable"
+    New-Item -ItemType Directory -Path $cableDestination -Force | Out-Null
+    Copy-Item -LiteralPath $cablePackage -Destination $cableDestination -Force
+    Copy-Item -LiteralPath (Join-Path $installerDir "redist\vbcable\NOTICE.txt") -Destination $cableDestination -Force
+    Copy-Item -LiteralPath (Join-Path $installerDir "vbcable.sha256") -Destination $cableDestination -Force
+
     $outputDir = Join-Path $BuildRoot "output"
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 

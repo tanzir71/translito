@@ -1,0 +1,21 @@
+VB-CABLE by VB-Audio Software / Vincent Burel
+Origin and product: https://vb-audio.com/Cable/  (www.vb-cable.com)
+
+VB-CABLE is donationware. All participation is welcome.
+Donate / obtain a license: https://vb-audio.com/Services/licensing.htm
+Webshop: https://shop.vb-audio.com/
+
+Translito distributes the official VBCABLE_Driver_Pack45.zip unchanged.
+The archive includes VB-Audio's readme and end-user license. Review those
+terms before choosing to install the driver. Translito does not own VB-CABLE.
+
+This driver is optional and is used for Speak Mode. Listen Mode does not
+need a virtual microphone. Installing a driver requires Windows elevation
+and may show Windows' driver-publisher prompt. A restart may be needed.
+Translito never changes trusted-publisher/security settings or uninstalls
+VB-CABLE automatically.
+
+The vendor's distribution terms permit bundling when users can identify
+VB-CABLE and are in a position to donate or buy their license. Distribution
+in an organization where users cannot see/pay for it needs the vendor's
+applicable licenses. See the current licensing page above.
