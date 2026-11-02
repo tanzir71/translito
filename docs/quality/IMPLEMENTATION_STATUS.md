@@ -23,8 +23,11 @@ The code-switch fallback now preserves the selected Fast/Balanced/Best decoder
 beam size when replacing stock Whisper, both when Cohere is unavailable at
 setup and when it fails during inference. Previously those paths silently
 returned to Balanced. Six regression cases exercise the actual Whisper adapter
-call; the full suite passes **351 tests**. Windows 1.1.1 packaging is tracked
-in RELEASE_1_1_1.md. A new offline EN → AR → EN synthetic/public replay produced
+call; the full suite passes **351 tests**. Windows 1.1.1 is built, installed and
+published with matching local/server asset hashes. Its frozen public playback
+displayed source/target, saved on Stop and returned to Ready. Original settings
+and all five transcripts remain byte-identical. See RELEASE_1_1_1.md. A new
+offline EN → AR → EN synthetic/public replay produced
 the correct three tags, two English pass-through rows, exactly one MT call and
 no pipeline errors. Its latency still missed four seconds; see LOCAL_HARDWARE.md.
 

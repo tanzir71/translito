@@ -8,7 +8,7 @@ speech to a virtual microphone. Local processing works without a cloud key.
 
 ## Downloads
 
-- **Windows 1.1.0:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.1.0/TranslitoSetup-1.1.0.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.1.0/TranslitoPortable-1.1.0.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v1.1.0/SHA256SUMS.txt). Bilingual routing, optional free cloud providers, guided virtual-mic setup and app-audio capture. Fixes repeated audio-device resets that could freeze the idle UI, and includes the settings/certificate fixes.
+- **Windows 1.1.1:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.1.1/TranslitoSetup-1.1.1.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.1.1/TranslitoPortable-1.1.1.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v1.1.1/SHA256SUMS.txt). Preserves Fast and Best when loading the Arabic code-switch fallback. Includes bilingual routing, optional free cloud providers, guided virtual-mic setup, app-audio capture, responsive idle device polling and the settings/certificate fixes.
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 For the portable build, extract the entire ZIP into a new empty folder before
@@ -32,7 +32,7 @@ The Windows GUI now includes Speak Mode and the native macOS parity work:
 - **Open at login**: the Windows toggle writes the app command to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
 - **Installer assets**: `installer/` contains PyInstaller and Inno Setup files for a one-dir app installer.
 
-Windows 1.1.0 bundles the unmodified official VB-CABLE
+Windows 1.1.1 bundles the unmodified official VB-CABLE
 package as an **optional, unchecked** installer component. The app's Speak setup
 also offers explicit driver-install consent, a local routing test, and meeting-app
 guides. Listen Mode needs no virtual cable. VB-CABLE is **donationware by
