@@ -1,6 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
+from pathlib import Path
+import sys
+
+# Helpers run before Analysis applies pathex. build_windows.ps1 starts in
+# installer/, so make the source package visible before collecting its assets.
+repo_root = Path(SPECPATH).resolve().parent
+sys.path.insert(0, str(repo_root))
 
 
 hiddenimports = [
@@ -31,11 +38,11 @@ for package in (
 
 
 a = Analysis(
-    ["..\\gui.py"],
-    pathex=[".."],
+    [str(repo_root / "gui.py")],
+    pathex=[str(repo_root)],
     binaries=collect_dynamic_libs("llama_cpp") + collect_dynamic_libs("engines"),
     datas=[("Translito.ico", "."), *collect_data_files("silero_vad"),
-           *collect_data_files("engines")],
+           (str(repo_root / "engines" / "data"), "engines/data")],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

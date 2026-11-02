@@ -1,11 +1,20 @@
 # Translito
 
-A real-time desktop audio transcription and translation app for Windows and macOS. The Windows edition captures desktop audio or microphone input, transcribes locally with Whisper, and translates with Helsinki-NLP models. It includes both a GUI and a CLI.
+A desktop audio transcription and translation app for Windows and macOS. The
+Windows edition understands a conversation as English plus one other language,
+passes through lines already in your language, and protects English technical
+terms in mixed speech. Listen captures a device or one app; Speak sends translated
+speech to a virtual microphone. Local processing works without a cloud key.
 
 ## Downloads
 
-- **Windows 1.0.4:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.0.4/TranslitoSetup-1.0.4.exe) or [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.0.4/TranslitoPortable-1.0.4.zip). This release fixes slow transcription caused by duplicate decoding, displays recognized speech before translation completes, and keeps live audio from accumulating a long backlog. It includes the settings and certificate fixes.
+- **Windows 1.1.0:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.1.0/TranslitoSetup-1.1.0.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.1.0/TranslitoPortable-1.1.0.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v1.1.0/SHA256SUMS.txt). Bilingual routing, optional free cloud providers, guided virtual-mic setup and app-audio capture. Fixes repeated audio-device resets that could freeze the idle UI, and includes the settings/certificate fixes.
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
+
+For the portable build, extract the entire ZIP into a new empty folder before
+running `Translito.exe`. Use the installer for an in-place upgrade: it preserves
+the previous runtime in `runtime-history` and installs fresh engine files, avoiding
+old dependency metadata conflicts. Settings and transcripts keep their locations.
 
 ## Windows Feature Parity Update
 
@@ -15,7 +24,7 @@ The Windows GUI now includes Speak Mode and the native macOS parity work:
 - **VB-Cable routing**: choose `CABLE Input (VB-Audio Virtual Cable)` as the app output, then choose `CABLE Output (VB-Audio Virtual Cable)` as the microphone in Slack, Zoom, Teams, or Meet. Use headphones.
 - **Model preload and progress**: the GUI starts loading the selected Whisper and translation models after launch, shows download/preparing status, and reuses the same load if Start is pressed mid-preload.
 - **Lower latency**: chunks emit early when speech is followed by a pause, while steady room noise still waits for the normal window.
-- **Live results**: recognized speech appears before translation completes. Short audio chunks decode once with a token limit, older waiting audio is skipped when processing falls behind, and Stop cancels generation and clears the backlog.
+- **Live results**: recognized speech appears before translation completes. Speech boundaries assemble complete thoughts; waiting speech is retained with a lag indicator when processing falls behind. Stop cancels generation and clears the stopped session's pending audio.
 - **Mic noise gate**: the Settings area includes an RMS gate slider from Off to High; it applies only to real microphones, never loopback or virtual sources.
 - **Route recovery**: Speak Mode resolves output devices by name at playback time and retries once after PortAudio route errors.
 - **Device refresh**: input/output pickers refresh automatically every few seconds and still include a manual Refresh button.
@@ -23,7 +32,7 @@ The Windows GUI now includes Speak Mode and the native macOS parity work:
 - **Open at login**: the Windows toggle writes the app command to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
 - **Installer assets**: `installer/` contains PyInstaller and Inno Setup files for a one-dir app installer.
 
-The Windows quality-development branch bundles the unmodified official VB-CABLE
+Windows 1.1.0 bundles the unmodified official VB-CABLE
 package as an **optional, unchecked** installer component. The app's Speak setup
 also offers explicit driver-install consent, a local routing test, and meeting-app
 guides. Listen Mode needs no virtual cable. VB-CABLE is **donationware by
@@ -31,7 +40,102 @@ guides. Listen Mode needs no virtual cable. VB-CABLE is **donationware by
 [donate or review licensing](https://vb-audio.com/Services/licensing.htm).
 Organizations whose users cannot see or pay for VB-CABLE need the appropriate
 VB-Audio license. See [virtual-mic setup and verification](docs/quality/VIRTUAL_MIC.md).
-The currently linked published installer predates this quality branch.
+
+## Windows quality profiles
+
+Choose a profile in Settings → Translation engine. The Free default processes
+locally until you explicitly enable a cloud provider, add its key and pass Test.
+Keys stay in Windows Credential Manager. Switching to Offline prevents inference
+and download network access once the selected models are cached.
+
+| Profile | Recognition and translation | Setup |
+|---|---|---|
+| Free (recommended) | Cached local Cohere Arabic if ready and fast enough, configured free ASR fallbacks, then local Whisper; configured free text translators, then local MT. | No key required. Azure F0 is the first optional text translator. |
+| Offline (private) | Local recognizers and optional TranslateGemma, with Marian fallback. | Cache models first. Cohere/Gemma downloads require their respective terms/consent. |
+| Custom | Enabled and tested providers in the configured routing order. | Each cloud provider requires its own setup/Test. |
+| Live interpreter (Gemini preview) | Opt-in streaming speech/text translation with Free recovery. | A tested free-tier key and separate data-reuse consent; one-way preview, with real meeting timing/quality still unverified. |
+
+The paid booster candidates are evaluation work only. No paid booster is selected
+or enabled in this release, and the default monthly paid cap is $0. Private Saudi
+meeting clips were unavailable and their evaluation was waived; public/synthetic
+smoke tests do not establish Saudi accuracy or the target meeting latency.
+
+Conversation controls are **English +**, **My language** for Listen, and
+**Audience** for Speak. Settings offers both-language captions, protected English
+terms, an editable glossary and original-voice/mute/voice handling when your
+speech already matches the audience. Advanced one-way pairs remain available.
+
+## Optional free cloud keys
+
+Cloud providers start disabled. Open Settings → provider setup, read its data
+notice, enter a key, choose the correct account tier, press Test and enable it.
+Test sends a short public sample, never a current meeting. A changed key, region,
+tier or consent requires a new Test. Provider errors and exhausted limits fall
+back visibly to the next eligible engine.
+
+**Azure Translator F0:** Create a Translator resource with the F0 pricing tier in
+the [Azure portal](https://portal.azure.com/), then copy a key and its region from
+the resource's Keys and Endpoint page. Confirm F0 in Translito. Its
+[free allowance](https://azure.microsoft.com/en-us/pricing/details/translator/)
+is 2 million characters per month. This is the recommended first text provider;
+an S1 resource is not treated as F0.
+
+**DeepL API Free (existing accounts):** If you already have this legacy API plan,
+obtain its key in your [DeepL account](https://www.deepl.com/account/summary).
+Free API keys end in `:fx`; Translito uses the Free endpoint with the legacy
+500,000-character monthly limit. DeepL's [current plan page](https://support.deepl.com/hc/en-us/articles/360021200939-DeepL-API-plans)
+says API Free is no longer available to new subscribers. Its new Developer trial
+has a lifetime allowance and is not represented by this adapter's monthly plan;
+use Azure F0 for the recommended free setup. The desktop writing subscription is
+also separate from the API plan.
+
+**Google Cloud Translation Basic:** Enable the Cloud Translation API in your
+[Google Cloud project](https://console.cloud.google.com/) and create an API key
+restricted to that API. Basic uses a
+[monthly character credit](https://cloud.google.com/products/translate/pricing)
+covering the first 500,000 NMT characters. The project can bill beyond its credit;
+usage outside Translito shares that account allowance. Translito's ledger covers
+only its own calls, so also configure account quotas/billing controls yourself.
+
+**Groq speech recognition:** Create a free developer API key in the
+[Groq console](https://console.groq.com/keys), confirm the free tier and Test it.
+The [published limits](https://console.groq.com/docs/rate-limits) vary by model
+and account; Whisper large-v3 is a fallback, not a recognizer trained for Saudi
+Arabic/English mixing. Audio leaves your computer when this provider is active.
+
+**Cohere Arabic trial:** Obtain a trial key in the
+[Cohere dashboard](https://dashboard.cohere.com/), confirm trial status and Test.
+The trial has [request limits](https://docs.cohere.com/v2/docs/rate-limits), and
+its [data terms](https://cohere.com/privacy) allow reuse for research/improvement;
+personal information is not intended for trial use. It requires separate reuse
+consent. Use cached local Cohere for private meetings once you have accepted the
+model's gated download terms.
+
+**Gemini free text / Live preview:** Create a Gemini API key in
+[Google AI Studio](https://aistudio.google.com/apikey). Each provider card requires
+free-tier confirmation, Test and separate reuse consent; free-tier inputs/outputs
+may be used to improve Google's products under its
+[API terms](https://ai.google.dev/gemini-api/terms). Live Translate remains an
+optional preview. Paid account pricing is not silently inferred from a free key.
+
+## Privacy and local data
+
+| Engine or action | What leaves this computer | Stored locally |
+|---|---|---|
+| Offline/local ASR, MT and TTS | No inference data; explicit model setup downloads model files. | Cached models and transcripts. |
+| Azure / DeepL / Google text MT | Text to translate, protected terms and adapter context where supported; no captured audio. | Usage totals, reservations and glossary-cache hashes; no raw keys in logs/config. |
+| Cohere API / Groq ASR | Speech segments and the configured language/hotword hints. | Usage totals and generated transcripts. |
+| Gemini text | Text, recent context and glossary data. Free-tier reuse consent is required. | Usage totals and generated transcripts. |
+| Gemini Live preview | Captured audio and session/language instructions; receives translated text/speech. Free-tier reuse consent is required. | Usage totals and transcripts; resume handles stay in memory. |
+| App-audio capture / virtual-mic self-test | No data is uploaded. | Audio stays in memory; original-audio files are not written. |
+
+Settings live in `%LOCALAPPDATA%\Translito\config.ini`; API keys are in Windows
+Credential Manager. `usage.json` retains UTC-month history, including conservative
+reservations for uncertain request outcomes. Transcripts save as new files and
+existing files are preserved. Usage/caps describe Translito's requests, not other
+applications sharing the same provider account. See
+[provider contracts](docs/quality/CLOUD_CONTRACTS.md) and
+[implementation/verification limits](docs/quality/IMPLEMENTATION_STATUS.md).
 
 ## Features
 
@@ -45,7 +149,7 @@ The currently linked published installer predates this quality branch.
 - **Offline ASR (Default)**: Whisper with fast CPU inference via CTranslate2, or Transformers on CUDA (downloads the selected model once)
 - **Speech activity filtering**: Drops silence and background noise before recognition
 - **Multi-language**: Select source and target language in the GUI
-- **High-Quality Translation**: Helsinki-NLP translation models (downloads once per language pair)
+- **Translation engines**: local Marian/optional TranslateGemma, with opt-in free cloud text providers
 - **Continuous Processing**: Processes audio in short chunks (configurable) for near real-time results
 
 ### 🖥️ Simple GUI (Recommended)
@@ -67,14 +171,15 @@ The currently linked published installer predates this quality branch.
 ## Installation
 
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.13 for the tested Windows source/build environment
 - Windows operating system (desktop audio capture via loopback devices)
 - Internet connection only for first-time model downloads (Whisper + translation models)
 - Tkinter (for the GUI; included with most Python installations)
 
 ### Step 1: Clone or Download
 ```bash
-# Download the main.py file to your desired directory
+git clone https://github.com/tanzir71/translito.git
+cd translito
 ```
 
 ### Step 2: Install Dependencies
@@ -101,7 +206,7 @@ python gui.py
 ### GUI (Recommended)
 1. Run: `python gui.py`
 2. Select audio device
-3. Choose speech source language + translation target language
+3. Choose English plus your conversation's other language, then My language
 4. (Optional) Click **Download models** to cache them for offline use
 5. Click **Start**
 
@@ -120,7 +225,9 @@ python main.py
 ```
 
 ### Language Selection
-The GUI supports selecting source/target languages directly.
+The GUI defaults to an English-plus-other conversation, with separate My language
+and Audience choices. Advanced one-way pairs keep independent source/target
+selection for conversations without English.
 
 For CLI, set:
 - `ASR_LANGUAGE` to control recognition locale (e.g. `ar-AR`, `en-US`)
@@ -148,7 +255,12 @@ Common choices:
 - `openai/whisper-small` (default)
 
 ### Tuning Chunk Duration
-If Whisper feels slow or “lags” behind, increase chunk duration:
+Use Settings' CPU speed check to select an appropriate model/preset. Lite favors
+latency; Balanced and Quality spend more work on recognition. Waiting speech is
+retained with a Behind indicator rather than silently discarded. The default
+segmenter closes on speech boundaries, with a maximum utterance duration;
+increasing a legacy chunk setting is not a latency guarantee. CLI experiments
+can still set the chunk preference:
 ```powershell
 $env:CHUNK_DURATION="8"
 python main.py

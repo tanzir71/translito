@@ -4,6 +4,12 @@ These are implementation references, not live-account acceptance results. No
 provider key, meeting text/audio or paid inference request was used to check them.
 All providers remain disabled until explicit configuration and a successful Test.
 
+Release recheck: DeepL's [current plan page](https://support.deepl.com/hc/en-us/articles/360021200939-DeepL-API-plans)
+now lists API Free as unavailable to new subscribers. The implemented Free
+adapter applies to existing `:fx` accounts (500k/month). The new Developer plan's
+1M-character lifetime trial is not treated as a resetting monthly allowance.
+Azure F0 remains the recommended new free setup; no paid Growth plan is enabled.
+
 | Provider | Verified contract / limits | Primary references |
 |---|---|---|
 | Azure standard MT | v3 `/translate`, JSON text array, `from`/`to`, HTML with `notranslate` spans, subscription key and optional regional header. F0 has 2M characters/month. The adapter supports confirmed F0; paid S1 pricing is left unconfigured rather than guessed from a region-dependent price table. | [Translate](https://learn.microsoft.com/azure/ai-services/translator/text-translation/reference/v3/translate), [authentication](https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/v3/reference), [pricing](https://azure.microsoft.com/en-us/pricing/details/translator/) |

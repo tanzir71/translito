@@ -126,10 +126,45 @@ def test_gui_refresh_retains_silent_app_instead_of_broadening_to_all_apps(monkey
     host.app_audio_hint = SimpleNamespace(configure=Mock())
     host.update_routing_banner = Mock()
     monkeypatch.setattr(gui, "query_input_devices", lambda **kwargs: [])
-    monkeypatch.setattr(gui, "query_output_devices", lambda **kwargs: [])
+    query_outputs = Mock(return_value=[])
+    monkeypatch.setattr(gui, "query_output_devices", query_outputs)
     monkeypatch.setattr("engines.process_audio.supported", lambda: True)
     monkeypatch.setattr("engines.process_audio.active_sources", lambda: [ProcessSource(1, 1, "All apps", exclude=True)])
     for _ in range(2):
         host.refresh_devices()
         assert host.selected_listen_choice().raw is source
         assert host.selected_listen_choice().name.count("not playing") == 1
+    assert not any(call.kwargs.get("refresh", False) for call in query_outputs.call_args_list)
+
+
+def test_manual_portaudio_reset_cannot_block_the_tk_thread(monkeypatch):
+    import gui
+    host = gui.TranslatorGUI.__new__(gui.TranslatorGUI)
+    host.transcriber, host.model_setup_busy = None, False
+    host.preview_mode, host.is_quitting = False, False
+    host.lock_controls = host.update_action_button = host.set_status = Mock()
+    host.refresh_devices = Mock()
+    started, release, scheduled = threading.Event(), threading.Event(), threading.Event()
+    callbacks = []
+    def after(delay, callback):
+        callbacks.append(callback)
+        scheduled.set()
+    host.root = SimpleNamespace(after=after)
+    main_thread = threading.get_ident()
+    def reset(**kwargs):
+        assert kwargs == {"refresh": True}
+        assert threading.get_ident() != main_thread
+        started.set()
+        assert release.wait(2)
+    monkeypatch.setattr(gui, "query_output_devices", reset)
+    try:
+        host.manual_refresh_devices()
+        assert started.wait(1)  # The caller returns even while the driver blocks.
+        assert host.model_setup_busy and not callbacks
+        release.set()
+        assert scheduled.wait(1)
+        callbacks[0]()  # Tk executes this later, on its own thread.
+        assert not host.model_setup_busy
+        host.refresh_devices.assert_called_once_with()
+    finally:
+        release.set()

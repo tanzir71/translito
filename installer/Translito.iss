@@ -1,6 +1,6 @@
 #define MyAppName "Translito"
 #define MyAppExeName "Translito.exe"
-#define MyAppVersion "1.0.5"
+#define MyAppVersion "1.1.0"
 #ifndef SourceDir
   #define SourceDir "dist\Translito"
 #endif
@@ -55,6 +55,57 @@ const
   VBCableHash = 'b950e39f01af1d04ea623c8f6d8eb9b6ea5c477c637295fabf20631c85116bfb';
   VBCableSetupHash = '734c35dfa6d98f48782a451633ceb471166ec70d60482fd89a1123d0ee3c4f41';
 
+var
+  ArchivedRuntime, OriginalRuntime: String;
+  InstallFilesDone: Boolean;
+
+function GetFileAttributesW(FileName: String): LongWord;
+  external 'GetFileAttributesW@kernel32.dll stdcall';
+
+procedure CheckNormalDirectory(Path: String);
+begin
+  if (GetFileAttributesW(Path) and $400) <> 0 then
+    RaiseException('The runtime upgrade will not move a linked directory. Choose a normal Translito installation folder.');
+end;
+
+procedure ArchivePreviousRuntime;
+var
+  AppPrefix, RuntimeDir, HistoryDir, BackupBase, BackupDir: String;
+  Suffix: Integer;
+begin
+  if ArchivedRuntime <> '' then
+    Exit;
+  AppPrefix := AddBackslash(ExpandFileName(ExpandConstant('{app}')));
+  RuntimeDir := ExpandFileName(AppPrefix + '_internal');
+  if not DirExists(RuntimeDir) then
+    Exit;
+  HistoryDir := ExpandFileName(AppPrefix + 'runtime-history');
+  BackupBase := HistoryDir + '\' + GetDateTimeString('yyyymmdd-hhnnss', '-', '-');
+  BackupDir := ExpandFileName(BackupBase);
+  Suffix := 0;
+  while DirExists(BackupDir) or FileExists(BackupDir) do
+  begin
+    Suffix := Suffix + 1;
+    BackupDir := ExpandFileName(BackupBase + '-' + IntToStr(Suffix));
+  end;
+  { Verify both absolute move targets remain inside the chosen app folder. }
+  if (CompareText(Copy(RuntimeDir, 1, Length(AppPrefix)), AppPrefix) <> 0) or
+     (CompareText(Copy(BackupDir, 1, Length(AppPrefix)), AppPrefix) <> 0) then
+    RaiseException('The runtime archive path is outside the installation folder.');
+  CheckNormalDirectory(RemoveBackslashUnlessRoot(AppPrefix));
+  CheckNormalDirectory(RuntimeDir);
+  if DirExists(HistoryDir) then
+    CheckNormalDirectory(HistoryDir);
+  if not ForceDirectories(HistoryDir) then
+    RaiseException('Unable to create the runtime backup folder. The previous runtime was preserved.');
+  CheckNormalDirectory(HistoryDir);
+  if not RenameFile(RuntimeDir, BackupDir) then
+    RaiseException('Close Translito and try the upgrade again. The previous runtime was preserved.');
+  OriginalRuntime := RuntimeDir;
+  ArchivedRuntime := BackupDir;
+  Log('Archived the previous runtime at ' + BackupDir);
+end;
+
 procedure InstallVirtualMic;
 var
   ArchivePath, DriverDir, DriverExe: String;
@@ -90,6 +141,21 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+  if CurStep = ssInstall then
+    ArchivePreviousRuntime;
   if CurStep = ssPostInstall then
+  begin
+    InstallFilesDone := True;
     InstallVirtualMic;
+  end;
+end;
+
+procedure DeinitializeSetup;
+begin
+  { Restore only when no replacement directory was created. Partial replacements
+    and every previous runtime remain available rather than being deleted. }
+  if (not InstallFilesDone) and (ArchivedRuntime <> '') and
+     DirExists(ArchivedRuntime) and (not DirExists(OriginalRuntime)) then
+    if RenameFile(ArchivedRuntime, OriginalRuntime) then
+      Log('Restored the previous runtime after an interrupted installation.');
 end;
