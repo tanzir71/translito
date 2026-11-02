@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import hashlib
 import json
+import threading
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -262,8 +264,9 @@ def test_native_soniox_source_and_target_use_only_finals_and_no_extra_mt(tmp_pat
     value, calls = runtime(tmp_path, profile="soniox", connector=connect)
     result = value.evaluate(np.zeros(1600), 16000)
     assert result["entries"][0]["source_text"] == "مرحبا API"
-    assert result["entries"][0]["translated_text"] == "Hello API"
-    assert not calls and not result["utterance_tag_metrics"] and not result["speech_end_latencies_s"]
+    assert result["entries"][0]["translated_text"] == ""  # No invented per-row translation pairing.
+    assert result["target_text"] == "Hello API" and result["entries"][0]["language_tag"] == "mix"
+    assert not calls and result["utterance_tag_metrics"] and not result["speech_end_latencies_s"]
 
 
 def test_elevenlabs_late_timestamp_event_cannot_double_mt(tmp_path, monkeypatch):
@@ -277,7 +280,8 @@ def test_elevenlabs_late_timestamp_event_cannot_double_mt(tmp_path, monkeypatch)
     result = value.evaluate(np.zeros(1600), 16000)
     assert not result["errors"] and len(calls) == 1 and result["mt_requests"] == 1
     assert result["stream"]["completion"] == "post-EOF commit and bounded quiet drain"
-    assert not result["speech_end_latencies_s"]  # Don't invent timestamps.
+    assert len(result["speech_end_latencies_s"]) == 1 and result["latency_coverage"] == 1
+    assert result["entries"][0]["vendor_languages"] == ["ar"]
 
 
 def test_native_soniox_does_not_load_a_local_mt_model(tmp_path, monkeypatch):
@@ -332,3 +336,91 @@ def test_cli_paid_profile_fails_before_output_or_worker_creation(tmp_path, monke
     with pytest.raises(ValueError, match="--allow-cloud"):
         main(["--input", str(tmp_path), "--profiles", "soniox", "--output", str(tmp_path / "out")])
     assert not (tmp_path / "out").exists()
+
+
+def test_unpunctuated_final_translates_during_socket_silence_before_eof(tmp_path, monkeypatch):
+    from tools.eval import streaming_runner
+    from engines.sentence_assembler import SentenceAssembler
+    from tools.eval.streaming_rows import CascadedRows
+    monkeypatch.delenv("OFFLINE_ONLY", raising=False)
+    monkeypatch.setattr(streaming_runner, "CascadedRows", lambda *a, **kw: CascadedRows(
+        *a, **kw, assembler=SentenceAssembler(idle_seconds=.01, clock=time.perf_counter)))
+    translated = threading.Event()
+    class Socket(FakeSocket):
+        async def send(self, message):
+            await super().send(message)
+            audio_count = len([m for m in self.sent if isinstance(m, bytes)])
+            if isinstance(message, bytes) and audio_count == 1:
+                await self.queue.put(json.dumps({"message": "AddTranscript", "metadata": {
+                    "transcript": "نراجع API", "start_time": 0, "end_time": .05}}))
+            if isinstance(message, bytes) and audio_count == 2:
+                assert await asyncio.to_thread(translated.wait, 2), "MT waited for EOF instead of the idle timer"
+    value, _ = runtime(tmp_path, connector=lambda p, h: Socket(p))
+    calls = []
+    def translate(text, *args, **kwargs):
+        calls.append(text)
+        translated.set()
+        return MtResult("Check API.", "fake")
+    value.translator = SimpleNamespace(translate=translate)
+    result = value.evaluate(np.zeros(4800), 16000)
+    assert not result["errors"] and translated.is_set() and calls == ["نراجع API"]
+
+
+def test_busy_mt_does_not_block_receiving_its_delayed_timestamp(tmp_path, monkeypatch):
+    from tools.eval import streaming_runner
+    from tools.eval.streaming_rows import CascadedRows
+    monkeypatch.delenv("OFFLINE_ONLY", raising=False)
+    started, annotated = threading.Event(), threading.Event()
+    class Rows(CascadedRows):
+        def annotate(self, *args):
+            super().annotate(*args)
+            annotated.set()
+    monkeypatch.setattr(streaming_runner, "CascadedRows", Rows)
+    class Socket(FakeSocket):
+        async def send(self, message):
+            if isinstance(message, str) and json.loads(message).get("commit"):
+                self.sent.append(message)
+                await self.queue.put(json.dumps({"message_type": "committed_transcript", "text": "راجع API."}))
+                assert await asyncio.to_thread(started.wait, 2)
+                await self.queue.put(json.dumps({"message_type": "committed_transcript_with_timestamps",
+                    "text": "راجع API.", "language_code": "ar", "words": [{"start": 0, "end": .08}]}))
+            else:
+                await super().send(message)
+    value, _ = runtime(tmp_path, profile="elevenlabs", connector=lambda p, h: Socket(p))
+    received_while_busy = []
+    def translate(*args, **kwargs):
+        started.set()
+        received_while_busy.append(annotated.wait(2))
+        return MtResult("Check API.", "fake")
+    value.translator = SimpleNamespace(translate=translate)
+    result = value.evaluate(np.zeros(1600), 16000)
+    assert not result["errors"] and received_while_busy == [True]
+    assert result["latency_coverage"] == 1
+
+
+def test_missing_timestamp_on_one_row_withholds_primary_latency_for_the_clip(tmp_path, monkeypatch):
+    monkeypatch.delenv("OFFLINE_ONLY", raising=False)
+    def connect(p, headers):
+        return FakeSocket(p, [
+            {"message_type": "committed_transcript", "text": "Hello."},
+            {"message_type": "committed_transcript", "text": "راجع API."},
+            {"message_type": "committed_transcript_with_timestamps", "text": "Hello.",
+             "language_code": "en", "words": [{"start": 0, "end": .05}]}])
+    value, _ = runtime(tmp_path, profile="elevenlabs", connector=connect)
+    result = value.evaluate(np.zeros(1600), 16000)
+    assert not result["errors"] and result["latency_coverage"] == .5
+    assert len(result["observed_speech_end_latencies_s"]) == 1 and result["speech_end_latencies_s"] == []
+
+
+def test_real_time_replay_waits_until_each_frame_has_been_captured():
+    samples, telemetry, sent = np.zeros(2400), {}, []
+    class Socket(FakeSocket):
+        async def send(self, message):
+            if isinstance(message, bytes):
+                sent.append(time.perf_counter() - telemetry["audio_origin"])
+            await super().send(message)
+    async def receive(*args):
+        pass
+    asyncio.run(stream_clip(SpeechmaticsProtocol(), samples, {}, on_update=receive,
+                            connector=lambda p, h: Socket(p), telemetry=telemetry))
+    assert len(sent) == 2 and sent[0] >= .098 and sent[1] >= .148

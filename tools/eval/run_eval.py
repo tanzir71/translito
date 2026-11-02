@@ -102,9 +102,12 @@ def evaluate_profile(clips, profile, args, runtime_factory=DesktopRuntime):
             samples, rate = read_audio(clip["path"])
             result = runtime.evaluate(samples, rate)
             load_seconds += result.get("setup_s", 0)
+            if profile in STREAMING_PROFILES and not result["entries"] and clip["source"].strip():
+                result.update(latency_expected_rows=1, latency_measured_rows=0, latency_coverage=0)
             tags = clip["tags"] if result.get("utterance_tag_metrics", True) else []
             metrics = score_clip(clip["source"], clip["target"], tags,
-                                 result["entries"], clip["terms"], args.target)
+                                 result["entries"], clip["terms"], args.target,
+                                 hypothesis_target=result.get("target_text"))
             latency = result["processing_latencies_s"]
             end_latency = result["speech_end_latencies_s"]
             row = {"profile": profile, "clip": clip["path"].name,
@@ -116,6 +119,7 @@ def evaluate_profile(clips, profile, args, runtime_factory=DesktopRuntime):
                    "processing_p95_s": percentile(latency, 95),
                    "speech_end_p50_s": percentile(end_latency, 50),
                    "speech_end_p95_s": percentile(end_latency, 95),
+                   "latency_coverage": result.get("latency_coverage"),
                    "mt_characters": result["mt_characters"],
                    "mt_requests": result["mt_requests"],
                    "estimated_cost_usd": result.get("estimated_cost_usd", str(estimate_cost(LOCAL_RATE))),
@@ -171,6 +175,8 @@ def write_reports(output, results, meta):
         group = result["rows"]
         processing = [x for p in result["predictions"] for x in p["processing_latencies_s"]]
         end = [x for p in result["predictions"] for x in p["speech_end_latencies_s"]]
+        if any(p.get("latency_measured_rows", 0) < p.get("latency_expected_rows", 0) for p in result["predictions"]):
+            end = []  # A fast measured subset cannot establish full-profile p95.
         lines.append(f"| {result['profile']} | {len(group)} | "
                      f"{np.mean([x['wer'] for x in group]):.3f} | "
                      f"{np.mean([x['cer'] for x in group]):.3f} | "
@@ -193,8 +199,17 @@ def write_reports(output, results, meta):
         lines.append(f"- Repetition loops: {sum(x['repetition_loops'] for x in group)}")
         lines.append(f"- Model load: {result['model_load_s']:.2f}s (excluded from segment latency)")
         lines.append(f"- Errors: {sum(x['error_count'] for x in group)}")
+        for label, field in (("Arabic WER", "ar_wer"), ("Mixed WER", "mix_wer"),
+                             ("Mixed English-term recall", "mix_english_term_recall")):
+            values = [row[field] for row in group if row.get(field) is not None]
+            lines.append(f"- {label}: {fmt(float(np.mean(values)) if values else None)} ({len(values)} aligned clips)")
+        if result["profile"] in STREAMING_PROFILES:
+            expected = sum(p.get("latency_expected_rows", 0) for p in result["predictions"])
+            measured = sum(p.get("latency_measured_rows", 0) for p in result["predictions"])
+            lines.append(f"- Rows with verified timestamp coverage: {measured}/{expected}; incomplete coverage makes profile p95 n/a")
     lines.extend(["", "Metrics are clip means; raw counts and per-clip values are in metrics.csv.",
                   "Tag scores align reference utterances and output rows by order; missing/extra rows count as wrong.",
+                  "Per-tag WER/term recall require matching row counts and align by reference utterance order, not predicted tags; otherwise n/a.",
                   "Transliteration is measured only for explicitly annotated Arabic spellings; n/a is not zero.",
                   "Legacy segmentation has no speech-end timestamps, so its end-of-speech latency is n/a.",
                   "Faster-than-real-time replay measures compute and endpoint delay, not real-time queue contention.",
@@ -202,7 +217,8 @@ def write_reports(output, results, meta):
     if any(result["profile"] in STREAMING_PROFILES for result in results):
         lines.extend(["Streaming costs retain the complete owner-approved session allocation, not an observed invoice.",
                       "Account ceilings must be independently verified; no advertised hourly price is a billing guarantee.",
-                      "Soniox is clip-scored: per-utterance tags and timestamp latency are unavailable.",
+                      "Soniox source utterances use endpoints/silence; native target chrF is clip-scored without row alignment or translation latency.",
+                      "ElevenLabs timestamps join completed rows by exact text and complete interval groups; joins never repeat MT or delay its completion timestamp.",
                       "ElevenLabs EOF uses a post-EOF commit plus bounded quiet drain, not a server EndOfTranscript.",
                       "Missing latency is n/a and cannot establish the live-latency acceptance criterion.", ""])
     (output / "summary.md").write_text("\n".join(lines), encoding="utf-8")

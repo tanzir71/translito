@@ -83,25 +83,45 @@ timeouts and no proxies, redirects, payload debug logs or automatic retries.
 Speechmatics waits for RecognitionStarted and counts only audio frames in EOF.
 Melia's ForceEndOfUtterance events come from the same local VAD segmenter as P0.
 Speechmatics/ElevenLabs finalized text enters the desktop sentence assembler,
-glossary protection, bilingual pass-through and MT controller.
+glossary protection, bilingual pass-through and MT controller. One consumer
+serializes pipeline operations while socket reception continues during MT.
+It polls the desktop 1.5-second idle timer during silence; ongoing partial
+speech resets that timer. Frames are uploaded after their capture interval ends.
 
 ## Measurement limits
 
 All P0 report artifacts are retained: references, predictions, WER/CER/chrF,
 English-term recall, annotated transliteration, MT calls, RAM and allocation.
 Partial hypotheses are excluded from final transcript scoring.
+Arabic/mixed/English WER and mixed English-term recall use reference utterance
+groups, not predicted tags. These group scores require matching row counts and
+align by reference order. Missing/extra rows make group scores unavailable;
+overall clip WER and the row-count penalty in tag accuracy still apply.
 
-Soniox uses one-way target-language captions for this bake-off. Final source
-and target token streams are clip-scored; already-target-language `none` tokens
-pass through. Native translated tokens have no audio timestamps or 1:1 source
-alignment, so per-utterance tag and latency scores are **unavailable**. This
-runner does not establish the handoff's two-way desktop/voice acceptance.
+Soniox uses one-way target-language captions for this bake-off. Ordered endpoint
+markers, 1.2-second text silence and EOF preserve source utterances, language
+tags and speaker IDs. Non-final source drafts replace previous hypotheses.
+The native target stream is scored separately for clip chrF, including
+already-target-language `none` tokens. Translated tokens lack timestamps and
+1:1 source IDs, so the runner does not invent translated rows or translation
+latency. It does not establish two-way desktop/voice acceptance. See the
+[token format](https://docs.soniox.com/translation/stt-translation) and
+[endpoint contract](https://docs.soniox.com/stt/rt/endpoint-detection).
 
 Speechmatics latency uses vendor final-word timestamps and desktop MT completion;
 it is labeled accordingly, rather than claiming independently measured acoustic
-speech-end timing. ElevenLabs delayed timestamp events do not duplicate rows or
-MT calls. Their timestamps are not currently joined back to earlier commits,
-so latency remains unavailable. ElevenLabs has no EndOfTranscript marker: EOF
+speech-end timing. ElevenLabs delayed word timestamps join completed rows by
+exact committed text. Identical repeated utterances require a complete group
+of intervals, paired in audio order; missing, conflicting or changed-text
+metadata remains unjoined. Joins never rerun MT or replace the original
+translation-completion time with metadata-arrival time. All chunks of a merged
+sentence must have timing. Spacing/audio-event timestamps aren't speech ends.
+See the [SDK event schema](https://elevenlabs.io/docs/eleven-api/resources/libraries/scribe-stt/javascript-scribe).
+
+Reports retain observed timing and its coverage. If any output row lacks valid
+timing, the clip/profile's primary p95 is unavailable; a fast measured subset
+cannot satisfy latency acceptance. Out-of-clip timestamps fail the run.
+ElevenLabs has no EndOfTranscript marker: EOF
 requires a post-EOF commit followed by a bounded quiet drain. Missing confirmation,
 provider failures and MT failures make the run fail its acceptance gate.
 
