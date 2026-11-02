@@ -1,6 +1,7 @@
 # Windows virtual microphone
 
-Included since Windows 1.1.0; the current Windows release is 1.1.1.
+Included since Windows 1.1.0; the current public Windows release is 1.1.1.
+The installed 1.1.2 follow-up remains a draft; see the installation follow-up below.
 Listen Mode uses loopback and never needs VB-CABLE.
 
 ## Speak setup
@@ -81,6 +82,18 @@ packages are not included. Verified 2026-11-02.
   installed copy opens normally with original settings/transcripts preserved.
   Real meeting sessions still need acceptance; the isolated browser-child
   capture check below establishes only its stated native path.
+
+## Installation follow-up — 2026-11-03
+
+After the app-data error-3 failures above, the same verified Pack45 launched
+from a unique `C:\Temp\TranslitoVBCable-*` directory. The owner approved Windows
+administrator consent and confirmed installation. The vendor GUI reported
+success and requested a reboot. Initial source cable-only tone/capture checks
+passed after correcting per-thread COM setup, but later packaged and source
+tests stalled in Windows audio Start. Windows shows a working cable plus two
+failed-start duplicate nodes. No restart/device removal occurred; stable routing
+awaits reboot and retest. See [the 1.1.2 follow-up](RELEASE_1_1_2.md) for exact
+scope, failed checks, source revision and preserved evidence.
 
 ## App audio for Listen
 
