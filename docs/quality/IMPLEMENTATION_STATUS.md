@@ -11,7 +11,7 @@ Native macOS code is outside this change.
 | P3 cloud providers | Registered Azure F0, DeepL Free, Google Basic, opt-in Gemini Flash-Lite, Cohere trial and Groq adapters. Shared pair LID/postprocessing; ready/fast local Cohere → Cohere API → Groq → local Whisper. Explicit Test/usage/privacy cards inspected in Windows preview. Gemini/Cohere trial reuse consent starts unchecked. Mock HTTP contracts, simulated-hour metering, setup failure gates, cross-process quotas and cancellation covered. Full suite: 224 passed. | No live key or cloud accuracy/latency result. The simulated Azure hour checks accounting only. Private Saudi set waived by owner; Azure-vs-local chrF acceptance remains unverified. Optional transcript refinement deferred. |
 | P4 capped booster | Thin eval wire contracts for three paid candidates. Opt-in Gemini preview profile/Test card and desktop capture → row → PCM path, delayed target retention, English pass-through, original-voice/mute/voice policy, term verification with Free MT/TTS fallback, retained-audio recovery, reconnect and Stop. Pinned SDK wire checked with fake WebSocket; 266 full-suite tests pass. No real inference or paid call. | Paid eval transport/accounting runner, approved accounts/spend, measured winner. Gemini real timing/quality and 30-minute physical Speak acceptance unverified. Optional dubbed Listen output remains deferred. |
 | P5 virtual mic/capture | Official unmodified Pack45 ZIP pinned in three consumers; valid vendor setup signature inspected. Optional unchecked Inno task compiles; app consent/elevation/poll/autoselect flow, local tone self-test and pre-start failure gate, three-step Speak-only card and six meeting guides. PortAudio lookup/reset and dual-route recovery fixed. In-memory x64 process-tree capture with active-app picker, PID-reuse guard, retained silent selection and self-excluding All apps. Native Windows own-tone INCLUDE/EXCLUDE smoke passed; 285 tests pass. | Physical driver install/reboot/cable-tone verification needs explicit owner action. Real meeting/browser-child capture and rebuilt packaging acceptance remain unverified. Browser extension/default-communications switching are optional and deferred. |
-| P6 release | 1.1.0 built and installed; 286 tests pass. Frozen public playback produced source/target and saved on Stop; normal idle polling stays responsive. Missing engine data, long source paths and stale upgrade metadata were caught and fixed. Runtime backup preserves all 42 old metadata files; original config bytes/values and five transcripts remain intact. Profile/key/privacy docs and Pages links prepared. | Release upload/source merge and download-site deployment in progress. Physical cable routing, real cloud accounts and Saudi quality remain unverified. See RELEASE_1_1_0.md. |
+| P6 release | 1.1.0 built, installed and published; 286 tests pass. Frozen public playback produced source/target and saved on Stop; normal idle polling stays responsive. Missing engine data, long source paths and stale upgrade metadata fixed. Runtime backup preserves 42 old metadata files; original config bytes/values and five transcripts remain intact. PRs #5–#11 merged; Pages deployment succeeded and both landing routes serve verified 1.1.0 links. | Physical cable routing, real cloud accounts and Saudi quality remain unverified. See RELEASE_1_1_0.md. |
 
 Decisions pending from the owner: recommended bilingual defaults; VB-CABLE
 redistribution; optional browser extension; approved test spend/monthly booster
@@ -115,8 +115,11 @@ build's eval-results directories 20261102T111144.292623Z and 20261102T111658.078
 Development PRs: P0 <https://github.com/tanzir71/translito/pull/5>; P1 stacked on
 P0 <https://github.com/tanzir71/translito/pull/6>; P2 stacked on P1
 <https://github.com/tanzir71/translito/pull/7>; P3 stacked on P2
-<https://github.com/tanzir71/translito/pull/8>. These remain drafts. No quality
-installer or production-site update has been published yet.
+<https://github.com/tanzir71/translito/pull/8>; P4
+<https://github.com/tanzir71/translito/pull/9>; P5
+<https://github.com/tanzir71/translito/pull/10>; P6
+<https://github.com/tanzir71/translito/pull/11>. All are merged. Windows 1.1.0 is
+installed and published, and GitHub Pages now serves its verified download links.
 
 P2 core is developed on `codex/p2-provider-routing`, stacked on P1. The bilingual
 controller now calls ASR/MT routers even for local-only sessions. Offline replay

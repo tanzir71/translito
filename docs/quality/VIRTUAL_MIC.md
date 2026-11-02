@@ -1,7 +1,6 @@
 # Windows virtual microphone
 
-Implemented on the quality-development branch; not yet shipped in a rebuilt
-release. Listen Mode uses loopback and never needs VB-CABLE.
+Included in Windows 1.1.0. Listen Mode uses loopback and never needs VB-CABLE.
 
 ## Speak setup
 
@@ -72,8 +71,9 @@ packages are not included. Verified 2026-11-02.
 - No CABLE device is installed on the development machine. No driver installer,
   UAC prompt, reboot or physical tone test was performed. Those checks, actual
   meeting-app routing, and rebuilt-app/installer verification remain outstanding.
-- The full Python suite passes 285 tests. Real meeting-app/browser-child capture
-  and rebuilt packaging are still unverified.
+- The release suite passes 286 tests. Rebuilt packaging and installed startup
+  are verified in `RELEASE_1_1_0.md`; real meeting-app/browser sessions still need
+  acceptance.
 
 ## App audio for Listen
 

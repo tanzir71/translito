@@ -1,7 +1,10 @@
 # Windows 1.1.0 release validation
 
-The final build is installed and verified. Publication/deployment is in progress.
-The source branch is `codex/p6-windows-quality-release`, stacked on P5 PR #10.
+The final build is installed, verified and
+[published](https://github.com/tanzir71/translito/releases/tag/v1.1.0).
+Phase PRs #5–#11 are merged; main's application tree matches release commit
+`fa15ebc28eedd1935ca12cc33c8e20cac31cb1e2`. GitHub Pages
+[deployment succeeded](https://github.com/tanzir71/translito/actions/runs/41471389984).
 
 ## Completed checks
 
@@ -56,8 +59,9 @@ The source branch is `codex/p6-windows-quality-release`, stacked on P5 PR #10.
   grows config from 427 to 1,782 bytes; every original byte/value is retained and
   all five original transcripts remain byte-identical. No real usage file was
   created. The app remains open with its existing source/model choices.
-- Record final installer/ZIP digests, upload and verify the release assets, publish
-  the source changes, and confirm GitHub Pages/download links after deployment.
+- All four release assets have matching local/server SHA-256 values and sizes.
+  Installer, portable and latest macOS download URLs return HTTP 200. Both
+  `localarabic.com` and the GitHub Pages route serve direct Windows 1.1.0 links.
 - Physical VB-CABLE installation/tone routing and real meeting/browser sessions
   remain unverified. Driver consent, Windows prompts and any restart are user
   actions; the unattended app upgrade does not install the optional driver.
