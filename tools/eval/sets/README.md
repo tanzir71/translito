@@ -19,6 +19,14 @@ the repo, or in the ignored `private/` folder. Do not commit private predictions
 The owner has currently waived supplying these clips; Saudi acceptance metrics
 remain unverified until a representative set is available.
 
+A pinned public Saudi-English ASR proxy is now recorded in
+`saudi_public_30.provenance.json` and `docs/quality/SAUDI_PUBLIC_ASR.md`. Its 30
+human-recorded scripted/conversationally delivered clips provide source
+transcripts, not English MT references. Use its prepared local WAV manifest with
+`--bench`; do not invent `.ref.tgt.txt` files to run a full-profile/chrF comparison.
+The provenance JSON is a receipt, not a run manifest. Audio and predictions are
+kept outside the repository. The private-meeting waiver remains unchanged.
+
 Alternatively, ignored `tools/eval/sets.local.json` holds paths relative to itself:
 
 ```json
@@ -35,7 +43,7 @@ python tools/eval/run_eval.py --manifest tools/eval/sets.local.json --bench
 By default model loading is cache-only and sockets/DNS are blocked for the whole
 worker process, including initialization. `--allow-downloads` allows local model
 downloads, not cloud ASR/MT uploads. Cloud profiles will require enabled, tested
-provider credentials when P2/P3 land. Unsupported profiles fail explicitly.
+provider credentials. Unsupported profiles fail explicitly.
 
 Every profile and benchmark model runs in a fresh process. Output goes to a new
 UTC-stamped directory under `tools/eval/results/`, never overwriting a prior run:

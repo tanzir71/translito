@@ -1,5 +1,10 @@
 # Local hardware probes
 
+The subsequent [30-clip public Saudi-English comparison](SAUDI_PUBLIC_ASR.md)
+records actual Small-cache/code-switch results, model fingerprints and failed
+MT term preservation. Neither code-switch preset passed live headroom. These
+results supplement the earlier MSA smoke measurements below.
+
 The P0 hardware runner uses the desktop recognizer adapters and VAD segmenter.
 Protocol `desktop-vad-and-local-adapter-v2` replaces the original independent
 Cohere decoder and unguarded Turbo call. Historical P0 numbers remain in
