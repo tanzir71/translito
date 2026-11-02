@@ -181,6 +181,9 @@ class TranslatorRouter(ProviderRouter):
                    and p.engine.supports(source, target) for p in self.providers)
 
     def translate(self, text, source, target, *, context, glossary):
+        if source == target or not text.strip():
+            from engines.types import MtResult
+            return MtResult(text, "pass-through")
         return self._invoke("translate", Units(characters=len(text)), (text, source, target),
                             {"context": context, "glossary": glossary},
                             supports=lambda engine: engine.supports(source, target))
