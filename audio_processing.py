@@ -55,6 +55,7 @@ class AudioChunkResult:
     source_name: str = ""
     captured_at: float | None = None
     endpoint_delay_s: float | None = None
+    stream_end_s: float | None = None
 
     @property
     def duration_seconds(self):

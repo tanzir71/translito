@@ -9,7 +9,7 @@ from engines.settings import credential_signature
 @dataclass(frozen=True)
 class ProviderFactory:
     name: str
-    kind: str  # asr | mt
+    kind: str  # asr | mt | live
     build: object  # (ProviderSettings, CredentialStore) -> ProviderBinding
     title: str = ""
     account_kind: str = "free"
@@ -23,7 +23,7 @@ class ProviderFactory:
 
 def provider_factories():
     # Importing contracts creates no clients, credentials, models or requests.
-    from engines import mt_azure, mt_deepl, mt_google, mt_gemini, asr_cohere_api, asr_groq
+    from engines import mt_azure, mt_deepl, mt_google, mt_gemini, asr_cohere_api, asr_groq, interp_gemini_live
     return (
         ProviderFactory("azure", "mt", mt_azure.build, "Azure Translator F0", quota_label="2 million characters/month",
                         monthly_limit=2_000_000, privacy_note="Recognized text is sent to Microsoft Translator.",
@@ -43,6 +43,10 @@ def provider_factories():
         ProviderFactory("groq", "asr", asr_groq.build, "Groq Whisper (free)", quota_label="20 requests/minute; 8 audio hours/day",
                         monthly_unit="audio_seconds", privacy_note="Audio is sent to Groq. Its account data controls and reliability/abuse retention terms apply.",
                         setup_url="https://console.groq.com/docs/speech-to-text"),
+        ProviderFactory("gemini-live", "live", interp_gemini_live.build, "Gemini Live Translate (free preview)",
+                        quota_label="One-way only; free-tier account limits apply", monthly_unit="audio_seconds",
+                        privacy_note="Audio is sent to Google; free-tier inputs/outputs may improve its products. Preview quality can vary on rapid language switching.",
+                        setup_url="https://ai.google.dev/gemini-api/docs/live-api/live-translate", training_required=True),
     )
 
 
@@ -52,10 +56,12 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
     private = offline_only or settings.profile == "offline"
     selected = {"asr": [], "mt": []}
     factories = provider_factories() if factories is None else factories
-    if settings.profile in {"booster", "live-preview"}:
+    if settings.profile == "booster":
         emit("hint", "This interpreter profile is not configured. Continuing with the Free fallback.")
     if not private:
         for factory in factories:
+            if factory.kind not in selected:
+                continue
             preference = settings.provider(factory.name)
             if not preference.enabled:
                 continue
@@ -98,3 +104,24 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
         asr,
         TranslatorRouter([*selected["mt"], ProviderBinding.local(translator)], **options),
     )
+
+
+def configured_live_interpreter(settings, *, offline_only=False, credentials=None, ledger=None, on_event=None):
+    if offline_only or settings.profile != "live-preview":
+        return None
+    emit = on_event or (lambda *a: None)
+    preference = settings.provider("gemini-live")
+    if not preference.enabled or not preference.tested_signature:
+        emit("hint", "Set up and Test Live Translate in Cloud providers before using this preview. Continuing with Free.")
+        return None
+    try:
+        if credentials is None:
+            from engines.secrets import CredentialStore
+            credentials = CredentialStore()
+        from engines.interp_gemini_live import GeminiLiveInterpreter
+        engine = GeminiLiveInterpreter(credentials, preference, ledger=ledger)
+        engine.authorized_key()
+        return engine
+    except Exception:
+        emit("hint", "Live Translate needs a tested free-tier key and explicit data-use consent. Continuing with Free.")
+        return None

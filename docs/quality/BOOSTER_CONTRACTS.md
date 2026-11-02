@@ -49,10 +49,41 @@ logging is disabled because it includes authentication and private content.
 
 The installed SDK was exercised through a fake WebSocket with sockets blocked:
 header-only authentication, setup serialization, transcription decoding and
-PCM upload passed. This is transport evidence, not a vendor session. The worker
-is not yet exposed by the desktop profile/provider cards. Row assembly, original
-Arabic voice pass-through, capture/fallback integration and the physical
-30-minute Speak acceptance test remain required.
+PCM upload passed. This is transport evidence, not a vendor session.
+
+The desktop now exposes an opt-in Live interpreter profile and a separate Live
+provider card. Its public-clip Test must succeed before enablement; the free
+account and reuse choices start unchecked. Free/Offline/Custom do not open the
+live client. Advanced one-way mode keeps the Free path. Capture resamples 48kHz
+loopback to 100ms 16kHz frames; the existing VAD still retains chunks for recovery.
+Source/target events update the existing transcript row, and already-target
+speech remains source-only unless both-language captions were requested.
+
+Original-voice Speak policy uses the existing cheap pair-LID pass on buffered
+VAD speech. Same-audience speech is passed through, muted or read with the
+selected voice according to the setting; it does not run full ASR a second time.
+Generated target PCM uses the persistent player. Recognized glossary aliases
+are restored in source text. Lines with protected English terms hold native
+audio until verification; a changed term uses the shared Free translator and
+local voice. Later target text is retained after the first idle deadline, and
+missing translations trigger Free recovery instead of vanishing.
+
+Completed source offsets retire confirmed audio. When timestamps are absent,
+unconfirmed VAD chunks stay in memory until Stop or recovery, preserving speech
+at the cost of possible overlap and additional memory. Free recovery warns
+that overlapping text may repeat. Reconnect clears queued old output; Stop
+keeps queued text while suppressing playback. Saved entries add mode/engine.
+These policies have synthetic desktop-flow tests, not live-model acceptance.
+The physical 30-minute Speak test, real transcript/audio timing, rapid switching
+behavior and free-account availability remain unverified. Optional dubbed
+Listen output has not been added.
+
+Windows preview inspection confirmed the separate profile choice and Live card,
+unchecked free-account/reuse/enable controls, masked key field, public-clip
+description and $0 paid cap. The preview Test action reported no key access,
+requests or settings writes. The real profile stayed on Free; its config length
+and timestamp were unchanged and no real usage file was created. Stop releases
+retained audio and queued PCM while preserving transcript text.
 
 SpeechOutputPlayer now has persistent PCM playback, per-route resampling with
 retained boundaries, and stream-generation cancellation on reconnect. Recovery

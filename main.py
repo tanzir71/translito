@@ -246,6 +246,9 @@ class ArabicAudioTranscriber:
         self.speech_player = None
         self.conversation = conversation
         self.conversation_pipeline = None
+        self.live_pipeline = None
+        from engines.settings import load_engine_settings
+        self.engine_settings = engine_settings or load_engine_settings()
         self.recognition_router = self.translation_router = None
         self._one_way_context = []
 
@@ -310,14 +313,24 @@ class ArabicAudioTranscriber:
                 translator_engine.models[self.translation_model_name] = self.translator
             from engines.registry import build_session_routers
             from engines.settings import load_engine_settings
+            conversation_lid = getattr(recognizer, "lid", None)
             recognizer, translator_engine = build_session_routers(
-                recognizer, translator_engine, engine_settings or load_engine_settings(),
+                recognizer, translator_engine, self.engine_settings,
                 offline_only=self.offline_only, on_event=self.emit)
             self.conversation_pipeline = ConversationPipeline(
                 recognizer, translator_engine, conversation, mode=self.mode, emit=self.emit,
                 transcripts=self.transcripts, stop_event=self._stop_event,
                 speech_player=self.speech_player, voice=self.speech_voice, glossary=glossary)
+            from engines.registry import configured_live_interpreter
+            interpreter = configured_live_interpreter(self.engine_settings, offline_only=self.offline_only, on_event=self.emit)
+            if interpreter is not None:
+                from engines.live_pipeline import LiveConversationPipeline
+                self.live_pipeline = LiveConversationPipeline(self.conversation_pipeline, interpreter,
+                    lid=conversation_lid, noise_gate=self.mic_noise_gate if self.mode == "speak" else 0)
+                self.conversation_pipeline = self.live_pipeline
         else:
+            if self.engine_settings.profile == "live-preview":
+                self.emit("hint", "Live Translate uses English plus one other conversation language. Advanced one-way mode continues with Free.")
             from engines.asr_local import LocalOneWayRecognizer
             from engines.glossary import Glossary
             from engines.mt_quality import LocalQualityTranslator
@@ -332,7 +345,7 @@ class ArabicAudioTranscriber:
             if hasattr(translator_engine, "models") and self.translation_model_name.startswith("Helsinki-NLP/"):
                 translator_engine.models[self.translation_model_name] = self.translator
             self.recognition_router, self.translation_router = build_session_routers(
-                recognizer, translator_engine, engine_settings or load_engine_settings(),
+                recognizer, translator_engine, self.engine_settings,
                 offline_only=self.offline_only, on_event=self.emit)
 
         print("Initialization complete.\n")
@@ -422,7 +435,8 @@ class ArabicAudioTranscriber:
             print("-" * 50)
 
             processor = self.create_audio_processor()
-            block_duration = min(0.25, max(0.05, self.chunk_duration / 12.0))
+            live = getattr(self, "live_pipeline", None)
+            block_duration = .1 if live is not None else min(0.25, max(0.05, self.chunk_duration / 12.0))
             block_size = max(1, int(self.capture_sample_rate * block_duration))
 
             with self.selected_device.recorder(samplerate=self.capture_sample_rate) as recorder:
@@ -432,6 +446,8 @@ class ArabicAudioTranscriber:
                         "peak": float(np.max(np.abs(audio_data))) if audio_data.size else 0.0,
                         "rms": float(np.sqrt(np.mean(np.square(audio_data)))) if audio_data.size else 0.0,
                     })
+                    if live is not None:
+                        live.push_capture(audio_data, self.capture_sample_rate)
                     for result in processor.append(audio_data, self.capture_sample_rate):
                         self._handle_capture_result(result)
                 for result in processor.flush():
@@ -464,6 +480,9 @@ class ArabicAudioTranscriber:
         self.emit("level", {"peak": result.peak, "rms": result.rms})
         if result.kind == "audio":
             self._silence_run = 0
+            live = getattr(self, "live_pipeline", None)
+            if live is not None:
+                result = live.mark_chunk(result)
             self.audio_queue.put_nowait(result)
             return
 
@@ -681,6 +700,8 @@ class ArabicAudioTranscriber:
         )
         if self.speech_player:
             self.speech_player.start()
+        if getattr(self, "live_pipeline", None):
+            self.live_pipeline.start()
         if enable_keyboard_shortcuts and self.interactive:
             self.setup_keyboard_shortcuts()
         self._capture_thread = threading.Thread(target=self.capture_audio, daemon=True)
@@ -691,6 +712,8 @@ class ArabicAudioTranscriber:
     def stop_background(self):
         self.running = False
         self._stop_event.set()
+        if getattr(self, "live_pipeline", None):
+            self.live_pipeline.stop()
         while True:
             try:
                 self.audio_queue.get_nowait()
@@ -806,6 +829,8 @@ class ArabicAudioTranscriber:
                     target_language = entry.get("target_language", "target")
                     handle.write(f"[{index:03d}] {entry_time}\n")
                     handle.write("-" * 40 + "\n")
+                    if entry.get("engine"):
+                        handle.write(f"Mode: {entry.get('mode', self.mode)}\nEngine: {entry['engine']}\n")
                     handle.write(f"Source ({source_language}): {source_text}\n")
                     if entry.get("pass_through") and not entry.get("secondary_translation"):
                         handle.write("Target: (same as source)\n\n")

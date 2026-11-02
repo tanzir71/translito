@@ -2,6 +2,7 @@
 from dataclasses import dataclass, replace
 import os
 import time
+import threading
 import wave
 
 import numpy as np
@@ -21,6 +22,32 @@ class TestResult:
     latency_s: float
     text: str
     enabled: bool
+
+
+def _test_live(engine, audio):
+    from engines.types import MtResult
+    text, source, failed = [], [], threading.Event()
+    translated = threading.Event()
+    def event(kind, payload=None):
+        if kind == "input_transcription":
+            source.append(payload["text"])
+        elif kind == "output_transcription":
+            text.append(payload["text"])
+            translated.set()
+        elif kind == "fallback":
+            failed.set()
+    engine.start(("en", "ar"), "en", False, event)
+    try:
+        for offset in range(0, len(audio), 1600):
+            if failed.is_set() or not engine.push_audio(audio[offset:offset + 1600]):
+                raise SetupError("Live Translate could not process the public test clip.")
+            failed.wait(.1)
+        translated.wait(8)
+        if not text or not source or failed.is_set():
+            raise SetupError("Live Translate returned no source/target text for the public test clip.")
+        return MtResult("".join(text), engine.name)
+    finally:
+        engine.stop()
 
 
 class ProviderSetup:
@@ -110,7 +137,12 @@ class ProviderSetup:
                     from engines.hardware import SPEED_CLIP
                     with wave.open(str(SPEED_CLIP), "rb") as clip:
                         audio = np.frombuffer(clip.readframes(clip.getnframes()), dtype="<i2").astype(np.float32) / 32768
-                    response = RecognizerRouter([binding], **options).transcribe(audio, 16000, hint_language="ar")
+                    if factory.kind == "live":
+                        binding.engine.preference = replace(disabled, enabled=True, tested_signature=signature)
+                        binding.engine.ledger = self.ledger
+                        response = _test_live(binding.engine, audio)
+                    else:
+                        response = RecognizerRouter([binding], **options).transcribe(audio, 16000, hint_language="ar")
             except Exception:
                 raise SetupError(hints[-1] if hints else "Provider test failed. Check the key, account tier and connection.") from None
             elapsed = time.perf_counter() - began

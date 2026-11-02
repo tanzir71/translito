@@ -181,6 +181,7 @@ def test_fake_live_session_uploads_100ms_pcm_and_publishes_text_and_24k_audio(tm
     finally:
         instance.stop()
     assert not instance._thread.is_alive() and factory.closed == [session]
+    assert instance.frames.empty() and instance._pending is None and not instance._tail.size
     assert not instance.push_audio(np.zeros(1600, np.float32))
     stats = instance.ledger.snapshot()["providers"]["gemini-live"]
     assert stats["audio_seconds"] == pytest.approx(.1) and stats["requests"] == 1

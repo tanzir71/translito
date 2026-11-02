@@ -94,6 +94,7 @@ class GeminiLiveInterpreter:
             self._stopped = threading.Event()
             self.failed, self.resume_handle, self.resume_supported = False, None, True
             self._reservation, self._sent_samples, self._connection_requests = None, 0, 1
+            self._uploaded_total = 0
             self._thread = threading.Thread(target=self._worker, daemon=True, name="Translito Live Translate")
             self._thread.start()
 
@@ -136,6 +137,11 @@ class GeminiLiveInterpreter:
             self._event("fallback", "Live translation stopped. Continuing with the Free profile.")
         finally:
             self._stopped.set()
+            with self._lock:
+                while not self.frames.empty():
+                    self.frames.get_nowait()
+                self._pending = None
+                self._tail = np.empty(0, np.float32)
 
     def _reserve(self, samples):
         if self._reservation and self._sent_samples + samples <= SAMPLE_RATE * 30:
@@ -176,6 +182,7 @@ class GeminiLiveInterpreter:
                 audio=types.Blob(data=self._pending, mime_type="audio/pcm;rate=16000")), timeout=5)
             next_frame_at = asyncio.get_running_loop().time() + len(self._pending) / (2 * SAMPLE_RATE)
             self._sent_samples += len(self._pending) // 2
+            self._uploaded_total += len(self._pending) // 2
             self._pending = None
 
     async def _receive(self, session):
@@ -206,6 +213,8 @@ class GeminiLiveInterpreter:
                                 self._event("audio", {"pcm": part.inline_data.data, "rate": 24000})
                     if content.interrupted:
                         self._event("interrupted")
+                    if content.turn_complete:
+                        self._event("turn_complete")
                 if response.go_away:
                     raise _ReconnectRequested()
             if not received:
@@ -224,7 +233,8 @@ class GeminiLiveInterpreter:
                     async with client.aio.live.connect(model=MODEL, config=connect_config(
                             self.target, self.resume_handle, resume=self.resume_supported)) as session:
                         self._connection_requests = 1
-                        self._event("connected")
+                        self._event("connected", {"resumed": bool(self.resume_handle and self.resume_supported),
+                                                  "offset_s": self._uploaded_total / SAMPLE_RATE})
                         tasks = [asyncio.create_task(self._send(session)), asyncio.create_task(self._receive(session))]
                         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                         for task in done:

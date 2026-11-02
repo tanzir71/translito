@@ -13,7 +13,7 @@ def test_repeated_saves_preserve_existing_transcripts_and_keep_raw_text(tmp_path
     original = "هخلص deployment بعد meeting"
     runtime.transcripts = [{"timestamp": "2026-11-02T12:00:01", "source_text": original,
                             "language_tag": "mix", "source_language": "ar", "target_language": "en",
-                            "translated_text": "I will finish deployment after meeting."},
+                            "translated_text": "I will finish deployment after meeting.", "mode": "listen", "engine": "gemini-live"},
                            {"timestamp": "2026-11-02T12:00:02", "source_text": "The API works.",
                             "source_language": "en", "target_language": "en", "pass_through": True}]
     existing = tmp_path / "transcript_20261102_120000.txt"
@@ -27,4 +27,5 @@ def test_repeated_saves_preserve_existing_transcripts_and_keep_raw_text(tmp_path
     content = first.read_text(encoding="utf-8")
     assert "Source (mix): " + original in content
     assert "Target: (same as source)" in content
+    assert "Mode: listen\nEngine: gemini-live" in content
     assert "\u2068" not in content and "\u2069" not in content

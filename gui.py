@@ -54,7 +54,8 @@ from speech_output import LocalSpeechSynthesizer
 
 
 APP_NAME = "Translito"
-ENGINE_PROFILES = {"Free (recommended)": "free", "Offline (private)": "offline", "Custom": "custom"}
+ENGINE_PROFILES = {"Free (recommended)": "free", "Offline (private)": "offline", "Custom": "custom",
+                   "Live interpreter (Gemini preview)": "live-preview"}
 
 # Native macOS-inspired palette. Tk's clam theme lets the same colors render
 # consistently on Windows 10 and 11 instead of falling back to legacy widgets.
@@ -1806,7 +1807,9 @@ class TranslatorGUI:
             "translation_model": translation_model_for(src_iso, tgt_iso, cloud_available=(
                 not self.offline_only_var.get() and self.engine_profile_var.get() != "Offline (private)" and
                 any(p.enabled and p.tested_signature for name, p in load_engine_settings().providers.items()
-                    if name in {"azure", "deepl", "google", "gemini"}))),
+                    if name in ({"azure", "deepl", "google", "gemini", "gemini-live"}
+                        if self.engine_profile_var.get() == "Live interpreter (Gemini preview)" else
+                        {"azure", "deepl", "google", "gemini"})))),
             "conversation": conversation,
         }
 
