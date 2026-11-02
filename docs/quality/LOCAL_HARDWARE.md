@@ -78,3 +78,51 @@ Timestamped output directories preserve earlier reports. The owner waived
 private Saudi clips, so public MSA and synthetic probes remain smoke evidence.
 Gated Cohere weights, real free-cloud comparisons and Saudi accuracy/latency
 acceptance remain unverified until their required access/evidence is available.
+
+## Public smoke measurements — 2026-11-02
+
+Source revision: `5c52768c56fb3844de1f1ac8247b64fe43dc9952`, no tracked
+changes during the run. Input: Google FLEURS `ar_eg` test row 0, 8.16 seconds,
+CC BY 4.0, [dataset source](https://huggingface.co/datasets/google/fleurs).
+SHA-256: `40d979a6239fc08951f387c671fb5fc46fffdc5df823ed1dbdb809bc75e26620`.
+VAD emitted one 7.852-second segment. AMD Family 25 Model 80 CPU, six physical
+cores; the CTranslate2 probes used five threads, CPU int8 and beam size 3.
+Runtime: Torch 2.13.0+cpu, Transformers 5.22.1, faster-whisper 1.2.1,
+CTranslate2 4.8.4, Silero 6.2.3. Sockets/DNS were blocked, no download or
+gated-access flag was supplied, and no paid call was made.
+
+| Probe | Status | Decode (s) | Decode/segment RTF | Peak RSS (GiB) | Model load (s) |
+|---|---|---:|---:|---:|---:|
+| Cohere fp32 | Cache/access required | n/a | n/a | n/a | n/a |
+| Cohere bf16 | Cache/access required | n/a | n/a | n/a | n/a |
+| Cohere dynamic int8 | Cache/access required | n/a | n/a | n/a | n/a |
+| Turbo int8 | Measured | 8.429 | 1.074 | 1.968 | 4.159 |
+| Small int8 | Measured | 2.727 | 0.347 | 0.636 | 0.495 |
+| Base pair LID | Measured, LID only | 0.548 | 0.070 | 0.444 | 0.861 |
+
+Small passed this component's speed gate with a nonempty transcription; Turbo
+missed it. Neither result establishes Saudi quality or full Free-profile latency.
+Unavailable Cohere process startup RSS is not reported as model memory.
+Artifacts are retained locally under
+`D:\CodexBuilds\Translito-quality\hardware-v2-results\20261102T170020.948528Z`.
+
+A separate cache-only desktop Offline replay, at the same source revision,
+produced one source/target row with no pipeline errors. It used local Small
+and Marian fallback, with the existing Balanced preset. Observed WER 0.533,
+CER 0.131, chrF 46.42 and speech-end-to-completed-row time 6.888 seconds.
+The four-second target is **not met** on this fallback sample. One utterance
+does not establish a latency distribution or language-ID accuracy, and there
+were no reference English terms for code-switching scores. These are smoke
+results, not a controlled comparison with the historical P0 protocol.
+Replay artifacts remain under
+`D:\CodexBuilds\Translito-quality\quality-v2-replay\20261102T170258.712716Z`.
+
+A diagnostic MT thread probe confirmed Silero's import changed Torch threads
+from six to one. On the same warmed public source text, two MT calls per setting
+produced identical output: one thread took 1.462/1.353s, three threads
+1.149/1.155s, five threads 1.232/1.147s. VAD compute was 0.284s, 0.261s
+and 0.293s respectively. This small test does not close the observed pipeline
+gap or justify a production-wide thread change. Its data is retained in
+`D:\CodexBuilds\Translito-quality\mt-thread-probe-20261102T170934.539211Z.json`.
+The probe helper now applies its explicit Cohere thread setting after VAD
+initialization and reports the actual Torch count, including direct calls.

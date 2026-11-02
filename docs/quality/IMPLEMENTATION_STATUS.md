@@ -22,13 +22,22 @@ model access are not replaced with fabricated acceptance results.
 The owner waived the private Saudi evaluation clips ("don't have, skip"). Public
 MSA/synthetic reports remain smoke evidence; they do not establish Saudi accuracy.
 
-The local-hardware follow-up passed **344 tests** (15 new). It replaces the
+The local-hardware follow-up passed **345 tests** (16 new). It replaces the
 old independent Cohere/Turbo benchmark decoders with the desktop adapters,
 honors configured caches, separates gated-download confirmation from generic
 download permission, segments long audio through the real VAD path, and prevents
 silence/empty/LID/failed-partial results from passing the ASR speed gate. Default
 probes block sockets/DNS and restore their environment; reports retain earlier
 predictions if a later segment fails. See LOCAL_HARDWARE.md for scope and limits.
+
+Public V2 hardware probes at `5c52768` measured Small segment RTF 0.347,
+Turbo 1.074 and base LID-only 0.070. All three Cohere precisions remained
+unavailable without cached/gated access. A full Offline smoke replay produced
+one source/target row with no pipeline errors, but its 6.888-second speech-end
+latency missed the four-second target. No Saudi or code-switching acceptance
+follows from this one public MSA clip. The modest MT thread-probe benefit did
+not justify changing production defaults. Raw local artifact paths and the
+measurement protocol are recorded in LOCAL_HARDWARE.md.
 
 The P4 evaluation-runner follow-up passed the full suite: **308 tests**. Its
 22 new synthetic tests cover paid/upload gates, changed credentials, full

@@ -81,13 +81,16 @@ def load_recognizer(name, allow_downloads, *, language="ar", cohere_terms_accept
         credentials = SimpleNamespace(get=lambda provider: key if provider == "huggingface" else None)
     precision = {"cohere-fp32": "float32", "cohere-bf16": "bfloat16", "cohere-int8": "int8"}[name]
     import torch
+    # Silero's first import sets global Torch threads to one. Apply the
+    # requested probe policy after creating VAD, including direct callers.
+    detector = SpeechActivityDetector()
     torch.set_num_threads(threads)
     cache = load_cohere_cache_dir()
     recognizer = CohereLocalRecognizer(offline_only=not download, dtype=precision, device="cpu", cache_dir=cache,
-                                      credentials=credentials, detector=SpeechActivityDetector())
+                                      credentials=credentials, detector=detector)
     recognizer.load()
     return RecognizerProbe(lambda audio: recognizer.transcribe(audio, 16000, hint_language=language), "asr",
-                           {"model": MODEL_ID, "precision": precision, "cpu_threads": threads,
+                           {"model": MODEL_ID, "precision": precision, "cpu_threads": torch.get_num_threads(),
                             "cache_override": cache is not None, "gated_download_authorized": bool(download),
                             "adapter": "CohereLocalRecognizer"})
 

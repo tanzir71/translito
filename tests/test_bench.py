@@ -167,6 +167,27 @@ def test_missing_gated_read_token_fails_before_model_construction(monkeypatch):
     factory.assert_not_called()
 
 
+def test_cohere_thread_policy_is_applied_after_vad_import_and_reports_actual_threads(monkeypatch):
+    import audio_processing
+    import app_config
+    import engines.asr_cohere_local as cohere
+    import model_loading
+    import torch
+    state = {"threads": 6}
+    def vad():
+        state["threads"] = 1
+        return EnergyVAD()
+    monkeypatch.setattr(audio_processing, "SpeechActivityDetector", vad)
+    monkeypatch.setattr(torch, "set_num_threads", lambda value: state.update(threads=value))
+    monkeypatch.setattr(torch, "get_num_threads", lambda: state["threads"])
+    monkeypatch.setattr(model_loading, "physical_cpu_threads", lambda: 5)
+    monkeypatch.setattr(app_config, "load_cohere_cache_dir", lambda: None)
+    recognizer = Mock()
+    monkeypatch.setattr(cohere, "CohereLocalRecognizer", Mock(return_value=recognizer))
+    probe = bench.load_recognizer("cohere-fp32", False)
+    assert state["threads"] == 5 and probe.info["cpu_threads"] == 5
+
+
 def test_whisper_probe_reuses_app_override_and_hallucination_guards(monkeypatch):
     import faster_whisper
     import model_loading
