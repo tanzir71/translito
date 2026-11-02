@@ -30,3 +30,37 @@ The handoff's production bake-off gate remains: a clear gain over Free (for
 example, at least five mixed-segment WER points or three chrF), English-term
 recall and latency measured on the same inputs. No candidate is recommended on
 the strength of these schema tests.
+
+## Gemini Live Translate preview worker
+
+`engines/interp_gemini_live.py` uses pinned `google-genai==2.33.0`, the official
+LiveConnectConfig/TranslationConfig types, one-way output and
+`echo_target_language=False`. Its dedicated asyncio thread accepts 100 ms
+16kHz PCM frames and emits source/target text and 24kHz audio. A tested free-tier
+key, separate data-reuse consent and $0 paid cap are required before a client
+or ledger is opened. It never selects paid Vertex/ADC credentials.
+
+Session resumption handles stay in memory. GoAway reconnects, Stop cancels a
+blocked receiver, and repeated failures produce a static Free-fallback event.
+Preview capability rejection retries once without resumption. Uncertain uploads
+retain conservative usage reservations; confirmed uploads settle in 30-second
+blocks. The transport never logs SDK exception details; WebSocket debug wire
+logging is disabled because it includes authentication and private content.
+
+The installed SDK was exercised through a fake WebSocket with sockets blocked:
+header-only authentication, setup serialization, transcription decoding and
+PCM upload passed. This is transport evidence, not a vendor session. The worker
+is not yet exposed by the desktop profile/provider cards. Row assembly, original
+Arabic voice pass-through, capture/fallback integration and the physical
+30-minute Speak acceptance test remain required.
+
+SpeechOutputPlayer now has persistent PCM playback, per-route resampling with
+retained boundaries, and stream-generation cancellation on reconnect. Recovery
+keeps the replacement device open. Synthetic tests check 44.1/48kHz alignment,
+irregular chunks, failed-route replacement, old queued audio and late callbacks
+after Stop. Hardware output and meeting-app routing remain unverified.
+
+Primary references: [Live translation](https://ai.google.dev/gemini-api/docs/live-api/live-translate),
+[session management](https://ai.google.dev/gemini-api/docs/live-api/session-management),
+[free/paid pricing](https://ai.google.dev/gemini-api/docs/pricing),
+[SDK release](https://github.com/googleapis/python-genai/releases/tag/v2.33.0).
