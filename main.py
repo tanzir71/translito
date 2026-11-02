@@ -38,6 +38,7 @@ from audio_processing import (
     resample_audio,
 )
 from device_utils import should_apply_mic_noise_gate
+from engines.postprocess import postprocess
 from model_loading import GLOBAL_MODEL_MANAGER
 from speech_output import SpeechOutputPlayer
 
@@ -226,7 +227,7 @@ class ArabicAudioTranscriber:
 
         self.transcripts = []
         self.session_start_time = datetime.now()
-        self.audio_queue = queue.Queue(maxsize=2)
+        self.audio_queue = queue.Queue()
         self._stop_event = threading.Event()
         self._last_backlog_hint_time = 0.0
         self._last_empty_text_hint_time = 0.0
@@ -294,11 +295,12 @@ class ArabicAudioTranscriber:
         if not self.asr:
             raise RuntimeError("Offline ASR is not initialized")
         if hasattr(self.asr, "transcribe"):
-            return self.asr.transcribe(
+            text = self.asr.transcribe(
                 audio_array.astype(np.float32),
                 language=(self.whisper_language or "ar"),
                 stop_event=getattr(self, "_stop_event", None),
             )
+            return postprocess(text).text
         duration = len(audio_array) / self.sample_rate
         generate_kwargs = {
             "task": "transcribe",
@@ -317,11 +319,11 @@ class ArabicAudioTranscriber:
         result = self.asr(payload, generate_kwargs=generate_kwargs, return_timestamps=False)
 
         if isinstance(result, str):
-            return result.strip()
+            return postprocess(result).text
         if isinstance(result, dict):
-            return (result.get("text", "") or "").strip()
+            return postprocess(result.get("text", "") or "").text
         try:
-            return str(result).strip()
+            return postprocess(str(result)).text
         except Exception:
             return ""
 
@@ -361,6 +363,10 @@ class ArabicAudioTranscriber:
             with self.selected_device.recorder(samplerate=self.capture_sample_rate) as recorder:
                 while self.running:
                     audio_data = recorder.record(numframes=block_size)
+                    self.emit("level", {
+                        "peak": float(np.max(np.abs(audio_data))) if audio_data.size else 0.0,
+                        "rms": float(np.sqrt(np.mean(np.square(audio_data)))) if audio_data.size else 0.0,
+                    })
                     for result in processor.append(audio_data, self.capture_sample_rate):
                         self._handle_capture_result(result)
                 for result in processor.flush():
@@ -389,21 +395,7 @@ class ArabicAudioTranscriber:
             self._silence_run = 0
             if self.mode == "speak" and self.speech_player and self.speech_player.is_playing:
                 return
-            try:
-                self.audio_queue.put_nowait(result)
-            except queue.Full:
-                try:
-                    self.audio_queue.get_nowait()
-                except queue.Empty:
-                    pass
-                self.audio_queue.put_nowait(result)
-                if time.monotonic() - self._last_backlog_hint_time > 10:
-                    self.emit(
-                        "hint",
-                        "Skipped older audio to keep up with playback. Choose a smaller "
-                        "Whisper model in Settings for faster results on this computer.",
-                    )
-                    self._last_backlog_hint_time = time.monotonic()
+            self.audio_queue.put_nowait(result)
             return
 
         self._silence_run += 1
@@ -450,6 +442,13 @@ class ArabicAudioTranscriber:
                 audio_data, peak, rms = self._coerce_audio_item(item)
                 if audio_data.size == 0:
                     continue
+                captured_at = getattr(item, "captured_at", None)
+                lag = max(0.0, time.monotonic() - captured_at) if captured_at is not None else 0.0
+                self.emit("lag", {"seconds": lag, "queued_segments": self.audio_queue.qsize()})
+                if lag > 10 and time.monotonic() - self._last_backlog_hint_time > 10:
+                    self.emit("hint", f"Behind by {lag:.0f}s. Speech is being kept; choose Fast "
+                              "or enable a free cloud recognizer to reduce the delay.")
+                    self._last_backlog_hint_time = time.monotonic()
 
                 if self.audio_debug:
                     self._debug_counter += 1
@@ -552,7 +551,10 @@ class ArabicAudioTranscriber:
         return audio_data.astype(np.float32, copy=False), peak, rms
 
     def translate_text(self, source_text):
-        kwargs = {"max_length": 512, "truncation": True, "num_beams": 1, "do_sample": False}
+        tokenizer = getattr(self.translator, "tokenizer", None)
+        tokens = len(tokenizer.encode(source_text)) if tokenizer else max(1, len(source_text.split()) * 2)
+        kwargs = {"max_new_tokens": max(32, min(512, tokens * 3)), "truncation": True,
+                  "num_beams": 4, "do_sample": False}
         stopping_criteria = self._generation_stopping_criteria()
         if stopping_criteria is not None:
             kwargs["stopping_criteria"] = stopping_criteria

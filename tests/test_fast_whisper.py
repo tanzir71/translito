@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from main import ArabicAudioTranscriber
-from model_loading import FastWhisperASR, _local_fast_whisper_model
+from model_loading import FastWhisperASR, _local_fast_whisper_model, fast_whisper_repo, physical_cpu_threads
 
 
 class FakeModel:
@@ -30,6 +30,26 @@ def test_fast_backend_transcribes_arabic_chunk():
     assert model.options["language"] == "ar"
     assert model.options["task"] == "transcribe"
     assert model.options["condition_on_previous_text"] is False
+    assert model.options["temperature"] == (0.0, 0.2, 0.4, 0.6)
+    assert model.options["repetition_penalty"] == 1.1
+    assert model.options["no_repeat_ngram_size"] == 3
+    assert model.options["compression_ratio_threshold"] == 2.4
+    assert model.options["log_prob_threshold"] == -1.0
+    assert model.options["no_speech_threshold"] == 0.6
+
+
+def test_turbo_uses_the_upstream_model_alias_map():
+    from faster_whisper.utils import _MODELS
+    assert fast_whisper_repo("large-v3-turbo") == _MODELS["large-v3-turbo"]
+    assert not fast_whisper_repo("large-v3-turbo").startswith("Systran/")
+
+
+def test_thread_count_uses_physical_cores_with_a_minimum_of_two(monkeypatch):
+    import psutil
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical=False: 6)
+    assert physical_cpu_threads() == 5
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical=False: None)
+    assert physical_cpu_threads() == 2
 
 
 def test_local_converted_model_is_used_when_complete(tmp_path, monkeypatch):

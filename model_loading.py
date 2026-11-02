@@ -9,7 +9,22 @@ FAST_WHISPER_MODELS = {
     "openai/whisper-small": "small",
     "openai/whisper-medium": "medium",
     "openai/whisper-large-v3": "large-v3",
+    "openai/whisper-large-v3-turbo": "large-v3-turbo",
 }
+
+
+def fast_whisper_repo(alias):
+    # faster-whisper's turbo weights are not hosted under Systran. Use the
+    # upstream map from the pinned package, including future corrected aliases.
+    from faster_whisper.utils import _MODELS
+    if alias not in _MODELS:
+        raise ValueError(f"Unsupported faster-whisper model: {alias}")
+    return _MODELS[alias]
+
+
+def physical_cpu_threads():
+    import psutil
+    return max(2, (psutil.cpu_count(logical=False) or 2) - 1)
 
 
 def _local_fast_whisper_model(model_size):
@@ -27,17 +42,26 @@ def _local_fast_whisper_model(model_size):
 class FastWhisperASR:
     """Use the same selected Whisper weights with efficient CPU inference."""
 
-    def __init__(self, model):
+    def __init__(self, model, beam_size=3):
         self.model = model
+        self.beam_size = beam_size
 
-    def transcribe(self, audio, language, stop_event=None):
+    def transcribe(self, audio, language, stop_event=None, initial_prompt=None, hotwords=None):
         segments, _ = self.model.transcribe(
             audio,
             language=language,
             task="transcribe",
-            beam_size=3,
+            beam_size=self.beam_size,
             condition_on_previous_text=False,
             vad_filter=False,
+            temperature=(0.0, 0.2, 0.4, 0.6),
+            compression_ratio_threshold=2.4,
+            log_prob_threshold=-1.0,
+            no_speech_threshold=0.6,
+            repetition_penalty=1.1,
+            no_repeat_ngram_size=3,
+            initial_prompt=initial_prompt,
+            hotwords=hotwords,
         )
         text = []
         for segment in segments:
@@ -128,11 +152,11 @@ class ModelLoadManager:
         on_event,
     ):
         _emit(on_event, "status", "Loading models")
-        fast_model = FAST_WHISPER_MODELS.get(whisper_model) if torch_device == -1 else None
+        fast_model = FAST_WHISPER_MODELS.get(whisper_model)
         fast_model_path = _local_fast_whisper_model(fast_model) if fast_model else None
         if not offline_only:
             if fast_model_path is None:
-                whisper_repo = f"Systran/faster-whisper-{fast_model}" if fast_model else whisper_model
+                whisper_repo = fast_whisper_repo(fast_model) if fast_model else whisper_model
                 _download_repo_with_progress(whisper_repo, "Whisper", 0.0, 0.5, on_event)
             _download_repo_with_progress(translation_model, "translation", 0.5, 0.5, on_event)
 
@@ -152,9 +176,10 @@ class ModelLoadManager:
             asr = FastWhisperASR(
                 WhisperModel(
                     fast_model_path or fast_model,
-                    device="cpu",
-                    compute_type="int8",
-                    cpu_threads=2,
+                    device="cpu" if torch_device == -1 else "cuda",
+                    device_index=0 if torch_device == -1 else int(torch_device),
+                    compute_type="int8" if torch_device == -1 else "float16",
+                    cpu_threads=physical_cpu_threads(),
                     local_files_only=offline_only,
                 )
             )

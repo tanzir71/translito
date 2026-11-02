@@ -4,6 +4,9 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import re
+
+from engines.router import Conversation
 
 
 def default_config_path():
@@ -51,6 +54,11 @@ class LanguageConfig:
     whisper_model: str = "openai/whisper-small"
 
 
+@dataclass(frozen=True)
+class ConversationConfig(Conversation):
+    one_way: bool = False
+
+
 def _path(path=None):
     return Path(path or CONFIG_FILE)
 
@@ -69,7 +77,7 @@ def read_config(path=None):
     if config_path == CONFIG_FILE and not config_path.exists():
         candidates = _legacy_config_paths()
     for candidate in candidates:
-        if config.read(candidate, encoding="utf-8"):
+        if config.read(candidate, encoding="utf-8-sig"):
             break
     return config
 
@@ -124,6 +132,92 @@ def save_language_config(source_code, target_code, whisper_model, path=None):
     section["source"] = source_code
     section["target"] = target_code
     section["whisper_model"] = whisper_model
+    write_config(config, path)
+
+
+def load_conversation_config(path=None):
+    config = read_config(path)
+    old = load_language_config(path)
+    other = old.source if old.source != "en" else old.target
+    other = other if other != "en" else "ar"
+    section = config["CONVERSATION"] if "CONVERSATION" in config else {}
+    other = section.get("other_language", other)
+    if other == "en":
+        other = "ar"
+    pair = {"en", other}
+    my_language = section.get("my_language", old.target if old.target in pair else "en")
+    audience = section.get("audience_language", config.get("SPEAK", "speak_target", fallback=other))
+
+    def boolean(key, default):
+        return str(section.get(key, str(int(default)))).lower() in {"1", "true", "yes", "on"}
+
+    speech = section.get("same_language_speech", "passthrough")
+    return ConversationConfig(
+        other_language=other,
+        my_language=my_language if my_language in pair else "en",
+        audience_language=audience if audience in pair else other,
+        show_both=boolean("show_both", False),
+        keep_english_terms=boolean("keep_english_terms", True),
+        same_language_speech=speech if speech in {"passthrough", "voice", "mute"} else "passthrough",
+        one_way=boolean("one_way", old.source != "en" and old.target != "en"),
+    )
+
+
+def migrate_conversation_config(path=None):
+    """Append missing settings while retaining every original byte/key/comment.
+
+    Unlike a normal user-requested settings update, migration never rewrites
+    existing values or normalizes the old INI formatting.
+    """
+    from dataclasses import asdict
+    config_path = _path(path)
+    conversation = load_conversation_config(path)
+    defaults = {key: str(int(value)) if isinstance(value, bool) else str(value)
+                for key, value in asdict(conversation).items()}
+    existing = read_config(path)
+    missing = {key: value for key, value in defaults.items()
+               if not existing.has_option("CONVERSATION", key)}
+    if not missing:
+        return conversation
+    candidates = (config_path,) if config_path.exists() else (
+        _legacy_config_paths() if config_path == CONFIG_FILE else ())
+    original = next((p.read_bytes() for p in candidates if p.is_file()), b"")
+    text = original.decode("utf-8-sig")
+    newline = "\r\n" if "\r\n" in text else "\n"
+    addition = "".join(f"{key} = {value}{newline}" for key, value in missing.items()).encode("utf-8")
+    headers = list(re.finditer(rb"(?m)^(?:\xef\xbb\xbf)?\[([^\]\r\n]+)\][^\r\n]*(?:\r?\n|$)", original))
+    section_index = next((i for i, match in enumerate(headers)
+                          if match[1] == b"CONVERSATION"), None)
+    if section_index is None:
+        prefix = original + (newline.encode() if original and not original.endswith(b"\n") else b"")
+        updated = prefix + f"{newline}[CONVERSATION]{newline}".encode() + addition
+    else:
+        end = headers[section_index + 1].start() if section_index + 1 < len(headers) else len(original)
+        prefix = original[:end]
+        if prefix and not prefix.endswith(b"\n"):
+            prefix += newline.encode()
+        updated = prefix + addition + original[end:]
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=config_path.parent, delete=False) as handle:
+            temp_path = Path(handle.name)
+            handle.write(updated)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temp_path.replace(config_path)
+    finally:
+        if temp_path:
+            temp_path.unlink(missing_ok=True)
+    return conversation
+
+
+def save_conversation_config(conversation, path=None):
+    from dataclasses import asdict
+    config = read_config(path)
+    section = _ensure_section(config, "CONVERSATION")
+    for key, value in asdict(conversation).items():
+        section[key] = str(int(value)) if isinstance(value, bool) else str(value)
     write_config(config, path)
 
 

@@ -10,7 +10,7 @@ from main import ArabicAudioTranscriber
 def worker():
     transcriber = ArabicAudioTranscriber.__new__(ArabicAudioTranscriber)
     transcriber.running = False
-    transcriber.audio_queue = queue.Queue(maxsize=2)
+    transcriber.audio_queue = queue.Queue()
     transcriber._stop_event = threading.Event()
     transcriber._last_backlog_hint_time = 0.0
     transcriber._last_empty_text_hint_time = 0.0
@@ -76,17 +76,32 @@ def test_translation_error_keeps_recognized_speech_visible():
     assert any(kind == "error" for kind, _ in events)
 
 
-def test_live_capture_keeps_two_latest_waiting_chunks():
+def test_live_capture_preserves_every_waiting_speech_chunk():
     transcriber, _ = worker()
-    transcriber._handle_capture_result(chunk(0.2))
+    first = chunk(0.2)
+    transcriber._handle_capture_result(first)
     second = chunk(0.3)
     transcriber._handle_capture_result(second)
     newest = chunk(0.4)
     transcriber._handle_capture_result(newest)
 
-    assert transcriber.audio_queue.qsize() == 2
+    assert transcriber.audio_queue.qsize() == 3
+    assert transcriber.audio_queue.get_nowait() is first
     assert transcriber.audio_queue.get_nowait() is second
     assert transcriber.audio_queue.get_nowait() is newest
+
+
+def test_backlog_emits_lag_and_hint_without_dropping_speech():
+    from dataclasses import replace
+    import time
+    transcriber, events = worker()
+    transcriber.audio_queue.put(replace(chunk(), captured_at=time.monotonic() - 15))
+    transcriber.recognize_speech_offline = lambda audio: "مرحبا"
+    transcriber.translate_text = lambda text: "Hello"
+    transcriber.process_audio()
+    assert transcriber.transcripts[0]["translated_text"] == "Hello"
+    assert next(payload for kind, payload in events if kind == "lag")["seconds"] >= 15
+    assert any(kind == "hint" and "Behind" in payload for kind, payload in events)
 
 
 def test_stop_cancels_generation_and_discards_waiting_audio():

@@ -81,7 +81,7 @@ class DesktopRuntime:
         # Evaluation owns its output. Do not create auto-saved transcripts or
         # call start_background(), which writes user settings and opens devices.
         atexit.unregister(self.runtime.save_transcript)
-        self.legacy_fixed_window = legacy_fixed_window
+        self.legacy_fixed_window = legacy_fixed_window or profile == "baseline"
         self.mt_calls = []
         self._translate = self.runtime.translate_text
 

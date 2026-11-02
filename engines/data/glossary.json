@@ -1,0 +1,1373 @@
+[
+  {
+    "english": "meeting",
+    "spellings": [
+      "ميتينج",
+      "ميتينغ"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "deadline",
+    "spellings": [
+      "ديدلاين"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "dashboard",
+    "spellings": [
+      "داشبورد",
+      "داش بورد"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "deployment",
+    "spellings": [
+      "ديبلويمنت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "deploy",
+    "spellings": [
+      "ديبلوي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "API",
+    "spellings": [
+      "اي بي آي",
+      "إيه بي آي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "server",
+    "spellings": [
+      "سيرفر",
+      "سيرڤر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "invoice",
+    "spellings": [
+      "إنفويس",
+      "انفويس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "budget",
+    "spellings": [
+      "بدجت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "KPI",
+    "spellings": [
+      "كي بي آي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "replica",
+    "spellings": [
+      "ربليكا",
+      "ريبليكا"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "database",
+    "spellings": [
+      "داتابيس",
+      "داتا بيس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "backend",
+    "spellings": [
+      "باك إند",
+      "باك اند"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "frontend",
+    "spellings": [
+      "فرونت إند",
+      "فرونت اند"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "sprint",
+    "spellings": [
+      "سبرنت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "scrum",
+    "spellings": [
+      "سكرم"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "standup",
+    "spellings": [
+      "ستاند أب",
+      "ستانداب"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "backlog",
+    "spellings": [
+      "باكلوج",
+      "باك لوج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "ticket",
+    "spellings": [
+      "تيكت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "issue",
+    "spellings": [
+      "إيشو",
+      "ايشو"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "bug",
+    "spellings": [
+      "باج",
+      "بغ"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "feature",
+    "spellings": [
+      "فيتشر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "release",
+    "spellings": [
+      "ريليز"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "version",
+    "spellings": [
+      "فيرجن",
+      "فيرشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "update",
+    "spellings": [
+      "أبديت",
+      "ابديت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "upgrade",
+    "spellings": [
+      "أبجريد",
+      "ابجريد"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "rollback",
+    "spellings": [
+      "رول باك"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "production",
+    "spellings": [
+      "برودكشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "staging",
+    "spellings": [
+      "ستيجينج",
+      "ستيجنغ"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "development",
+    "spellings": [
+      "ديفيلوبمنت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "environment",
+    "spellings": [
+      "إنفايرومنت",
+      "انفايرومنت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "configuration",
+    "spellings": [
+      "كونفيجريشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "config",
+    "spellings": [
+      "كونفيج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "repository",
+    "spellings": [
+      "ريبوزيتوري"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "branch",
+    "spellings": [
+      "برانش"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "commit",
+    "spellings": [
+      "كوميت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "merge",
+    "spellings": [
+      "ميرج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "pull request",
+    "spellings": [
+      "بول ريكوست"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "code review",
+    "spellings": [
+      "كود ريفيو"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "review",
+    "spellings": [
+      "ريفيو"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "pipeline",
+    "spellings": [
+      "بايبلاين",
+      "بايب لاين"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "workflow",
+    "spellings": [
+      "ورك فلو"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "build",
+    "spellings": [
+      "بيلد"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "test",
+    "spellings": [
+      "تست"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "testing",
+    "spellings": [
+      "تستنج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "debug",
+    "spellings": [
+      "ديباج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "log",
+    "spellings": [
+      "لوج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "logging",
+    "spellings": [
+      "لوجينج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "monitoring",
+    "spellings": [
+      "مونيتورينج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "alert",
+    "spellings": [
+      "أليرت",
+      "اليرت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "notification",
+    "spellings": [
+      "نوتيفيكيشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "incident",
+    "spellings": [
+      "إنسيدنت",
+      "انسيدنت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "outage",
+    "spellings": [
+      "أوتيج",
+      "اوتيج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "latency",
+    "spellings": [
+      "ليتنسي",
+      "لاتنسي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "throughput",
+    "spellings": [
+      "ثروبت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "performance",
+    "spellings": [
+      "بيرفورمانس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "optimization",
+    "spellings": [
+      "أوبتمايزيشن",
+      "اوبتمايزيشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "scalability",
+    "spellings": [
+      "سكاليبيليتي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "availability",
+    "spellings": [
+      "أفيليبيليتي",
+      "افيليبيليتي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "reliability",
+    "spellings": [
+      "ريلايبيليتي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "security",
+    "spellings": [
+      "سيكيوريتي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "authentication",
+    "spellings": [
+      "أوثنتيكيشن",
+      "اوثنتيكيشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "authorization",
+    "spellings": [
+      "أوثورايزيشن",
+      "اوثورايزيشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "token",
+    "spellings": [
+      "توكن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "password",
+    "spellings": [
+      "باسورد"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "encryption",
+    "spellings": [
+      "إنكريبشن",
+      "انكريبشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "certificate",
+    "spellings": [
+      "سيرتيفيكيت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "firewall",
+    "spellings": [
+      "فايروول"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "network",
+    "spellings": [
+      "نتورك",
+      "نيتورك"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "bandwidth",
+    "spellings": [
+      "باندويدث"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "endpoint",
+    "spellings": [
+      "إندبوينت",
+      "اندبوينت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "request",
+    "spellings": [
+      "ريكويست",
+      "ريكوست"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "response",
+    "spellings": [
+      "ريسبونس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "payload",
+    "spellings": [
+      "بايلود",
+      "بيلود"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "schema",
+    "spellings": [
+      "سكيما"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "query",
+    "spellings": [
+      "كويري"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "index",
+    "spellings": [
+      "إندكس",
+      "اندكس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "transaction",
+    "spellings": [
+      "ترانزاكشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "migration",
+    "spellings": [
+      "مايجريشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "backup",
+    "spellings": [
+      "باك أب",
+      "باك اب"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "restore",
+    "spellings": [
+      "ريستور"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "cache",
+    "spellings": [
+      "كاش"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "queue",
+    "spellings": [
+      "كيو"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "worker",
+    "spellings": [
+      "وركر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "container",
+    "spellings": [
+      "كونتينر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "cluster",
+    "spellings": [
+      "كلستر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "node",
+    "spellings": [
+      "نود"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "pod",
+    "spellings": [
+      "بود"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "service",
+    "spellings": [
+      "سيرفيس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "microservice",
+    "spellings": [
+      "مايكروسيرفيس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "gateway",
+    "spellings": [
+      "جيتواي",
+      "جيت واي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "load balancer",
+    "spellings": [
+      "لود بالانسر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "proxy",
+    "spellings": [
+      "بروكسي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "DNS",
+    "spellings": [
+      "دي إن إس",
+      "دي ان اس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "SSL",
+    "spellings": [
+      "إس إس إل",
+      "اس اس ال"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "HTTP",
+    "spellings": [
+      "إتش تي تي بي",
+      "اتش تي تي بي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "URL",
+    "spellings": [
+      "يو آر إل",
+      "يو ار ال"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "JSON",
+    "spellings": [
+      "جيسون"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "XML",
+    "spellings": [
+      "إكس إم إل",
+      "اكس ام ال"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "SQL",
+    "spellings": [
+      "إس كيو إل",
+      "اس كيو ال"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "NoSQL",
+    "spellings": [
+      "نو سيكول"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "GitHub",
+    "spellings": [
+      "جيت هب",
+      "جيتهاب"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "Git",
+    "spellings": [
+      "جيت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "Docker",
+    "spellings": [
+      "دوكر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "Kubernetes",
+    "spellings": [
+      "كوبرنيتس",
+      "كيوبيرنيتس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "Terraform",
+    "spellings": [
+      "تيرافورم"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "Ansible",
+    "spellings": [
+      "أنسبل",
+      "انسبل"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "Jenkins",
+    "spellings": [
+      "جينكنز"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "Azure",
+    "spellings": [
+      "أزور",
+      "ازور"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "AWS",
+    "spellings": [
+      "إيه دبليو إس",
+      "اي دبليو اس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "Google Cloud",
+    "spellings": [
+      "جوجل كلاود",
+      "قوقل كلاود"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "cloud",
+    "spellings": [
+      "كلاود"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "on-premise",
+    "spellings": [
+      "أون بريميس",
+      "اون بريميس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "hybrid",
+    "spellings": [
+      "هايبرد"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "architecture",
+    "spellings": [
+      "أركيتكتشر",
+      "اركتكتشر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "design",
+    "spellings": [
+      "ديزاين"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "prototype",
+    "spellings": [
+      "بروتوتايب"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "wireframe",
+    "spellings": [
+      "وايرفريم"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "mockup",
+    "spellings": [
+      "موك أب",
+      "موك اب"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "UX",
+    "spellings": [
+      "يو إكس",
+      "يو اكس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "UI",
+    "spellings": [
+      "يو آي",
+      "يو اي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "accessibility",
+    "spellings": [
+      "أكسيسيبيليتي",
+      "اكسيسيبيليتي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "responsive",
+    "spellings": [
+      "ريسبونسف"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "mobile",
+    "spellings": [
+      "موبايل"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "desktop",
+    "spellings": [
+      "ديسكتوب"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "browser",
+    "spellings": [
+      "براوزر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "extension",
+    "spellings": [
+      "إكستنشن",
+      "اكستنشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "plugin",
+    "spellings": [
+      "بلجن",
+      "بلغن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "integration",
+    "spellings": [
+      "إنتجريشن",
+      "انتجريشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "webhook",
+    "spellings": [
+      "ويب هوك"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "callback",
+    "spellings": [
+      "كول باك"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "async",
+    "spellings": [
+      "إيسنك",
+      "ايسنك"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "thread",
+    "spellings": [
+      "ثريد"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "process",
+    "spellings": [
+      "بروسيس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "memory",
+    "spellings": [
+      "ميموري"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "CPU",
+    "spellings": [
+      "سي بي يو"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "GPU",
+    "spellings": [
+      "جي بي يو"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "RAM",
+    "spellings": [
+      "رام"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "storage",
+    "spellings": [
+      "ستورج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "disk",
+    "spellings": [
+      "ديسك"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "file",
+    "spellings": [
+      "فايل"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "folder",
+    "spellings": [
+      "فولدر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "path",
+    "spellings": [
+      "باث"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "permission",
+    "spellings": [
+      "بيرمشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "admin",
+    "spellings": [
+      "أدمن",
+      "ادمن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "user",
+    "spellings": [
+      "يوزر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "account",
+    "spellings": [
+      "أكاونت",
+      "اكاونت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "subscription",
+    "spellings": [
+      "سبسكريبشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "license",
+    "spellings": [
+      "لايسنس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "pricing",
+    "spellings": [
+      "برايسنج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "billing",
+    "spellings": [
+      "بيلنج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "payment",
+    "spellings": [
+      "بيمنت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "refund",
+    "spellings": [
+      "ريفند"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "customer",
+    "spellings": [
+      "كستمر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "client",
+    "spellings": [
+      "كلاينت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "stakeholder",
+    "spellings": [
+      "ستيكهولدر"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "feedback",
+    "spellings": [
+      "فيدباك"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "roadmap",
+    "spellings": [
+      "رودماب"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "milestone",
+    "spellings": [
+      "مايلستون"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "scope",
+    "spellings": [
+      "سكوب"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "deliverable",
+    "spellings": [
+      "دليفرابل"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "requirement",
+    "spellings": [
+      "ريكوايرمنت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "proposal",
+    "spellings": [
+      "بروبوزال"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "presentation",
+    "spellings": [
+      "بريزنتيشن"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "demo",
+    "spellings": [
+      "ديمو"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "workshop",
+    "spellings": [
+      "وركشوب"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "training",
+    "spellings": [
+      "تريننج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "onboarding",
+    "spellings": [
+      "أونبوردنج",
+      "اونبوردنج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "offboarding",
+    "spellings": [
+      "أوفبوردنج",
+      "اوفبوردنج"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "report",
+    "spellings": [
+      "ريبورت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "analytics",
+    "spellings": [
+      "أناليتكس",
+      "اناليتكس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "metric",
+    "spellings": [
+      "متريك"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "OKR",
+    "spellings": [
+      "أو كي آر",
+      "او كي ار"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "ROI",
+    "spellings": [
+      "آر أو آي",
+      "ار او اي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "SLA",
+    "spellings": [
+      "إس إل إيه",
+      "اس ال ايه"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "CRM",
+    "spellings": [
+      "سي آر إم",
+      "سي ار ام"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "ERP",
+    "spellings": [
+      "إي آر بي",
+      "اي ار بي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "SaaS",
+    "spellings": [
+      "ساس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "B2B",
+    "spellings": [
+      "بي تو بي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "B2C",
+    "spellings": [
+      "بي تو سي"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "forecast",
+    "spellings": [
+      "فوركاست"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "compliance",
+    "spellings": [
+      "كومبلاينس"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "audit",
+    "spellings": [
+      "أوديت",
+      "اوديت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "procurement",
+    "spellings": [
+      "بروكيورمنت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "contract",
+    "spellings": [
+      "كونتراكت"
+    ],
+    "arabic_translation": ""
+  },
+  {
+    "english": "vendor",
+    "spellings": [
+      "فندر",
+      "فيندور"
+    ],
+    "arabic_translation": ""
+  }
+]

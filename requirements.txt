@@ -7,8 +7,8 @@ sounddevice>=0.4.6
 silero-vad==6.2.3
 numpy>=1.21.0
 
-# Speech recognition
-SpeechRecognition>=3.10.0
+# Hardware-aware local inference
+psutil==7.2.2
 
 # Machine learning and translation
 transformers>=4.21.0
