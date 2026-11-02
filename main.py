@@ -412,7 +412,13 @@ class ArabicAudioTranscriber:
             noise_gate_rms=(self.mic_noise_gate
                             if should_apply_mic_noise_gate(self.selected_device) else 0.0),
             source_name=getattr(self.selected_device, "name", "Evaluation audio"),
+            on_speech=self.notify_capture_speech,
         )
+
+    def notify_capture_speech(self, timestamp):
+        pipeline = getattr(self, "conversation_pipeline", None)
+        if pipeline is not None:
+            pipeline.notify_speech(timestamp)
 
     def _handle_capture_result(self, result):
         if self._stop_event.is_set():
@@ -420,8 +426,6 @@ class ArabicAudioTranscriber:
         self.emit("level", {"peak": result.peak, "rms": result.rms})
         if result.kind == "audio":
             self._silence_run = 0
-            if self.mode == "speak" and self.speech_player and self.speech_player.is_playing:
-                return
             self.audio_queue.put_nowait(result)
             return
 
@@ -461,7 +465,7 @@ class ArabicAudioTranscriber:
             if self._stop_event.is_set():
                 break
             try:
-                item = self.audio_queue.get(timeout=1)
+                item = self.audio_queue.get(timeout=0.2)
             except queue.Empty:
                 pipeline = getattr(self, "conversation_pipeline", None)
                 if pipeline is not None:
@@ -484,6 +488,7 @@ class ArabicAudioTranscriber:
                     chunk = item if isinstance(item, AudioChunkResult) else AudioChunkResult(
                         "audio", audio_data, self.sample_rate, peak, rms)
                     pipeline.feed(chunk)
+                    pipeline.poll()
                     continue
 
                 if self.audio_debug:

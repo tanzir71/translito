@@ -238,6 +238,8 @@ class SpeechOutputPlayer:
                 self._emit("error", f"Speech output failed: {exc}")
             finally:
                 self._playing.clear()
+                if self._running and self._queue.empty():
+                    self._emit("status", "listening")
 
     def _play(self, samples, sample_rate):
         import sounddevice as sd

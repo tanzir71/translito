@@ -47,6 +47,16 @@ def test_english_listen_is_visible_without_mt_or_target_line():
     player.enqueue.assert_not_called()
 
 
+def test_empty_recognition_returns_to_listening_and_shows_a_rate_limited_hint():
+    runtime, translator, _, entries, events = pipeline([recognized("", "ar"), recognized("", "ar")])
+    runtime.feed(chunk())
+    runtime.feed(chunk())
+    assert entries == []
+    assert [payload for kind, payload in events if kind == "status"][-1] == "listening"
+    assert sum(kind == "hint" for kind, _ in events) == 1
+    translator.translate.assert_not_called()
+
+
 def test_source_parts_update_one_row_before_sentence_translation():
     runtime, translator, player, entries, events = pipeline(
         [recognized("نراجع", "ar"), recognized("الخادم.", "ar")])
@@ -137,6 +147,26 @@ def test_timeout_flush_and_cancel_pending_sentence():
     cancelled.cancel()
     assert entries[0]["translation_cancelled"]
     translator.translate.assert_not_called()
+
+
+def test_capture_speech_resets_timeout_but_slow_asr_adds_no_artificial_wait():
+    from dataclasses import replace
+    import time
+    now = [0.0]
+    assembler = SentenceAssembler(clock=lambda: now[0])
+    runtime, translator, _, entries, _ = pipeline([recognized("مرحبا", "ar")], assembler=assembler)
+    runtime.feed(chunk())
+    runtime.notify_speech(0.8)
+    now[0] = 1.5
+    runtime.poll()
+    translator.translate.assert_not_called()
+    now[0] = 2.31
+    runtime.poll()
+    translator.translate.assert_called_once()
+    delayed, translator, _, _, _ = pipeline([recognized("مرحبا", "ar")])
+    delayed.feed(replace(chunk(), captured_at=time.monotonic() - 3, endpoint_delay_s=0.6))
+    delayed.poll()
+    translator.translate.assert_called_once()
 
 
 def test_both_languages_is_an_explicit_secondary_translation():

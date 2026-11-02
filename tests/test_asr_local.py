@@ -1,11 +1,19 @@
 from unittest.mock import Mock
 
 import numpy as np
+import pytest
 
 from engines.asr_cohere_local import CohereAccessRequired
 from engines.asr_local import LocalConversationRecognizer
 from engines.lid import PairLanguageDetector
 from engines.types import AsrResult
+
+
+@pytest.fixture(autouse=True)
+def no_real_fallback_weights(monkeypatch):
+    import engines.asr_codeswitch
+    monkeypatch.setattr(engines.asr_codeswitch, "load_cached_codeswitch",
+                        Mock(side_effect=FileNotFoundError("not cached in this test")))
 
 
 def test_missing_cohere_uses_per_utterance_pair_lid_and_whisper_hotwords():

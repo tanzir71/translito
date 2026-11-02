@@ -1,6 +1,7 @@
 """The bilingual event/assembly/translation path shared by live and replay."""
 from datetime import datetime
 from uuid import uuid4
+import time
 
 import numpy as np
 
@@ -25,6 +26,13 @@ class ConversationPipeline:
         self.assembler = assembler or SentenceAssembler()
         self.pending_entry = None
         self.context = []
+        self.last_empty_hint_at = None
+        self.last_speech_at = None
+
+    def notify_speech(self, timestamp):
+        self.last_speech_at = timestamp
+        if self.assembler.pending:
+            self.assembler.updated_at = timestamp
 
     def feed(self, chunk):
         if chunk.kind != "audio" or self.stop_event.is_set():
@@ -32,7 +40,15 @@ class ConversationPipeline:
         self.emit("status", "transcribing")
         result = self.recognizer.transcribe(chunk.samples, chunk.sample_rate,
                                            hint_language=None, prompt=None, stop_event=self.stop_event)
-        if self.stop_event.is_set() or not result.text:
+        if self.stop_event.is_set():
+            return
+        if not result.text:
+            self.emit("status", "listening")
+            now = time.monotonic()
+            if self.last_empty_hint_at is None or now - self.last_empty_hint_at >= 10:
+                self.emit("hint", "No speech was recognized from this segment. Check the source "
+                          "and the conversation languages.")
+                self.last_empty_hint_at = now
             return
         self.emit("source", result.text)
         self.emit("arabic", result.text)
@@ -65,6 +81,14 @@ class ConversationPipeline:
         self.pending_entry = entry
         for sentence in self.assembler.push(result.text, result.language_tag, part):
             self._finish_sentence(sentence)
+        if self.assembler.pending:
+            # The timeout is measured from speech, not from ASR completion.
+            # A slow recognizer must not add another 1.5s of artificial silence.
+            speech_end = (chunk.captured_at - (chunk.endpoint_delay_s or 0)
+                          if chunk.captured_at is not None else None)
+            known = [value for value in (speech_end, self.last_speech_at) if value is not None]
+            if known:
+                self.assembler.updated_at = max(known)
         if not self.assembler.pending:
             self.pending_entry = None
 
@@ -104,15 +128,21 @@ class ConversationPipeline:
             self.emit("english", output)
             self.emit("transcript_update", entry.copy())
             self.context.append((entry["source_text"], output))
+            speaking = False
             if self.mode == "speak" and self.speech_player and not self.stop_event.is_set():
                 if route.speech == "passthrough":
                     # Capture preprocessing has already made every chunk mono
                     # at the ASR rate; output resampling happens in the player.
+                    self.emit("status", "speaking")
+                    speaking = True
                     self.speech_player.enqueue_audio(np.concatenate([chunk.samples for chunk in chunks]),
                                                      chunks[0].sample_rate)
                 elif route.speech == "voice":
+                    self.emit("status", "speaking")
+                    speaking = True
                     self.speech_player.enqueue(output, route.target, self.voice)
-            self.emit("status", "listening")
+            if not speaking:
+                self.emit("status", "listening")
         except Exception as exc:
             entry.update(translation_pending=False, translation_error=str(exc))
             self.emit("transcript_update", entry.copy())

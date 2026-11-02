@@ -45,6 +45,7 @@ from device_utils import (
 from hotkeys import GlobalHotkeyManager, format_tk_key_event
 from engines.display import display_text, dominant_rtl
 from engines.mt_local import UnsupportedPairError, resolve_local_mt
+from engines.asr_codeswitch import CODESWITCH_REPO
 from login import is_open_at_login_enabled, set_open_at_login
 from main import ArabicAudioTranscriber, dependency_failure_message, require_dependencies, torch
 from model_loading import GLOBAL_MODEL_MANAGER
@@ -97,6 +98,7 @@ WHISPER_MODELS = [
     "openai/whisper-medium",
     "openai/whisper-large-v3",
     "openai/whisper-large-v3-turbo",
+    CODESWITCH_REPO,
 ]
 
 HOTKEY_LABELS = {
@@ -1083,6 +1085,9 @@ class TranslatorGUI:
         speech_settings.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
         self._settings_help(languages, "Listen shows your language. Speak translates for your audience. "
                             "Speech already in the audience language can use your own voice.")
+        terms_button = ttk.Button(languages, text="Edit terms", style="Mac.TButton", command=self.open_terms)
+        terms_button.pack(anchor="w", pady=(8, 0))
+        self.settings_controls.append(terms_button)
 
         advanced_languages = self._settings_section(content, "Advanced one-way pair")
         advanced_toggle = tk.Checkbutton(advanced_languages, text="Use a fixed source → target pair",
@@ -1109,16 +1114,34 @@ class TranslatorGUI:
             combo.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
 
         recognition = self._settings_section(content, "Speech Recognition")
+        cohere_button = ttk.Button(recognition, text="Set up Saudi Arabic recognition", style="Mac.TButton",
+                                    command=self.open_arabic_model_setup)
+        cohere_button.pack(anchor="w", pady=(3, 8))
+        self.settings_controls.append(cohere_button)
         quality_settings = self._settings_combo(recognition, "Quality", self.quality_var,
                                                 ["Fast", "Balanced", "Best"])
         quality_settings.bind("<<ComboboxSelected>>", lambda _event: self.change_quality_preset())
         self._settings_help(recognition, "Cohere Arabic is the recommended recognizer after model setup. "
                             "This preset controls the local Whisper fallback; Best can lag on a CPU.")
+        advanced_recognition = tk.Frame(recognition, bg=COLORS["surface"])
+
+        def toggle_advanced_recognition():
+            if advanced_recognition.winfo_manager():
+                advanced_recognition.pack_forget()
+                advanced_recognition_button.configure(text="Advanced ▸")
+            else:
+                advanced_recognition.pack(fill="x", after=advanced_recognition_button)
+                advanced_recognition_button.configure(text="Advanced ▾")
+
+        advanced_recognition_button = ttk.Button(recognition, text="Advanced ▸", style="Mac.TButton",
+                                                  command=toggle_advanced_recognition)
+        advanced_recognition_button.pack(anchor="w", pady=5)
+        self.settings_controls.append(advanced_recognition_button)
         whisper_settings = self._settings_combo(
-            recognition, "Advanced model ID", self.whisper_var, WHISPER_MODELS
+            advanced_recognition, "Model ID", self.whisper_var, WHISPER_MODELS
         )
         whisper_settings.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
-        slider_row = tk.Frame(recognition, bg=COLORS["surface"])
+        slider_row = tk.Frame(advanced_recognition, bg=COLORS["surface"])
         slider_row.pack(fill="x", pady=5)
         tk.Label(
             slider_row,
@@ -1427,6 +1450,20 @@ class TranslatorGUI:
                               "Best": "openai/whisper-large-v3-turbo"}[self.quality_var.get()])
         self.persist_settings()
 
+    def open_terms(self):
+        from quality_settings import open_terms_editor
+        try:
+            open_terms_editor(self, COLORS, center_window)
+        except Exception as exc:
+            self.show_error(f"Could not open Terms: {exc}")
+
+    def open_arabic_model_setup(self):
+        if self.transcriber is not None:
+            self.show_hint("Stop the current session before setting up a model.")
+            return
+        from quality_settings import open_cohere_setup
+        open_cohere_setup(self, COLORS, center_window)
+
     def selected_listen_choice(self):
         index = self.listen_combo.current()
         if 0 <= index < len(self.listen_choices):
@@ -1702,6 +1739,9 @@ class TranslatorGUI:
 
     def start(self):
         if self.transcriber is not None:
+            return
+        if getattr(self, "model_setup_busy", False):
+            self.show_hint("Wait for model setup to finish before starting a session.")
             return
         try:
             request = self.current_model_request()

@@ -91,6 +91,16 @@ def test_live_capture_preserves_every_waiting_speech_chunk():
     assert transcriber.audio_queue.get_nowait() is newest
 
 
+def test_speak_capture_is_not_dropped_while_buffered_speech_plays():
+    from types import SimpleNamespace
+    transcriber, _ = worker()
+    transcriber.mode = "speak"
+    transcriber.speech_player = SimpleNamespace(is_playing=True)
+    audio = chunk()
+    transcriber._handle_capture_result(audio)
+    assert transcriber.audio_queue.get_nowait() is audio
+
+
 def test_backlog_emits_lag_and_hint_without_dropping_speech():
     from dataclasses import replace
     import time

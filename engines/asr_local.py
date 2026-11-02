@@ -17,8 +17,18 @@ def _lid_model(offline_only):
 
 
 @lru_cache(maxsize=2)
-def _cohere_model(device):
-    return CohereLocalRecognizer(offline_only=True, device=device)
+def _cohere_model(device, cache_dir):
+    return CohereLocalRecognizer(offline_only=True, device=device, cache_dir=cache_dir)
+
+
+def get_cohere_model(*, device="cpu", cache_dir=None, on_event=None):
+    if cache_dir is None:
+        from app_config import load_cohere_cache_dir
+        cache_dir = load_cohere_cache_dir()
+    model = _cohere_model(device, str(cache_dir) if cache_dir else None)
+    if on_event is not None:
+        model.on_event = on_event
+    return model
 
 
 class LocalConversationRecognizer:
@@ -34,24 +44,40 @@ class LocalConversationRecognizer:
         self.cohere = cohere
         self._cohere_ready = False
         self._fallback_hint = False
+        self._fallback_checked = False
+        self.device = device
         if lid is None:
             self.on_event("model_progress", {"phase": "Preparing per-utterance language detection",
                                                "fraction": None})
             lid = PairLanguageDetector(_lid_model(offline_only), other_language)
         self.lid = lid
         if other_language == "ar":
-            self.cohere = cohere or _cohere_model(device)
+            self.cohere = cohere or get_cohere_model(device=device, on_event=self.on_event)
             self.cohere.on_event = self.on_event
             try:
                 self.cohere.load()
                 self._cohere_ready = True
             except CohereAccessRequired:
+                self._prepare_fallback()
                 self._hint_fallback()
+
+    def _prepare_fallback(self):
+        if self._fallback_checked:
+            return
+        self._fallback_checked = True
+        if getattr(self.whisper, "provider", None) == "arabic-codeswitch-ct2":
+            return
+        try:
+            from engines.asr_codeswitch import load_cached_codeswitch
+            self.whisper = load_cached_codeswitch(device=self.device)
+        except (FileNotFoundError, ValueError, RuntimeError):
+            pass
 
     def _hint_fallback(self):
         if not self._fallback_hint:
             self.on_event("hint", "Cohere Arabic needs its one-time model setup. Using Whisper "
-                          "as a fallback; Saudi dialect and mixed English terms may be less accurate.")
+                          "as a fallback; Saudi dialect and mixed English terms may be less accurate. "
+                          "Open Settings → Set up Saudi Arabic recognition.")
             self._fallback_hint = True
 
     def transcribe(self, audio, sample_rate, *, hint_language=None, prompt=None, stop_event=None):
@@ -64,6 +90,7 @@ class LocalConversationRecognizer:
                                                     prompt=prompt, stop_event=stop_event)
                 except (CohereAccessRequired, RuntimeError, MemoryError):
                     self._cohere_ready = False
+                    self._prepare_fallback()
                     self.on_event("hint", "Cohere Arabic could not decode this segment; using local Whisper.")
             if not self._cohere_ready:
                 text = self.whisper.transcribe(

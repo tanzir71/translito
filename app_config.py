@@ -222,6 +222,19 @@ def save_conversation_config(conversation, path=None):
     write_config(config, path)
 
 
+def load_cohere_cache_dir(path=None):
+    return read_config(path).get("ENGINES", "cohere_cache_dir", fallback="").strip() or None
+
+
+def save_cohere_cache_dir(folder, path=None):
+    folder = Path(folder).expanduser()
+    if not folder.is_absolute():
+        raise ValueError("Choose an absolute folder for the model cache")
+    config = read_config(path)
+    _ensure_section(config, "ENGINES")["cohere_cache_dir"] = str(folder)
+    write_config(config, path)
+
+
 def load_runtime_config(path=None):
     config = read_config(path)
     section = config["RUNTIME"] if "RUNTIME" in config else {}

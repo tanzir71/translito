@@ -83,6 +83,7 @@ class AudioChunkProcessor:
         source_name="",
         speech_detector=None,
         legacy_fixed_window=False,
+        on_speech=None,
     ):
         self.chunk_duration = max(1.0, float(chunk_duration))
         self.input_sample_rate = int(input_sample_rate)
@@ -91,6 +92,7 @@ class AudioChunkProcessor:
         self.source_name = source_name
         self.speech_detector = speech_detector
         self.legacy_fixed_window = bool(legacy_fixed_window)
+        self.on_speech = on_speech
         self.pending = np.asarray([], dtype=np.float32)
         self.silence_run = 0
         self._frame_buffer = np.asarray([], dtype=np.float32)
@@ -185,6 +187,8 @@ class AudioChunkProcessor:
                 speech = self.speech_detector.speech_probability(frame, sr) >= 0.35
             else:
                 speech = self.speech_detector.contains_speech(frame, sr)
+        if speech and callable(self.on_speech):
+            self.on_speech(time.monotonic())
         if not self._active and speech:
             self._active = [self._short_segment, self._pre_roll, frame]
             self._active_frames = sum(len(x) for x in self._active)

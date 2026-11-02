@@ -6,7 +6,7 @@ Native macOS code is outside this change.
 | Phase | Current evidence | Remaining work |
 |---|---|---|
 | P0 evaluation | Shared desktop replay, WER/CER/chrF and bilingual metrics, latency/RAM/cost reports, cache-only socket-blocked run; see P0_BASELINE.md | Cohere hardware measurements after runtime upgrade and gated access. Saudi meeting set waived by owner; those accuracy targets are unverified. |
-| P1 local quality | Bilingual pipeline wired into runtime and GUI: pair LID, pass-through, sentence assembly, glossary/protection, cancellation, byte-preserving migration, hallucination guards, VAD endpointing, unbounded speech queue/lag, four-beam MT and hardware-aware faster-whisper. Verified Opus pair/pivot resolver and Transformers 5 adapter; VAD-gated Cohere adapter, buffered voice output, actual Windows bidi preview and screenshot fixture. | Finish Cohere model setup/Terms editor, TranslateGemma, code-switch fallback model, first-run benchmark and remaining end-to-end/latency checks. Update evaluation replay for assembled bilingual rows. Cohere weights still need authorization before speed/accuracy measurement. |
+| P1 local quality | Bilingual runtime/GUI, pair LID and pass-through, sentence assembly, glossary/protection/Terms editor, byte-preserving migration, hallucination guards, VAD endpointing, unbounded speech queue/lag, four-beam MT, hardware-aware faster-whisper, verified Opus pairs/pivots and Transformers 5 adapter. Cohere consent/key/download UI and managed code-switch fallback with a matching offline tokenizer. Actual Windows bidi, Terms and model-setup previews inspected. 135 tests pass. | TranslateGemma, first-run benchmark and remaining end-to-end/latency checks. Update evaluation replay for assembled bilingual rows. Exercise real bilingual audio through the new routing path. Cohere weights still need authorization before speed/accuracy measurement. |
 | P2 provider infrastructure | Engine contracts, pure usage-cost calculation and Credential Manager-only key store | Provider fallback, durable history/caps, settings/test flows and engine chip. |
 | P3 cloud providers | Not implemented yet | Verified adapters, request tests, configured-provider end-to-end checks and optional transcript refinement. |
 | P4 capped booster | No provider selected, enabled or charged | Thin evaluation adapters, owner-approved paid bake-off, measured winner, streaming/reconnect/budget tests. Gemini preview remains opt-in. |
@@ -51,3 +51,20 @@ shapes Arabic before explicit bidi ordering, leaves stored strings untouched,
 and right-aligns Arabic-matrix rows. See `tests/fixtures/bidi/` for the captured
 reference and verification limits. The installed app has not been replaced by
 this development branch yet.
+
+The code-switch CT2 repository exists but does not ship tokenizer.json. The
+source model's tokenizer was checked against its vocabulary: all 51,865 IDs
+match. Managed downloads obtain only inference files and that tokenizer; an
+offline loader refuses an incomplete/mismatched cache instead of fetching a
+tokenizer implicitly. Cached fallback order is Cohere Arabic → code-switch
+CT2 → selected stock Whisper; cloud fallback is still pending P2/P3.
+
+Empty recognition now restores Listening with a rate-limited hint. Speak capture
+is retained while buffered speech plays. The sentence timeout uses capture
+speech activity/end time, avoiding an extra 1.5s delay after slow ASR. More
+complete streaming/player lifecycle verification remains required: inspect
+Stop/restart queue handling before the final Speak end-to-end test.
+
+Development PRs: P0 <https://github.com/tanzir71/translito/pull/5>; P1 stacked on
+P0 <https://github.com/tanzir71/translito/pull/6>. Both remain drafts. No quality
+installer or production-site update has been published yet.

@@ -3,6 +3,7 @@ from pathlib import Path
 import threading
 
 from engines.mt_local import LocalOpusPipeline
+from engines.asr_codeswitch import CODESWITCH_REPO, prepared_codeswitch_directory, prepare_codeswitch_model
 
 
 FAST_WHISPER_MODELS = {
@@ -12,6 +13,7 @@ FAST_WHISPER_MODELS = {
     "openai/whisper-medium": "medium",
     "openai/whisper-large-v3": "large-v3",
     "openai/whisper-large-v3-turbo": "large-v3-turbo",
+    CODESWITCH_REPO: CODESWITCH_REPO,
 }
 
 
@@ -19,6 +21,8 @@ def fast_whisper_repo(alias):
     # faster-whisper's turbo weights are not hosted under Systran. Use the
     # upstream map from the pinned package, including future corrected aliases.
     from faster_whisper.utils import _MODELS
+    if alias == CODESWITCH_REPO:
+        return alias
     if alias not in _MODELS:
         raise ValueError(f"Unsupported faster-whisper model: {alias}")
     return _MODELS[alias]
@@ -82,7 +86,7 @@ class FastWhisperASR:
             value, detected, getattr(info, "language_probability", None),
             language_tag(value, acoustic_language=detected), latin_ratio(value),
             sum(scores) / len(scores) if scores else None, max(silence) if silence else None,
-            len(audio) / 16000, "faster-whisper")
+            len(audio) / 16000, getattr(self, "provider", "faster-whisper"))
         return value
 
 
@@ -169,6 +173,12 @@ class ModelLoadManager:
         _emit(on_event, "status", "Loading models")
         fast_model = FAST_WHISPER_MODELS.get(whisper_model)
         fast_model_path = _local_fast_whisper_model(fast_model) if fast_model else None
+        if whisper_model == CODESWITCH_REPO:
+            fast_model_path = prepared_codeswitch_directory()
+            if fast_model_path is None:
+                if offline_only:
+                    raise FileNotFoundError("Download the Arabic code-switch fallback before using it offline.")
+                fast_model_path = prepare_codeswitch_model(on_event=on_event)
         if not offline_only:
             if fast_model_path is None:
                 whisper_repo = fast_whisper_repo(fast_model) if fast_model else whisper_model
@@ -202,6 +212,8 @@ class ModelLoadManager:
                     local_files_only=offline_only,
                 )
             )
+            if whisper_model == CODESWITCH_REPO:
+                asr.provider = "arabic-codeswitch-ct2"
         else:
             asr_kwargs = {"model": whisper_model, "device": torch_device}
             if torch_dtype is not None:
@@ -230,7 +242,8 @@ class ModelLoadManager:
         )
 
 
-def _download_repo_with_progress(repo_id, label, offset, span, on_event, *, token=False, cache_dir=None):
+def _download_repo_with_progress(repo_id, label, offset, span, on_event, *, token=False, cache_dir=None,
+                                 local_dir=None, allow_patterns=None):
     try:
         from huggingface_hub import snapshot_download
         from tqdm.auto import tqdm
@@ -255,9 +268,11 @@ def _download_repo_with_progress(repo_id, label, offset, span, on_event, *, toke
             "model_progress",
             {"phase": f"Downloading {label}", "fraction": offset},
         )
-        snapshot_download(repo_id=repo_id, tqdm_class=ProgressTqdm, token=token, cache_dir=cache_dir)
+        snapshot_download(repo_id=repo_id, tqdm_class=ProgressTqdm, token=token, cache_dir=cache_dir,
+                          local_dir=local_dir, allow_patterns=allow_patterns)
     except TypeError:
-        snapshot_download(repo_id=repo_id, token=token, cache_dir=cache_dir)
+        snapshot_download(repo_id=repo_id, token=token, cache_dir=cache_dir,
+                          local_dir=local_dir, allow_patterns=allow_patterns)
     except Exception:
         raise
 
