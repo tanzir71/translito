@@ -23,7 +23,15 @@ The Windows GUI now includes Speak Mode and the native macOS parity work:
 - **Open at login**: the Windows toggle writes the app command to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
 - **Installer assets**: `installer/` contains PyInstaller and Inno Setup files for a one-dir app installer.
 
-VB-Audio Virtual Cable is donationware and is not bundled. Download it from https://vb-audio.com/Cable/.
+The Windows quality-development branch bundles the unmodified official VB-CABLE
+package as an **optional, unchecked** installer component. The app's Speak setup
+also offers explicit driver-install consent, a local routing test, and meeting-app
+guides. Listen Mode needs no virtual cable. VB-CABLE is **donationware by
+[VB-Audio](https://vb-audio.com/Cable/)**; users can
+[donate or review licensing](https://vb-audio.com/Services/licensing.htm).
+Organizations whose users cannot see or pay for VB-CABLE need the appropriate
+VB-Audio license. See [virtual-mic setup and verification](docs/quality/VIRTUAL_MIC.md).
+The currently linked published installer predates this quality branch.
 
 ## Features
 

@@ -1,0 +1,12 @@
+TranslitoLoopback.dll is compiled from native_windows/process_loopback.cpp.
+Its source and binary SHA-256 values are recorded in process_loopback.json.
+
+The activation API setup follows Microsoft's Windows-classic-samples
+ApplicationLoopback sample, distributed under the MIT license.
+Copyright (c) Microsoft Corporation.
+The complete notice is included in Microsoft-sample-LICENSE.txt.
+Source reference:
+https://github.com/microsoft/Windows-classic-samples/tree/main/Samples/ApplicationLoopback
+
+The bridge passes captured PCM in memory to Translito; it writes no audio file,
+installs no driver and changes no endpoint or Windows audio policy.

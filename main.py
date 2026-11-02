@@ -500,6 +500,11 @@ class ArabicAudioTranscriber:
                     f"No speech detected from '{device_name}'. Check the mic and "
                     "Windows microphone privacy settings."
                 )
+            elif getattr(self.selected_device, "is_process_loopback", False):
+                hint = (
+                    f"No audio from '{device_name}'. Start playback in that app, "
+                    "or refresh and select it again if it restarted. All apps excludes Translito's own audio."
+                )
             else:
                 loopback_hint = ""
                 if getattr(self.selected_device, "isloopback", False):

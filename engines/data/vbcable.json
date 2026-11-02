@@ -1,0 +1,11 @@
+{
+  "filename": "VBCABLE_Driver_Pack45.zip",
+  "sha256": "b950e39f01af1d04ea623c8f6d8eb9b6ea5c477c637295fabf20631c85116bfb",
+  "size": 1318877,
+  "setup": "VBCABLE_Setup_x64.exe",
+  "setup_sha256": "734c35dfa6d98f48782a451633ceb471166ec70d60482fd89a1123d0ee3c4f41",
+  "source": "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip",
+  "product": "https://vb-audio.com/Cable/",
+  "donate": "https://vb-audio.com/Services/licensing.htm",
+  "verified_utc": "2026-11-02"
+}

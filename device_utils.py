@@ -120,8 +120,11 @@ def query_input_devices(include_loopback=True):
     ]
 
 
-def query_output_devices():
-    refresh_portaudio_devices()
+def query_output_devices(*, refresh=False):
+    # Resetting PortAudio closes this process's open streams. Device lookup
+    # during playback must not reset the first output when opening a monitor.
+    if refresh:
+        refresh_portaudio_devices()
     try:
         import sounddevice as sd
 

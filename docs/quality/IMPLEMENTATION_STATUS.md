@@ -10,7 +10,7 @@ Native macOS code is outside this change.
 | P2 provider infrastructure | Typed provider failures, ordered ASR/MT fallback, enabled/Test fingerprint gates, Credential Manager-only keys, Free/Offline/Custom profiles, stage-aware amber engine chip, additive migration, durable UTC-month usage/history and reserve-before-call caps. P3 adds provider cards, actual-usage settlement, restart-safe rolling quotas and Advanced one-way routing. | Live-account verification needs configured, tested provider keys. |
 | P3 cloud providers | Registered Azure F0, DeepL Free, Google Basic, opt-in Gemini Flash-Lite, Cohere trial and Groq adapters. Shared pair LID/postprocessing; ready/fast local Cohere → Cohere API → Groq → local Whisper. Explicit Test/usage/privacy cards inspected in Windows preview. Gemini/Cohere trial reuse consent starts unchecked. Mock HTTP contracts, simulated-hour metering, setup failure gates, cross-process quotas and cancellation covered. Full suite: 224 passed. | No live key or cloud accuracy/latency result. The simulated Azure hour checks accounting only. Private Saudi set waived by owner; Azure-vs-local chrF acceptance remains unverified. Optional transcript refinement deferred. |
 | P4 capped booster | Thin eval wire contracts for three paid candidates. Opt-in Gemini preview profile/Test card and desktop capture → row → PCM path, delayed target retention, English pass-through, original-voice/mute/voice policy, term verification with Free MT/TTS fallback, retained-audio recovery, reconnect and Stop. Pinned SDK wire checked with fake WebSocket; 266 full-suite tests pass. No real inference or paid call. | Paid eval transport/accounting runner, approved accounts/spend, measured winner. Gemini real timing/quality and 30-minute physical Speak acceptance unverified. Optional dubbed Listen output remains deferred. |
-| P5 virtual mic/capture | Not implemented yet | Pinned attributed bundle, consent/elevation flow, self-test, guided setup and process loopback. Browser extension is optional and currently deferred. |
+| P5 virtual mic/capture | Official unmodified Pack45 ZIP pinned in three consumers; valid vendor setup signature inspected. Optional unchecked Inno task compiles; app consent/elevation/poll/autoselect flow, local tone self-test and pre-start failure gate, three-step Speak-only card and six meeting guides. PortAudio lookup/reset and dual-route recovery fixed. In-memory x64 process-tree capture with active-app picker, PID-reuse guard, retained silent selection and self-excluding All apps. Native Windows own-tone INCLUDE/EXCLUDE smoke passed; 285 tests pass. | Physical driver install/reboot/cable-tone verification needs explicit owner action. Real meeting/browser-child capture and rebuilt packaging acceptance remain unverified. Browser extension/default-communications switching are optional and deferred. |
 | P6 release | No quality release built or published | Docs/privacy, version bump, rebuilt installer, installed verification and download-site update after the implementation gates. |
 
 Decisions pending from the owner: recommended bilingual defaults; VB-CABLE
@@ -18,6 +18,27 @@ redistribution; optional browser extension; approved test spend/monthly booster
 cap and configured provider accounts. Until explicit spending approval, the
 paid cap is $0 and no paid provider is contacted. Missing data, credentials or
 model access are not replaced with fabricated acceptance results.
+
+The owner waived the private Saudi evaluation clips ("don't have, skip"). Public
+MSA/synthetic reports remain smoke evidence; they do not establish Saudi accuracy.
+
+P5 setup is on `codex/p5-virtual-mic-capture`. The vendor archive is 1,318,877
+bytes, SHA-256 `b950e39f01af1d04ea623c8f6d8eb9b6ea5c477c637295fabf20631c85116bfb`.
+No driver was launched, no Windows setting changed, and no physical cable test was run.
+The Inno compile check used a README-only fixture and is **not** a deliverable
+installer. A Windows UI preview verified the Speak-only card and Zoom guide;
+preview actions do not access drivers, capture audio, write config or open system
+settings. See `VIRTUAL_MIC.md` for checks and limits.
+
+Process capture uses the Microsoft API directly through a 130 KB bridge built
+from checked-in C++ source with MSVC and the static CRT. DLL/source SHA-256 pins,
+ABI, Windows build gate and Microsoft sample notice are bundled. It does not use
+the file-output-only process-audio-capture package. A native Windows own-process
+tone test measured max RMS 0.021198729 in INCLUDE and 0.000014638 in EXCLUDE;
+active-session enumeration identified that tone PID. No real microphone or
+original-audio file was used, and no cloud call was made. Real meeting-app and
+browser child-tree behavior still needs acceptance. The full suite passed 285
+tests, including GUI pre-start failure and silent-app retention regression tests.
 
 Each phase is developed as its own PR. Existing transcripts and user settings
 are preserved. No production engine, capture behavior, model default or paid
