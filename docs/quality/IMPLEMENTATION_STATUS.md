@@ -5,7 +5,7 @@ Native macOS code is outside this change.
 
 | Phase | Current evidence | Remaining work |
 |---|---|---|
-| P0 evaluation | Shared desktop replay, WER/CER/chrF and bilingual metrics, latency/RAM/cost reports, cache-only socket-blocked run; see P0_BASELINE.md | Cohere hardware measurements after runtime upgrade and gated access. Saudi meeting set waived by owner; those accuracy targets are unverified. |
+| P0 evaluation | Shared desktop replay, WER/CER/chrF and bilingual metrics, latency/RAM/cost reports, cache-only socket-blocked run; see P0_BASELINE.md. Hardware protocol v2 uses the desktop Cohere/Whisper/LID adapters and selected caches, VAD-bounded segments, retained predictions, segmented-audio headroom and separate gated-download confirmation; see LOCAL_HARDWARE.md. | Real Cohere hardware measurements require gated model access. Saudi meeting set waived by owner; those accuracy targets are unverified. |
 | P1 local quality | Bilingual runtime/GUI, pair LID/pass-through, assembly, glossary/protection/Terms editor, migration, hallucination guards, VAD endpointing, retained speech/lag, four-beam MT, hardware-aware faster-whisper and verified Opus/pivots. Cohere/CT2 setup plus optional pinned TranslateGemma GGUF with consent, context, cancellation and Lite fallback. First-run 8-second CPU speed check. Replay now exercises the bilingual controller; public/synthetic audio completes with sockets blocked. 149 tests pass. | Real Cohere/Gemma speed/accuracy checks require owner model access/terms. Fallback latency misses 4s; Saudi accuracy is unverified. Free cloud routing and its latency checks remain P2/P3. |
 | P2 provider infrastructure | Typed provider failures, ordered ASR/MT fallback, enabled/Test fingerprint gates, Credential Manager-only keys, Free/Offline/Custom profiles, stage-aware amber engine chip, additive migration, durable UTC-month usage/history and reserve-before-call caps. P3 adds provider cards, actual-usage settlement, restart-safe rolling quotas and Advanced one-way routing. | Live-account verification needs configured, tested provider keys. |
 | P3 cloud providers | Registered Azure F0, DeepL Free, Google Basic, opt-in Gemini Flash-Lite, Cohere trial and Groq adapters. Shared pair LID/postprocessing; ready/fast local Cohere → Cohere API → Groq → local Whisper. Explicit Test/usage/privacy cards inspected in Windows preview. Gemini/Cohere trial reuse consent starts unchecked. Mock HTTP contracts, simulated-hour metering, setup failure gates, cross-process quotas and cancellation covered. Full suite: 224 passed. | No live key or cloud accuracy/latency result. The simulated Azure hour checks accounting only. Private Saudi set waived by owner; Azure-vs-local chrF acceptance remains unverified. Optional transcript refinement deferred. |
@@ -21,6 +21,23 @@ model access are not replaced with fabricated acceptance results.
 
 The owner waived the private Saudi evaluation clips ("don't have, skip"). Public
 MSA/synthetic reports remain smoke evidence; they do not establish Saudi accuracy.
+
+The local-hardware follow-up passed **345 tests** (16 new). It replaces the
+old independent Cohere/Turbo benchmark decoders with the desktop adapters,
+honors configured caches, separates gated-download confirmation from generic
+download permission, segments long audio through the real VAD path, and prevents
+silence/empty/LID/failed-partial results from passing the ASR speed gate. Default
+probes block sockets/DNS and restore their environment; reports retain earlier
+predictions if a later segment fails. See LOCAL_HARDWARE.md for scope and limits.
+
+Public V2 hardware probes at `5c52768` measured Small segment RTF 0.347,
+Turbo 1.074 and base LID-only 0.070. All three Cohere precisions remained
+unavailable without cached/gated access. A full Offline smoke replay produced
+one source/target row with no pipeline errors, but its 6.888-second speech-end
+latency missed the four-second target. No Saudi or code-switching acceptance
+follows from this one public MSA clip. The modest MT thread-probe benefit did
+not justify changing production defaults. Raw local artifact paths and the
+measurement protocol are recorded in LOCAL_HARDWARE.md.
 
 The P4 evaluation-runner follow-up passed the full suite: **308 tests**. Its
 22 new synthetic tests cover paid/upload gates, changed credentials, full

@@ -142,7 +142,8 @@ def metadata():
     dirty = bool(subprocess.run(["git", "diff", "--name-only"], cwd=ROOT,
                                capture_output=True, text=True, check=True).stdout.strip())
     versions = {}
-    for name in ("torch", "transformers", "faster-whisper", "jiwer", "sacrebleu", "psutil", "websockets"):
+    for name in ("torch", "transformers", "faster-whisper", "ctranslate2", "silero-vad", "numpy",
+                 "jiwer", "sacrebleu", "psutil", "websockets"):
         try:
             versions[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
@@ -227,6 +228,7 @@ def write_reports(output, results, meta):
 
 
 def parser():
+    from tools.eval.bench import DEFAULT_RECOGNIZERS, RECOGNIZERS
     result = argparse.ArgumentParser(description=__doc__)
     inputs = result.add_mutually_exclusive_group(required=True)
     inputs.add_argument("--input", type=Path, help="Folder containing WAVs and .ref.* sidecars")
@@ -248,7 +250,10 @@ def parser():
                         help="Desktop MT chain for Speechmatics/ElevenLabs; free_cloud uses saved enabled/Test checks")
     result.add_argument("--output", type=Path, default=ROOT / "tools/eval/results")
     result.add_argument("--bench", action="store_true", help="Benchmark local recognizers only")
-    result.add_argument("--recognizers", default="cohere-fp32,cohere-bf16,cohere-int8,turbo-int8,base-lid")
+    result.add_argument("--recognizers", default=DEFAULT_RECOGNIZERS,
+                        help="Comma-separated local probes: " + ",".join(RECOGNIZERS))
+    result.add_argument("--cohere-terms-accepted", action="store_true",
+                        help="Confirm you already accepted Cohere's model conditions; with --allow-downloads, use the saved Vault read token")
     result.add_argument("--worker", choices=["eval", "bench"], help=argparse.SUPPRESS)
     result.add_argument("--result-file", type=Path, help=argparse.SUPPRESS)
     return result
@@ -261,6 +266,12 @@ def main(argv=None):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     args = parser().parse_args(argv)
+    if args.bench:
+        from tools.eval.bench import RECOGNIZERS
+        if set(args.recognizers.split(",")) - set(RECOGNIZERS):
+            raise ValueError("Unknown recognizer; use --help to list supported benchmark names")
+    elif args.cohere_terms_accepted:
+        raise ValueError("--cohere-terms-accepted applies only to the local --bench workflow")
     paid_profiles = set(args.profiles.split(",")) & set(STREAMING_PROFILES)
     for profile in paid_profiles:
         PaidPolicy.read(args.paid_policy, profile, allow_cloud=args.allow_cloud, allow_paid=args.allow_paid)
@@ -311,6 +322,8 @@ def main(argv=None):
         cmd += ["--manifest", str(args.manifest)] if args.manifest else ["--input", str(args.input)]
         if args.allow_downloads:
             cmd.append("--allow-downloads")
+        if args.bench and args.cohere_terms_accepted and name.startswith("cohere-"):
+            cmd.append("--cohere-terms-accepted")
         if args.allow_cloud and name == "free_cloud":
             cmd.append("--allow-cloud")
         if name in STREAMING_PROFILES:

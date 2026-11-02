@@ -45,8 +45,11 @@ Peak process-tree RSS was about 1.06 GiB for both runs.
 The bench used five CPU threads (`physical cores - 1`). Turbo misses the live
 headroom target on this sample. Cohere performance remains unknown: its gated
 weights and Transformers 5.4+ runtime must be made available before comparing.
-The current release pins Transformers 4.57.6; upgrading also requires testing
-the Marian MT path rather than assuming pipeline compatibility.
+At this P0 baseline commit, the release pinned Transformers 4.57.6; upgrading
+also required testing the Marian MT path rather than assuming compatibility.
+Windows 1.1.0 subsequently upgraded to Transformers 5.22.1. The corrected
+shared-adapter/cache-aware probe protocol is described in `LOCAL_HARDWARE.md`;
+it does not retroactively change these historical measurements.
 
 Validation: all 36 tests passed, including actual desktop event replay with
 fake models, WAV decoding, missing-reference validation, bilingual metric
