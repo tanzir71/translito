@@ -80,6 +80,13 @@ class LocalConversationRecognizer:
                           "Open Settings → Set up Saudi Arabic recognition.")
             self._fallback_hint = True
 
+    @property
+    def fallback_active(self):
+        return self.other_language == "ar" and not self._cohere_ready
+
+    def reset(self):
+        self.lid.previous = None
+
     def transcribe(self, audio, sample_rate, *, hint_language=None, prompt=None, stop_event=None):
         decision = self.lid.detect(audio)
 

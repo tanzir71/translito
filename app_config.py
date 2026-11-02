@@ -175,11 +175,18 @@ def migrate_conversation_config(path=None):
     conversation = load_conversation_config(path)
     defaults = {key: str(int(value)) if isinstance(value, bool) else str(value)
                 for key, value in asdict(conversation).items()}
+    append_missing_settings("CONVERSATION", defaults, path)
+    return conversation
+
+
+def append_missing_settings(section, defaults, path=None):
+    """Add migration defaults without rewriting any existing byte or value."""
+    config_path = _path(path)
     existing = read_config(path)
     missing = {key: value for key, value in defaults.items()
-               if not existing.has_option("CONVERSATION", key)}
+               if not existing.has_option(section, key)}
     if not missing:
-        return conversation
+        return
     candidates = (config_path,) if config_path.exists() else (
         _legacy_config_paths() if config_path == CONFIG_FILE else ())
     original = next((p.read_bytes() for p in candidates if p.is_file()), b"")
@@ -188,10 +195,10 @@ def migrate_conversation_config(path=None):
     addition = "".join(f"{key} = {value}{newline}" for key, value in missing.items()).encode("utf-8")
     headers = list(re.finditer(rb"(?m)^(?:\xef\xbb\xbf)?\[([^\]\r\n]+)\][^\r\n]*(?:\r?\n|$)", original))
     section_index = next((i for i, match in enumerate(headers)
-                          if match[1] == b"CONVERSATION"), None)
+                          if match[1] == section.encode("utf-8")), None)
     if section_index is None:
         prefix = original + (newline.encode() if original and not original.endswith(b"\n") else b"")
-        updated = prefix + f"{newline}[CONVERSATION]{newline}".encode() + addition
+        updated = prefix + f"{newline}[{section}]{newline}".encode() + addition
     else:
         end = headers[section_index + 1].start() if section_index + 1 < len(headers) else len(original)
         prefix = original[:end]
@@ -210,7 +217,6 @@ def migrate_conversation_config(path=None):
     finally:
         if temp_path:
             temp_path.unlink(missing_ok=True)
-    return conversation
 
 
 def save_conversation_config(conversation, path=None):

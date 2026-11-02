@@ -177,6 +177,7 @@ class ArabicAudioTranscriber:
         translator_engine=None,
         glossary=None,
         asr_preset=None,
+        engine_settings=None,
     ):
         print("\nInitializing Translito...")
 
@@ -305,6 +306,11 @@ class ArabicAudioTranscriber:
                 on_hint=lambda text: self.emit("hint", text))
             if hasattr(translator_engine, "models") and self.translation_model_name.startswith("Helsinki-NLP/"):
                 translator_engine.models[self.translation_model_name] = self.translator
+            from engines.registry import build_session_routers
+            from engines.settings import load_engine_settings
+            recognizer, translator_engine = build_session_routers(
+                recognizer, translator_engine, engine_settings or load_engine_settings(),
+                offline_only=self.offline_only, on_event=self.emit)
             self.conversation_pipeline = ConversationPipeline(
                 recognizer, translator_engine, conversation, mode=self.mode, emit=self.emit,
                 transcripts=self.transcripts, stop_event=self._stop_event,

@@ -92,12 +92,14 @@ class DesktopRuntime:
         if profile == "offline" and "en" in {source, target} and source != target:
             from engines.router import Conversation
             from engines.glossary import Glossary
+            from engines.settings import EngineSettings
             other = source if source != "en" else target
             options.setdefault("conversation", Conversation(other_language=other, my_language=target,
                                                             audience_language=other))
             # Read the current terms/defaults without creating or merging files
             # in the user's profile. Replay never changes app settings/data.
             options.setdefault("glossary", Glossary(read_only=True))
+            options.setdefault("engine_settings", EngineSettings(profile="offline"))
         self.runtime = runtime_factory(
             interactive=False, asr_language=source, target_language=target,
             translation_model=f"Helsinki-NLP/opus-mt-{source}-{target}",
@@ -166,7 +168,9 @@ class DesktopRuntime:
         if pipeline is not None:
             pipeline.context.clear()
             pipeline.last_speech_at = None
-            if hasattr(pipeline.recognizer, "lid"):
+            if callable(getattr(pipeline.recognizer, "reset", None)):
+                pipeline.recognizer.reset()
+            elif hasattr(pipeline.recognizer, "lid"):
                 pipeline.recognizer.lid.previous = None
         activity_index = 0
 
