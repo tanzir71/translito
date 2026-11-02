@@ -150,7 +150,27 @@ def test_replay_runs_desktop_events_without_capture_or_config_write(monkeypatch)
 
 def test_unknown_profile_is_never_silently_evaluated_as_local():
     with pytest.raises(ValueError, match="not implemented"):
-        DesktopRuntime("free_cloud")
+        DesktopRuntime("unimplemented")
+
+
+def test_model_download_permission_never_implies_cloud_upload_consent():
+    with pytest.raises(ValueError, match="explicit --allow-cloud"):
+        DesktopRuntime("free_cloud", allow_network=True)
+
+
+@pytest.mark.parametrize("profile", ["offline", "baseline"])
+def test_download_enabled_replay_still_forces_private_provider_settings(monkeypatch, profile):
+    import os
+    from unittest.mock import Mock
+    captured = {}
+    def factory(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(save_transcript=Mock(), translate_text=Mock(), conversation_pipeline=None)
+    for name in ("OFFLINE_ONLY", "HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "WHISPER_MODEL"):
+        monkeypatch.setenv(name, "1")
+    DesktopRuntime(profile, allow_network=True, runtime_factory=factory)
+    assert captured["engine_settings"].profile == "offline"
+    assert os.environ["OFFLINE_ONLY"] == "0"  # Model downloads explicitly allowed.
 
 
 def test_offline_replay_uses_bilingual_assembly_and_english_no_mt(monkeypatch):

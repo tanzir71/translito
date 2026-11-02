@@ -86,7 +86,7 @@ def evaluate_profile(clips, profile, args, runtime_factory=DesktopRuntime):
         load_started = time.perf_counter()
         runtime = runtime_factory(
             profile, source=args.source, target=args.target,
-            whisper_model=args.whisper_model, allow_network=args.allow_downloads,
+            whisper_model=args.whisper_model, allow_network=args.allow_downloads, allow_cloud=args.allow_cloud,
             legacy_fixed_window=args.legacy_fixed_window,
         )
         load_seconds = time.perf_counter() - load_started
@@ -199,13 +199,15 @@ def parser():
     inputs = result.add_mutually_exclusive_group(required=True)
     inputs.add_argument("--input", type=Path, help="Folder containing WAVs and .ref.* sidecars")
     inputs.add_argument("--manifest", type=Path, help="Private sets.local.json with a clips list")
-    result.add_argument("--profiles", default="baseline", help="Comma-separated: baseline,offline")
+    result.add_argument("--profiles", default="baseline", help="Comma-separated: baseline,offline,free_cloud")
     result.add_argument("--source", default="ar")
     result.add_argument("--target", default="en")
     result.add_argument("--whisper-model", default="openai/whisper-small")
     result.add_argument("--legacy-fixed-window", action="store_true")
     result.add_argument("--allow-downloads", action="store_true",
                         help="Allow model downloads, never cloud audio/text uploads")
+    result.add_argument("--allow-cloud", action="store_true",
+                        help="Explicitly allow free_cloud to upload the evaluation clips/text to enabled, tested providers")
     result.add_argument("--output", type=Path, default=ROOT / "tools/eval/results")
     result.add_argument("--bench", action="store_true", help="Benchmark local recognizers only")
     result.add_argument("--recognizers", default="cohere-fp32,cohere-bf16,cohere-int8,turbo-int8,base-lid")
@@ -222,7 +224,7 @@ def main(argv=None):
             stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     args = parser().parse_args(argv)
     if args.worker:
-        with nullcontext() if args.allow_downloads else block_network():
+        with nullcontext() if args.allow_downloads or (args.allow_cloud and args.profiles == "free_cloud") else block_network():
             if args.worker == "bench":
                 from tools.eval.bench import benchmark
                 result = benchmark(args)
@@ -235,9 +237,11 @@ def main(argv=None):
     # model load time and peak memory. Existing runs are never overwritten.
     if not args.bench:
         find_clips(args.input, args.manifest)
-        unsupported = set(args.profiles.split(",")) - {"baseline", "offline"}
+        unsupported = set(args.profiles.split(",")) - {"baseline", "offline", "free_cloud"}
         if unsupported:
             raise ValueError(f"Profiles not yet implemented: {', '.join(sorted(unsupported))}")
+        if "free_cloud" in args.profiles.split(",") and not args.allow_cloud:
+            raise ValueError("free_cloud requires explicit --allow-cloud consent to upload evaluation audio/text")
     output = args.output / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     output.mkdir(parents=True, exist_ok=False)
     meta = metadata()
@@ -253,6 +257,8 @@ def main(argv=None):
         cmd += ["--manifest", str(args.manifest)] if args.manifest else ["--input", str(args.input)]
         if args.allow_downloads:
             cmd.append("--allow-downloads")
+        if args.allow_cloud and name == "free_cloud":
+            cmd.append("--allow-cloud")
         if args.legacy_fixed_window:
             cmd.append("--legacy-fixed-window")
         subprocess.run(cmd, check=True, cwd=ROOT)

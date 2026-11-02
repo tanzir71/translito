@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 import subprocess
@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from engines.usage import (Allowance, BudgetExceeded, MonthlyQuota, QuotaExceeded,
+from engines.usage import (Allowance, BudgetExceeded, MonthlyQuota, RollingQuota, QuotaExceeded,
                             Rate, Units, UsageLedger, UsageUnavailable)
 
 
@@ -39,6 +39,28 @@ def test_pending_requests_survive_restart_and_known_unbilled_release_is_idempote
     assert path.read_bytes() == original
     assert restarted.snapshot()["providers"]["paid"]["characters"] == 0
     assert len(json.loads(path.read_text())["events"]) == 2
+
+
+def test_reported_usage_reduces_reservation_but_retains_the_original_record(tmp_path):
+    ledger = UsageLedger(tmp_path / "usage.json")
+    token = ledger.reserve("mt", Units(characters=100_000), rate=RATE, monthly_cap=1, total_monthly_cap=1)
+    ledger.settle(token, actual=Units(characters=40_000))
+    data = json.loads(ledger.path.read_text())
+    assert data["reservations"][token.id]["units"]["characters"] == 100_000
+    assert data["reservations"][token.id]["actual_units"]["characters"] == 40_000
+    assert ledger.snapshot()["providers"]["mt"]["characters"] == 40_000
+    assert Decimal(ledger.snapshot()["providers"]["mt"]["estimated_usd"]) == Decimal(".4")
+    ledger.reserve("mt", Units(characters=60_000), rate=RATE, monthly_cap=1, total_monthly_cap=1)
+
+
+def test_usage_above_the_reserved_bound_stays_pending_and_blocks_more_spend(tmp_path):
+    ledger = UsageLedger(tmp_path / "usage.json")
+    token = ledger.reserve("mt", Units(characters=100_000), rate=RATE, monthly_cap=1, total_monthly_cap=1)
+    with pytest.raises(UsageUnavailable):
+        ledger.settle(token, actual=Units(characters=100_001))
+    with pytest.raises(BudgetExceeded):
+        ledger.reserve("mt", Units(characters=1), rate=RATE, monthly_cap=1, total_monthly_cap=1)
+    assert not json.loads(ledger.path.read_text())["reservations"][token.id]["settled"]
 
 
 def test_parallel_requests_cannot_overshoot_a_shared_cap(tmp_path):
@@ -87,6 +109,47 @@ def test_calendar_rollover_preserves_history_and_settles_original_month(tmp_path
     assert ledger.snapshot("2026-11")["providers"]["service"]["characters"] == 20
     assert ledger.snapshot()["providers"]["service"]["characters"] == 30
     assert len(json.loads(ledger.path.read_text())["events"]) == 3
+
+
+def test_rolling_quota_survives_restart_and_month_boundary(tmp_path):
+    now = [datetime(2026, 11, 30, 23, 59, 40, tzinfo=timezone.utc)]
+    path = tmp_path / "usage.json"
+    options = dict(windows=(RollingQuota(60, requests=2, audio_seconds=30),))
+    first = UsageLedger(path, clock=lambda: now[0]).reserve("asr", Units(audio_seconds=15), **options)
+    now[0] += timedelta(seconds=21)
+    restarted = UsageLedger(path, clock=lambda: now[0])
+    second = restarted.reserve("asr", Units(audio_seconds=15), **options)
+    with pytest.raises(QuotaExceeded):
+        restarted.reserve("asr", Units(audio_seconds=1), **options)
+    restarted.settle(second, known_not_billed=True)
+    restarted.reserve("asr", Units(audio_seconds=15), **options)
+    restarted.settle(first, actual=Units(audio_seconds=10))
+    assert restarted.window_snapshot("asr", 60)["audio_seconds"] == 25
+    now[0] += timedelta(seconds=40)
+    assert restarted.window_snapshot("asr", 60)["audio_seconds"] == 15
+    restarted.reserve("asr", Units(audio_seconds=15), **options)
+    assert len(json.loads(path.read_text())["reservations"]) == 4
+
+
+def test_separate_processes_cannot_bypass_rolling_request_limit(tmp_path):
+    path = tmp_path / "usage.json"
+    code = """from engines.usage import *
+import sys
+try:
+ UsageLedger(sys.argv[1]).reserve('asr', Units(audio_seconds=15), windows=(RollingQuota(3600, requests=2),))
+ print('reserved')
+except QuotaExceeded:
+ print('quota')
+"""
+    processes = [subprocess.Popen([sys.executable, "-B", "-c", code, str(path)],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for _ in range(4)]
+    outputs = []
+    for process in processes:
+        out, err = process.communicate(timeout=30)
+        assert process.returncode == 0, err
+        outputs.append(out.strip())
+    assert outputs.count("reserved") == 2
+    assert outputs.count("quota") == 2
 
 
 def test_malformed_reservation_history_cannot_be_reset_or_bypassed(tmp_path):

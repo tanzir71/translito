@@ -85,14 +85,53 @@ def read_config(path=None):
 
 def write_config(config, path=None):
     config_path = _path(path)
+    candidates = (config_path,) if config_path.exists() else (
+        _legacy_config_paths() if config_path == CONFIG_FILE else ())
+    original = next((candidate.read_bytes() for candidate in candidates if candidate.is_file()), b"")
+    updated = original.decode("utf-8")
+    old = configparser.ConfigParser()
+    if original:
+        old.read_string(original.decode("utf-8-sig"))
+    newline = "\r\n" if "\r\n" in updated else "\n"
+    sections = [(config.default_section, config.defaults()), *config._sections.items()]
+    for section, values in sections:
+        for key, value in values.items():
+            value = str(value)
+            if any(c in key + section for c in "\r\n") or any(c in value for c in "\r\n"):
+                if old.has_option(section, key) and old.get(section, key, raw=True) == value:
+                    continue
+                raise ValueError("Multiline settings cannot be replaced; the existing config was preserved")
+            if old.has_option(section, key) and old.get(section, key, raw=True) == value:
+                continue
+            headers = list(re.finditer(r"(?m)^(?:\ufeff)?\[([^\]\r\n]+)\][^\r\n]*(?:\r?\n|$)", updated))
+            index = next((i for i, match in enumerate(headers) if match[1] == section), None)
+            if index is None:
+                if updated and not updated.endswith("\n"):
+                    updated += newline
+                updated += f"{newline}[{section}]{newline}{key} = {value}{newline}"
+                continue
+            start = headers[index].end()
+            end = headers[index + 1].start() if index + 1 < len(headers) else len(updated)
+            content = updated[start:end]
+            option = re.search(r"(?im)^([ \t]*" + re.escape(key) + r"[ \t]*[=:][ \t]*)([^\r\n]*)(\r?\n|$)", content)
+            if option is not None:
+                if old.has_option(section, key) and "\n" in old.get(section, key, raw=True):
+                    raise ValueError("Multiline settings cannot be replaced; the existing config was preserved")
+                content = content[:option.start(2)] + value + content[option.end(2):]
+            else:
+                content += (newline if content and not content.endswith("\n") else "") + f"{key} = {value}{newline}"
+            updated = updated[:start] + content + updated[end:]
+    encoded = updated.encode("utf-8")
+    if config_path.exists() and encoded == original:
+        return
     config_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = None
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=config_path.parent, delete=False
-        ) as handle:
+        with tempfile.NamedTemporaryFile(dir=config_path.parent, delete=False) as handle:
             temp_path = Path(handle.name)
-            config.write(handle)
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
         temp_path.replace(config_path)
     finally:
         if temp_path is not None:

@@ -7,8 +7,8 @@ Native macOS code is outside this change.
 |---|---|---|
 | P0 evaluation | Shared desktop replay, WER/CER/chrF and bilingual metrics, latency/RAM/cost reports, cache-only socket-blocked run; see P0_BASELINE.md | Cohere hardware measurements after runtime upgrade and gated access. Saudi meeting set waived by owner; those accuracy targets are unverified. |
 | P1 local quality | Bilingual runtime/GUI, pair LID/pass-through, assembly, glossary/protection/Terms editor, migration, hallucination guards, VAD endpointing, retained speech/lag, four-beam MT, hardware-aware faster-whisper and verified Opus/pivots. Cohere/CT2 setup plus optional pinned TranslateGemma GGUF with consent, context, cancellation and Lite fallback. First-run 8-second CPU speed check. Replay now exercises the bilingual controller; public/synthetic audio completes with sockets blocked. 149 tests pass. | Real Cohere/Gemma speed/accuracy checks require owner model access/terms. Fallback latency misses 4s; Saudi accuracy is unverified. Free cloud routing and its latency checks remain P2/P3. |
-| P2 provider infrastructure | Typed provider failures, ordered ASR/MT fallback, enabled/Test fingerprint gates, explicit pricing-policy gate, Credential Manager-only keys, Free/Offline/Custom profile selection, stage-aware amber engine chip, additive migration, durable UTC-month usage/history and reserve-before-call dollar caps. Pending reservations survive restarts; threads and separate processes share the cap. 175 tests pass. Profile section inspected in Windows preview. | Register cloud adapters and provider Test/usage cards alongside P3. One-way Advanced still uses its legacy local path; route it before exposing cloud there. |
-| P3 cloud providers | Not implemented yet | Verified adapters, request tests, configured-provider end-to-end checks and optional transcript refinement. |
+| P2 provider infrastructure | Typed provider failures, ordered ASR/MT fallback, enabled/Test fingerprint gates, Credential Manager-only keys, Free/Offline/Custom profiles, stage-aware amber engine chip, additive migration, durable UTC-month usage/history and reserve-before-call caps. P3 adds provider cards, actual-usage settlement, restart-safe rolling quotas and Advanced one-way routing. | Live-account verification needs configured, tested provider keys. |
+| P3 cloud providers | Registered Azure F0, DeepL Free, Google Basic, opt-in Gemini Flash-Lite, Cohere trial and Groq adapters. Shared pair LID/postprocessing; ready/fast local Cohere → Cohere API → Groq → local Whisper. Explicit Test/usage/privacy cards inspected in Windows preview. Gemini/Cohere trial reuse consent starts unchecked. Mock HTTP contracts, simulated-hour metering, setup failure gates, cross-process quotas and cancellation covered. Full suite: 224 passed. | No live key or cloud accuracy/latency result. The simulated Azure hour checks accounting only. Private Saudi set waived by owner; Azure-vs-local chrF acceptance remains unverified. Optional transcript refinement deferred. |
 | P4 capped booster | No provider selected, enabled or charged | Thin evaluation adapters, owner-approved paid bake-off, measured winner, streaming/reconnect/budget tests. Gemini preview remains opt-in. |
 | P5 virtual mic/capture | Not implemented yet | Pinned attributed bundle, consent/elevation flow, self-test, guided setup and process loopback. Browser extension is optional and currently deferred. |
 | P6 release | No quality release built or published | Docs/privacy, version bump, rebuilt installer, installed verification and download-site update after the implementation gates. |
@@ -57,7 +57,7 @@ source model's tokenizer was checked against its vocabulary: all 51,865 IDs
 match. Managed downloads obtain only inference files and that tokenizer; an
 offline loader refuses an incomplete/mismatched cache instead of fetching a
 tokenizer implicitly. Cached fallback order is Cohere Arabic → code-switch
-CT2 → selected stock Whisper; cloud fallback is still pending P2/P3.
+CT2 → selected stock Whisper; P3 adds configured cloud fallbacks before Whisper.
 
 Empty recognition now restores Listening with a rate-limited hint. Speak capture
 is retained while buffered speech plays. The sentence timeout uses capture
@@ -92,13 +92,15 @@ overall text scores are smoke evidence only. Local reports are in the quality
 build's eval-results directories 20261102T111144.292623Z and 20261102T111658.078609Z.
 
 Development PRs: P0 <https://github.com/tanzir71/translito/pull/5>; P1 stacked on
-P0 <https://github.com/tanzir71/translito/pull/6>. Both remain drafts. No quality
+P0 <https://github.com/tanzir71/translito/pull/6>; P2 stacked on P1
+<https://github.com/tanzir71/translito/pull/7>; P3 stacked on P2
+<https://github.com/tanzir71/translito/pull/8>. These remain drafts. No quality
 installer or production-site update has been published yet.
 
 P2 core is developed on `codex/p2-provider-routing`, stacked on P1. The bilingual
 controller now calls ASR/MT routers even for local-only sessions. Offline replay
 explicitly selects the private profile, so `--allow-downloads` cannot opt into
-cloud inference. No cloud factories are registered yet. Disabled or untested
+cloud inference. P3 now registers the free-provider contracts. Disabled or untested
 providers are never instantiated; a changed key, region, tier or training choice
 invalidates the Test fingerprint. Raw keys and meeting text are absent from
 usage/config/router-error records.
@@ -110,3 +112,37 @@ quota rejection releases the reservation without deleting history. Free requests
 still work after a paid cap is lowered to zero. The meter covers this app's
 requests, not other software sharing the same provider key. No ledger write has
 been made to the real user profile during these tests.
+
+P3 shares one pair-LID pass and the same language/script checks across local and
+cloud recognizers. A slow or failed local Cohere model yields to tested Cohere
+trial, then Groq, before the local Whisper fallback. Audio is VAD-gated mono WAV;
+local token buckets and durable rolling quotas bound requests. Groq's 10-second
+billing minimum is retained separately from actual audio duration. Advanced
+one-way mode also calls the provider routers. A tested cloud MT provider can
+handle a pair without a published Marian model; unavailable fallback translation
+keeps the recognized source visible with an error.
+
+Provider Test invalidates the old key fingerprint before changing credentials,
+uses a fixed public text or bundled public Arabic clip, and leaves failures
+disabled. Key, region, tier and reuse-consent changes require another Test.
+Cohere's trial terms allow research reuse and say trial use is not intended for
+personal information, so that card has a separate unchecked consent gate, like
+Gemini Free. DeepL uses the Free endpoint and rejects non-Free keys. Its immutable
+app-owned glossary IDs are cached without raw keys or terms. Existing remote and
+local glossary versions are retained.
+
+Successful metering can reduce a conservative reservation while preserving its
+original units and settlement history. Simulating 240 Azure utterances (one hour
+at 15 seconds each) recorded 44,160 characters, 240 requests and $0. This used
+MockTransport, not Azure; no claim about live MT quality or real-account billing
+follows from it. Free cloud evaluation requires a separate `--allow-cloud`
+upload opt-in and enabled/tested providers. `--allow-downloads` alone keeps all
+cloud inference disabled. Monthly and rolling quotas also survive process and
+calendar changes in the tests.
+
+All six provider cards were inspected in the Windows preview; key entries are
+masked, cloud enables/reuse choices start unchecked and the paid cap stays $0.
+The preview Test action performs no key access, requests or settings writes.
+The full test suite passed 224 tests. Real config remains 427 bytes with its
+original 2026-10-28 timestamp; no real usage.json was created. Cloud quality and
+latency acceptance requires a live configured account and remains unverified.

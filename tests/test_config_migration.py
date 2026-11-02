@@ -35,3 +35,30 @@ def test_partial_existing_conversation_and_bom_keep_every_old_byte(tmp_path):
     assert path.read_bytes().endswith(tail)
     assert load_conversation_config(path).my_language == "ar"
     assert read_config(path)["UNRELATED"]["custom"] == "keep"
+
+
+def test_settings_save_keeps_comments_formatting_unknown_keys_and_unchanged_bytes(tmp_path):
+    from app_config import write_config
+    path = tmp_path / "config.ini"
+    original = b"\xef\xbb\xbf; owner comment\r\n[LANGUAGE]\r\nSOURCE: ar\r\ntarget = ar\r\n\r\n; preserve this\r\n[UNKNOWN]\r\ncustom  =  a value ; with semicolon\r\n"
+    path.write_bytes(original)
+    config = read_config(path)
+    config["LANGUAGE"]["target"] = "en"
+    write_config(config, path)
+    assert path.read_bytes() == original.replace(b"target = ar", b"target = en")
+    before = path.stat().st_mtime_ns
+    write_config(read_config(path), path)
+    assert path.stat().st_mtime_ns == before
+
+
+def test_partial_settings_save_never_removes_unmentioned_data(tmp_path):
+    import configparser
+    from app_config import write_config
+    path = tmp_path / "config.ini"
+    original = b"[UNRELATED]\nvalue = keep\n; end\n"
+    path.write_bytes(original)
+    config = configparser.ConfigParser()
+    config["ENGINES"] = {"profile": "offline"}
+    write_config(config, path)
+    assert path.read_bytes().startswith(original)
+    assert read_config(path)["UNRELATED"]["value"] == "keep"

@@ -27,6 +27,12 @@ class ProviderQuotaError(ProviderError):
     public_message = "The provider quota or request limit was reached."
 
 
+class ProviderThrottleError(ProviderQuotaError):
+    # A local token bucket is checked again on the next utterance; a server
+    # quota rejection still gets the normal cooldown.
+    cooldown_seconds = 0
+
+
 class ProviderNetworkError(ProviderError):
     category = "network"
     public_message = "The provider connection failed or timed out."
@@ -42,6 +48,7 @@ class ProviderBinding:
     allowance: Allowance = field(default_factory=Allowance)
     quota: MonthlyQuota = field(default_factory=MonthlyQuota)
     monthly_cap: Decimal = Decimal("0")
+    windows: tuple = ()
 
     @property
     def name(self):

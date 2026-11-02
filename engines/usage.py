@@ -92,11 +92,19 @@ class MonthlyQuota:
 
 
 @dataclass(frozen=True)
+class RollingQuota:
+    seconds: int
+    requests: int | None = None
+    audio_seconds: float | None = None
+
+
+@dataclass(frozen=True)
 class Reservation:
     id: str
     provider: str
     month: str
     estimated_usd: Decimal
+    units: Units | None = None
 
 
 _FILE_LOCKS, _FILE_LOCKS_GUARD = {}, threading.Lock()
@@ -111,6 +119,15 @@ def _money(value):
     if not result.is_finite() or result < 0:
         raise ValueError("Budget and usage amounts must be finite and non-negative")
     return result
+
+
+def _incremental_cost(before, amounts, rate, allowance):
+    paid = {}
+    for key, free in asdict(allowance).items():
+        counter = "billed_audio_seconds" if key == "audio_seconds" else key
+        used, added, credit = (Decimal(str(value)) for value in (before.get(counter, 0), amounts[counter], free))
+        paid[key] = max(Decimal(0), used + added - credit) - max(Decimal(0), used - credit)
+    return estimate_cost(rate, **paid, requests=0)
 
 
 class UsageLedger:
@@ -210,8 +227,31 @@ class UsageLedger:
         with self._locked():
             return self._read()["months"].get(month, {"providers": {}})
 
+    def _window(self, data, provider, seconds, now):
+        cutoff = now.timestamp() - seconds
+        totals = dict.fromkeys(_COUNTERS, 0)
+        legacy_times = {event["id"]: event["at"] for event in data["events"] if event.get("event") == "reserved"}
+        for token, record in data["reservations"].items():
+            if record["provider"] != provider or record.get("released"):
+                continue
+            try:
+                created = datetime.fromisoformat(record.get("created_utc") or legacy_times[token])
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                if created.timestamp() <= cutoff:
+                    continue
+                for key, value in record.get("actual_units", record["units"]).items():
+                    totals[key] += value
+            except (TypeError, KeyError, ValueError):
+                raise UsageUnavailable("Usage timestamps could not be read. History was preserved.") from None
+        return totals
+
+    def window_snapshot(self, provider, seconds):
+        with self._locked():
+            return self._window(self._read(), provider, seconds, self.clock())
+
     def reserve(self, provider, units, *, rate=LOCAL_RATE, allowance=Allowance(), quota=MonthlyQuota(),
-                monthly_cap=Decimal("0"), total_monthly_cap=Decimal("0")):
+                monthly_cap=Decimal("0"), total_monthly_cap=Decimal("0"), windows=()):
         if not re.fullmatch(r"[a-z0-9_-]+", provider):
             raise ValueError("Invalid provider identifier")
         cap, total_cap = _money(monthly_cap), _money(total_monthly_cap)
@@ -227,34 +267,43 @@ class UsageLedger:
             month_key = now.strftime("%Y-%m")
             month = data["months"].setdefault(month_key, {"providers": {}})
             stats = month["providers"].setdefault(provider, {"estimated_usd": "0", **dict.fromkeys(_COUNTERS, 0)})
+            for window in windows:
+                if not isinstance(window.seconds, int) or window.seconds <= 0:
+                    raise ValueError("Invalid quota window")
+                used = self._window(data, provider, window.seconds, now)
+                for key in ("requests", "audio_seconds"):
+                    limit = getattr(window, key)
+                    if limit is not None:
+                        if not math.isfinite(limit) or limit < 0:
+                            raise ValueError("Invalid rolling quota")
+                        if used[key] + amounts[key] > limit:
+                            raise QuotaExceeded("This provider's short-term quota is used up.")
             for key, limit in asdict(quota).items():
                 if limit is not None:
                     if not math.isfinite(limit) or limit < 0:
                         raise ValueError("Invalid monthly quota")
                     if stats.get(key, 0) + amounts[key] > limit:
                         raise QuotaExceeded("This provider's monthly quota is used up.")
-            paid = {}
-            for key, free in asdict(allowance).items():
-                counter = "billed_audio_seconds" if key == "audio_seconds" else key
-                used = stats.get(counter, 0)
-                paid[key] = max(0, used + amounts[counter] - free) - max(0, used - free)
-            cost = estimate_cost(rate, **paid, requests=0)
+            cost = _incremental_cost(stats, amounts, rate, allowance)
             spent = _money(stats["estimated_usd"])
             total = sum((_money(value["estimated_usd"]) for value in month["providers"].values()), Decimal(0))
             if cost > 0 and (spent + cost > cap or total + cost > total_cap):
                 raise BudgetExceeded("The monthly spending cap would be exceeded.")
-            token = Reservation(uuid4().hex, provider, month_key, cost)
+            token = Reservation(uuid4().hex, provider, month_key, cost, units)
+            pricing = {"rate": {key: str(value) for key, value in asdict(rate).items()},
+                       "allowance": asdict(allowance), "before": {key: stats.get(key, 0) for key in _COUNTERS}}
             for key, value in amounts.items():
                 stats[key] = stats.get(key, 0) + value
             stats["estimated_usd"] = str(spent + cost)
             data["reservations"][token.id] = {"provider": provider, "month": month_key, "units": amounts,
-                                               "estimated_usd": str(cost), "settled": False}
+                                               "estimated_usd": str(cost), "settled": False, "pricing": pricing,
+                                               "created_utc": now.isoformat()}
             data["events"].append({"event": "reserved", "id": token.id, "provider": provider,
                                     "at": now.isoformat(), "month": month_key, "estimated_usd": str(cost)})
             self._write(data)
             return token
 
-    def settle(self, reservation, *, known_not_billed=False, outcome="completed"):
+    def settle(self, reservation, *, known_not_billed=False, outcome="completed", actual=None):
         if outcome not in {"completed", "auth", "quota", "network", "cancelled", "failed"}:
             raise ValueError("Unknown usage outcome")
         with self._locked():
@@ -265,11 +314,31 @@ class UsageLedger:
             if record["settled"]:
                 return
             stats = data["months"][record["month"]]["providers"][record["provider"]]
+            actual_amounts, actual_cost = None, None
+            if actual is not None and not known_not_billed:
+                pricing = record.get("pricing")
+                try:
+                    rate = Rate(**{key: Decimal(value) for key, value in pricing["rate"].items()}) if pricing else LOCAL_RATE
+                    actual_amounts = asdict(actual)
+                    actual_amounts["billed_audio_seconds"] = max(actual.audio_seconds, float(rate.minimum_audio_seconds) * actual.requests)
+                    if any(value > record["units"][key] for key, value in actual_amounts.items()):
+                        raise ValueError()
+                    actual_cost = (_incremental_cost(pricing["before"], actual_amounts, rate, Allowance(**pricing["allowance"]))
+                                   if pricing else _money(record["estimated_usd"]))
+                    if actual_cost > _money(record["estimated_usd"]):
+                        raise ValueError()
+                except (ValueError, TypeError, KeyError, InvalidOperation):
+                    raise UsageUnavailable("Provider usage exceeded its reservation. Further cloud requests are paused.") from None
+                for key, original in record["units"].items():
+                    stats[key] = max(0, stats[key] - original + actual_amounts[key])
+                stats["estimated_usd"] = str(max(Decimal(0), _money(stats["estimated_usd"]) - _money(record["estimated_usd"]) + actual_cost))
+                record.update(actual_units=actual_amounts, actual_estimated_usd=str(actual_cost))
             if known_not_billed:
                 for key, value in record["units"].items():
                     stats[key] = max(0, stats[key] - value)
                 stats["estimated_usd"] = str(max(Decimal(0), _money(stats["estimated_usd"]) - _money(record["estimated_usd"])))
             record.update(settled=True, outcome=outcome, released=known_not_billed)
             data["events"].append({"event": "settled", "id": reservation.id, "outcome": outcome,
-                                    "released": known_not_billed, "at": self.clock().isoformat()})
+                                    "released": known_not_billed, "at": self.clock().isoformat(),
+                                    "actual_units": actual_amounts, "actual_estimated_usd": str(actual_cost) if actual_cost is not None else None})
             self._write(data)

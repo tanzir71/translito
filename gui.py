@@ -113,12 +113,17 @@ HOTKEY_LABELS = {
 RTL_LANGUAGES = {"ar", "fa", "ur"}
 
 
-def translation_model_for(source_code, target_code):
+def translation_model_for(source_code, target_code, *, cloud_available=False):
     if source_code != target_code:
         from engines.mt_translategemma import gemma_available
         if gemma_available(source_code, target_code):
             return f"translategemma:{source_code}:{target_code}"
-    return resolve_local_mt(source_code, target_code, offline=True).model_id
+    try:
+        return resolve_local_mt(source_code, target_code, offline=True).model_id
+    except UnsupportedPairError:
+        if cloud_available:
+            return f"cloud:{source_code}:{target_code}"
+        raise
 
 
 def hide_console_window():
@@ -1217,6 +1222,10 @@ class TranslatorGUI:
         profile_combo = self._settings_combo(engines_section, "Profile", self.engine_profile_var, list(ENGINE_PROFILES))
         profile_combo.bind("<<ComboboxSelected>>", lambda _event: self.change_engine_profile())
         self.settings_controls.append(profile_combo)
+        providers_button = ttk.Button(engines_section, text="Cloud providers and usage", style="Mac.TButton",
+                                       command=self.open_provider_settings)
+        providers_button.pack(anchor="w", pady=5)
+        self.settings_controls.append(providers_button)
         self._settings_help(engines_section, "Free works with local models and optional tested free-tier keys. "
                             "Offline makes no cloud requests. Cloud services start disabled and paid caps start at $0.")
         translation = self._settings_section(content, "Local translation")
@@ -1517,6 +1526,13 @@ class TranslatorGUI:
         self.offline_only_var.set(ENGINE_PROFILES[self.engine_profile_var.get()] == "offline")
         self.persist_settings()
 
+    def open_provider_settings(self):
+        if self.transcriber is not None or self.model_setup_busy:
+            self.show_hint("Finish the current session or setup first.")
+            return
+        from provider_settings import open_provider_settings
+        open_provider_settings(self, COLORS, center_window)
+
     def change_offline_mode(self):
         self.engine_profile_var.set("Offline (private)" if self.offline_only_var.get() else "Free (recommended)")
         self.persist_settings()
@@ -1787,7 +1803,10 @@ class TranslatorGUI:
             "src_iso": src_iso,
             "tgt_iso": tgt_iso,
             "whisper_model": self.whisper_var.get().strip() or "openai/whisper-small",
-            "translation_model": translation_model_for(src_iso, tgt_iso),
+            "translation_model": translation_model_for(src_iso, tgt_iso, cloud_available=(
+                not self.offline_only_var.get() and self.engine_profile_var.get() != "Offline (private)" and
+                any(p.enabled and p.tested_signature for name, p in load_engine_settings().providers.items()
+                    if name in {"azure", "deepl", "google", "gemini"}))),
             "conversation": conversation,
         }
 

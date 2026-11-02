@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from threading import Event
-from typing import Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
+
+if TYPE_CHECKING:
+    from engines.usage import Units
 
 import numpy as np
 
@@ -23,6 +26,7 @@ class MtResult:
     text: str
     provider: str
     billed_chars: int = 0
+    usage: "Units | None" = None
 
 
 class SpeechRecognizer(Protocol):
