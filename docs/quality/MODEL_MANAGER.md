@@ -69,3 +69,37 @@ app/shared Small copies and older original Whisper caches. No existing model
 weights were downloaded or deleted during implementation; mutation tests used
 temporary fixtures only. Audio-driver post-reboot acceptance and the earlier
 Saudi quality/account work are separate and remain incomplete.
+
+## Packaged and installed Windows build
+
+The final 1.1.3 build uses source
+`3535ce06d81207bd6ffff2a064877596fe4f22ab`, stage
+`D:\CodexBuilds\Translito-quality\.p\4cd06a43\d\Translito`, retained artifacts
+`D:\TranslitoReleases\1.1.3\build-02`. The earlier build-01 and interrupted
+incremental build are retained and superseded.
+
+The packaged-code inspection confirms the settings button, manager/backend and
+Hugging Face cache API are included, along with both confirmation-time activity
+checks and the deletion-time transcript-folder refresh. This is archive/code
+inspection plus Tk widget tests, not a claim of deleting real owner models.
+
+The installer exited **0** and installed ProductVersion **1.1.3**. Its EXE matches
+the verified stage (SHA-256
+`67a9b4dc5fe7873931897a51a715ed0c2226d6f432026e08229d50f971ad3211`).
+The 1,804-byte settings file, all **nine** current original transcripts and usage
+state match the fresh pre-upgrade baseline. All 160 prior runtime metadata files
+match their retained copies in `runtime-history\20261103-132347`. No existing
+model files were removed by the upgrade, and no restart was requested.
+
+| Artifact | Bytes | SHA-256 |
+|---|---:|---|
+| TranslitoSetup-1.1.3.exe | 256,377,357 | `a0da5272aa1bac4392f36499d4b83b6fc7bf1c9d05e724ce26c0ea59d6891e9f` |
+| TranslitoPortable-1.1.3.zip | 373,797,211 | `983bea676cd8799adc6dcb0aa1b5c42a7d4ccce78077c4f9faab5198bcda178d` |
+
+Local receipts, final test output and the archive-inspection script are under
+`D:\TranslitoReleases\1.1.3\validation-01`.
+
+The 1.1.3 release notes, checksums and unchanged macOS DMG are prepared locally.
+GitHub API connections timed out before release creation; public release and
+landing deployment remain pending. The 1.1.3 links in this branch are staged for
+that publication and are not a claim of a live release.

@@ -1,7 +1,7 @@
 # Windows virtual microphone
 
 Included since Windows 1.1.0; the current public Windows release is 1.1.1.
-The installed 1.1.2 follow-up remains a draft; see the installation follow-up below.
+Windows 1.1.3 is installed locally; public-release publication is pending. See the installation follow-up below.
 Listen Mode uses loopback and never needs VB-CABLE.
 
 ## Speak setup
