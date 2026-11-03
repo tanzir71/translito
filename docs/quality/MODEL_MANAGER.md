@@ -105,7 +105,7 @@ Local receipts, final test output and the archive-inspection script are under
 `D:\TranslitoReleases\1.1.3\validation-01`.
 
 The initial 1.1.3 publication was blocked by GitHub API timeouts. It is superseded
-by published [Windows 1.1.4](https://github.com/tanzir71/translito/releases/tag/v1.1.4),
-which includes this manager, an installer disk-space guard and a frozen runtime
-probe. See RELEASE_1_1_4.md for the later full-drive repair, installed checks and
-preserved runtime archives. The landing links now target 1.1.4.
+by published [Windows 1.1.5](https://github.com/tanzir71/translito/releases/tag/v1.1.5),
+which includes the visible action row, an installer disk-space guard and a frozen
+runtime probe. See RELEASE_1_1_5.md for the installed Delete-button check and
+RELEASE_1_1_4.md for the earlier full-drive repair. The landing links target 1.1.5.

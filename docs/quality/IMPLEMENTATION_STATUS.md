@@ -3,16 +3,19 @@
 Specification: `CODEX_HANDOFF_TRANSLATION_QUALITY.md` supplied by the owner.
 Native macOS code is outside this change.
 
-The requested model manager is implemented and installed in Windows **1.1.4**:
+The requested model manager is implemented and installed in Windows **1.1.5**:
 available/downloaded/partial inventory, disk use, individual downloads, gated
-setup routing and confirmed per-copy cache deletion. **401 tests pass**. The
+setup routing and confirmed per-copy cache deletion. **406 tests pass**. The
+action row now stays above the list rather than being clipped below the window.
+The installed manager's Delete button was visibly enabled after selecting a
+downloaded model; no owner model was deleted. The
 installed EXE and all packaged files match the verified stage; settings, nine
 original transcripts, usage state and every archived runtime file match their
 baseline. A full-drive repair restored a missing Torch DLL, relocated two intact
 runtime archives to D: and added a full-runtime installer space check plus an
-offline frozen EXE probe. Windows 1.1.4 is published with server asset hashes
+offline frozen EXE probe. Windows 1.1.5 is published with server asset hashes
 verified, and landing links target that release. No real model weights were
-deleted. See MODEL_MANAGER.md and RELEASE_1_1_4.md.
+deleted. See MODEL_MANAGER.md, RELEASE_1_1_5.md and RELEASE_1_1_4.md.
 
 The 2026-11-03 virtual-mic follow-up fixes per-thread Windows audio COM setup;
 **368 tests pass**. The owner completed VB-CABLE installation after a verified
@@ -40,7 +43,7 @@ the public code-switch weights are in a test-only D: cache.
 | P3 cloud providers | Registered Azure F0, DeepL Free, Google Basic, opt-in Gemini Flash-Lite, Cohere trial and Groq adapters. Shared pair LID/postprocessing; ready/fast local Cohere → Cohere API → Groq → local Whisper. Explicit Test/usage/privacy cards inspected in Windows preview. Gemini/Cohere trial reuse consent starts unchecked. Mock HTTP contracts, simulated-hour metering, setup failure gates, cross-process quotas and cancellation covered. Full suite: 224 passed. | No live key or cloud accuracy/latency result. The simulated Azure hour checks accounting only. Private Saudi set waived by owner; Azure-vs-local chrF acceptance remains unverified. Optional transcript refinement deferred. |
 | P4 capped booster | Eval wire contracts plus opt-in real-time transport integrated into P0 for Soniox, Speechmatics Enhanced/Melia and ElevenLabs. Requires owner-approved account ceiling, matching Vault key and allocation reserved in persistent monthly/shared run ledgers. No retries or inferred invoice refunds; same desktop cascaded MT controller with idle polling and nonblocking reception, VAD force endpoints, native source utterances/drafts, per-tag WER, separate clip target scoring, delayed ElevenLabs timestamp joins and complete-coverage p95 gates. Synthetic socket/budget tests only; no paid call. Opt-in Gemini preview desktop path remains as recorded below. | Approved accounts/spend, recorded vendor fixtures and measured winner; Soniox target-row alignment/two-way desktop hardening remains conditional on winning. Gemini real timing/quality and 30-minute physical Speak acceptance unverified. See PAID_EVALUATION.md. Optional dubbed Listen output remains deferred. |
 | P5 virtual mic/capture | Official unmodified Pack45 ZIP pinned in three consumers; valid vendor setup signature inspected. Optional unchecked Inno task, consent/elevation/poll/autoselect, tone self-test and pre-start failure gate, Speak-only guide and six meeting guides. In-memory x64 process-tree capture with active-app picker, PID-reuse guard, retained silent selection and self-excluding All apps. Native own-tone INCLUDE/EXCLUDE and isolated Edge utility-child INCLUDE/silent-sibling probes passed; see VIRTUAL_MIC.md. Owner-approved physical installation completed via a verified short-folder launch; initial source cable-only tone/capture checks passed after fixing COM initialization. | Vendor-requested reboot and stable post-reboot cable routing remain pending. Windows has a working cable plus two failed-start duplicate nodes; later frozen/source tests stalled in audio Start. Full browser GUI/real meeting use remains unverified. Browser extension/default-communications switching are optional and deferred. |
-| P6 release | Windows 1.1.4 rebuilt, installed and published with model management and installer space/runtime checks; full suite 401 passed. Frozen and installed EXE dependency/CPU probes passed, the GUI opened to Ready, all 6,395 packaged files match the stage, and settings/nine transcripts/usage plus 6,391 previous runtime files are preserved. All four release asset sizes/hashes match GitHub. Landing links target 1.1.4 and the deployment workflow validates their downloads. The earlier 1.1.2 draft assets remain retained. | Stable physical cable routing awaits reboot/retest; real cloud accounts and Saudi quality remain unverified. See RELEASE_1_1_4.md, MODEL_MANAGER.md and RELEASE_1_1_2.md; earlier playback/deployment checks remain in RELEASE_1_1_1.md and RELEASE_1_1_0.md. |
+| P6 release | Windows 1.1.5 rebuilt, installed and published with visible model actions and installer space/runtime checks; full suite 406 passed. Frozen and installed EXE dependency/CPU probes passed, the GUI opened to Ready, and the manager displayed an enabled Delete button for a selected downloaded model. All 6,395 packaged files match the stage, and settings/nine transcripts/usage plus 6,391 previous runtime files are preserved. All four release asset sizes/hashes match GitHub. Landing links target 1.1.5 and the deployment workflow validates their downloads. The earlier 1.1.2 draft assets remain retained. | Stable physical cable routing awaits reboot/retest; real cloud accounts and Saudi quality remain unverified. See RELEASE_1_1_5.md, RELEASE_1_1_4.md, MODEL_MANAGER.md and RELEASE_1_1_2.md; earlier playback/deployment checks remain in RELEASE_1_1_1.md and RELEASE_1_1_0.md. |
 
 Decisions pending from the owner: recommended bilingual defaults;
 optional browser extension; approved test spend/monthly booster
