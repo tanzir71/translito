@@ -9,9 +9,10 @@ speech to a virtual microphone. Local processing works without a cloud key.
 ## Downloads
 
 **Model management:** Settings → **Manage models…** lists available and downloaded
-speech/translation models, disk use and cache locations. Download individual
-models, open their folders, or confirm deletion of a selected cached copy to
-recover space. Model changes require an idle session; gated models retain their
+speech/translation models, disk use and cache locations. Choose **Downloaded**,
+select a model and click **Delete model…** above the list to review and remove
+that cached copy. Download and Open folder are alongside it. Model changes
+require an idle session; gated models retain their
 terms/token setup. See [model-manager details](docs/quality/MODEL_MANAGER.md).
 
 - **Windows 1.1.5:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.1.5/TranslitoSetup-1.1.5.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.1.5/TranslitoPortable-1.1.5.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v1.1.5/SHA256SUMS.txt). Keeps model download/delete controls visible above the list in compact windows. Includes model cache management, installer space/runtime checks, the Windows audio-thread fix, bilingual routing, optional free cloud providers, guided virtual-mic setup, app-audio capture and settings/certificate fixes.
