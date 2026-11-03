@@ -53,6 +53,10 @@ cover filters, displayed sizes, confirmation cancellation, active/busy/preview
 guards and the gated setup route. The Tk tests share a hidden root to avoid a
 transient display-creation skip seen in the first full run.
 
+A final confirmation-time recheck prevents deletion if a session/model operation
+starts while the dialog is open. All **nine focused UI tests pass** after this
+guard, including two regressions covering that change in activity.
+
 A read-only inventory on the owner's PC found 28 catalog/cache rows, including
 app/shared Small copies and older original Whisper caches. No existing model
 weights were downloaded or deleted during implementation; mutation tests used

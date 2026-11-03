@@ -67,6 +67,21 @@ def test_cancelled_confirmation_does_not_start_deletion(ui, monkeypatch):
     ui.library.delete.assert_called_once_with(ui.downloaded, confirmed=True)
 
 
+@pytest.mark.parametrize("state", ["session", "busy"])
+def test_confirmation_rechecks_activity_before_starting_deletion(ui, monkeypatch, state):
+    select(ui, ui.downloaded)
+    def confirmed(*args, **kwargs):
+        if state == "session":
+            ui.app.transcriber = object()
+        else:
+            ui.app.model_setup_busy = True
+        return True
+    monkeypatch.setattr("model_library_ui.messagebox.askyesno", confirmed)
+    ui.manager.delete()
+    ui.manager.run.assert_not_called()
+    ui.library.delete.assert_not_called()
+
+
 @pytest.mark.parametrize("state", ["session", "busy", "preview", "scanning"])
 def test_model_operations_are_blocked_in_active_or_preview_states(ui, monkeypatch, state):
     select(ui, ui.downloaded)

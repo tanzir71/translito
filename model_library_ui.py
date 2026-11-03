@@ -201,6 +201,8 @@ class ModelManagerWindow:
         if not messagebox.askyesno("Delete model files?", f"Delete {row.spec.title}'s cached copy ({format_size(row.size)})?\n\n"
                                   f"{row.path}\n\nYou will need to download it again to use it.{shared}", parent=self.window, default="no"):
             return
+        if not self.can_modify():
+            return
         self.status.set(f"Removing {row.spec.title}…")
         self.run(lambda: self.library.delete(row, confirmed=True), "Cached model removed. Refresh shows the remaining copies.")
 
