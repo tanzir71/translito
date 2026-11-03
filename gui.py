@@ -1198,7 +1198,7 @@ class TranslatorGUI:
         offline.pack(anchor="w", pady=(6, 2))
         ttk.Button(
             recognition,
-            text="Download Models",
+            text="Manage models…",
             style="Mac.TButton",
             command=self.download_models,
         ).pack(anchor="w", pady=(5, 0))
@@ -2354,10 +2354,16 @@ class TranslatorGUI:
             os.startfile(folder)
 
     def download_models(self):
-        self.preload_current_models(force_online=True)
+        from model_library_ui import ModelManagerWindow
+        existing = getattr(self, "model_manager", None)
+        if existing is not None and existing.window.winfo_exists():
+            existing.window.lift()
+            existing.selection_changed()
+            return
+        self.model_manager = ModelManagerWindow(self, COLORS, center_window)
 
     def preload_current_models(self, force_online=False):
-        if self.preview_mode or self.transcriber is not None:
+        if self.preview_mode or self.transcriber is not None or self.model_setup_busy:
             return
         try:
             request = self.current_model_request()

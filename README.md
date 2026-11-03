@@ -8,6 +8,12 @@ speech to a virtual microphone. Local processing works without a cloud key.
 
 ## Downloads
 
+**Model management:** Settings → **Manage models…** lists available and downloaded
+speech/translation models, disk use and cache locations. Download individual
+models, open their folders, or confirm deletion of a selected cached copy to
+recover space. Model changes require an idle session; gated models retain their
+terms/token setup. See [model-manager details](docs/quality/MODEL_MANAGER.md).
+
 - **Windows 1.1.2:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.1.2/TranslitoSetup-1.1.2.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.1.2/TranslitoPortable-1.1.2.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v1.1.2/SHA256SUMS.txt). Fixes Windows audio-thread initialization for device refresh, capture, virtual-mic testing and transcript saves. Includes bilingual routing, optional free cloud providers, guided virtual-mic setup, app-audio capture, responsive idle device polling and the settings/certificate fixes.
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
