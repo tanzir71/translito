@@ -15,6 +15,8 @@ import zipfile
 
 import numpy as np
 
+from windows_audio import audio_com_context
+
 
 PACKAGE = json.loads((Path(__file__).parent / "data" / "vbcable.json").read_text(encoding="utf-8"))
 
@@ -157,10 +159,20 @@ def tone_band_dbfs(samples, sample_rate):
 def self_test(output, *, sounddevice=None, soundcard=None):
     if output is None or "cable input" not in output.name.casefold():
         return CableTestResult(False, -math.inf, "Select CABLE Input first. Install the virtual microphone if it is missing.")
-    if sounddevice is None:
-        import sounddevice
-    if soundcard is None:
-        import soundcard
+    try:
+        # SoundCard also initializes COM at first import; load it before adding
+        # our thread's reference (its import rejects CoInitializeEx's S_FALSE).
+        if sounddevice is None:
+            import sounddevice
+        if soundcard is None:
+            import soundcard
+        with audio_com_context():
+            return _self_test(output, sounddevice=sounddevice, soundcard=soundcard)
+    except Exception:
+        return CableTestResult(False, -math.inf, "Virtual-mic test could not run. Check CABLE Input/Output in Windows Sound settings.")
+
+
+def _self_test(output, *, sounddevice=None, soundcard=None):
     try:
         devices = soundcard.all_microphones(include_loopback=False)
     except Exception:
@@ -173,7 +185,7 @@ def self_test(output, *, sounddevice=None, soundcard=None):
     rate, block = 48000, 4800
     def record():
         try:
-            with capture.recorder(samplerate=rate, channels=2) as recorder:
+            with audio_com_context(), capture.recorder(samplerate=rate, channels=2) as recorder:
                 ready.set()
                 for _ in range(12):
                     if cancel.is_set():

@@ -6,7 +6,7 @@ Run the release build from PowerShell:
 .\build_windows.ps1 -BuildRoot D:\TranslitoBuild
 ```
 
-The script creates an isolated CPU-only build environment, runs PyInstaller, packages the portable app, and wraps the result with Inno Setup. To rebuild without reinstalling dependencies:
+The script creates an isolated CPU-only build environment, runs PyInstaller, checks the frozen EXE's dependencies and a native CPU tensor calculation, packages the portable app, and wraps the result with Inno Setup. A failed probe stops packaging; `runtime-check.json` accompanies successful builds. To rebuild without reinstalling dependencies:
 
 ```powershell
 .\build_windows.ps1 -SkipDependencies -BuildRoot D:\TranslitoBuild
@@ -14,8 +14,8 @@ The script creates an isolated CPU-only build environment, runs PyInstaller, pac
 
 Outputs:
 
-- Portable ZIP: `output\1.1.0\TranslitoPortable-1.1.0.zip`
-- Installer: `output\1.1.0\TranslitoSetup-1.1.0.exe`
+- Portable ZIP: `output\1.1.4\TranslitoPortable-1.1.4.zip`
+- Installer: `output\1.1.4\TranslitoSetup-1.1.4.exe`
 
 Pass `-BuildRoot <path>` to keep the virtual environment, PyInstaller files, and `output/` on another drive. Use a short path such as `D:\TranslitoBuild`; deeply nested Windows paths can exceed Inno Setup's file path limit.
 
@@ -35,6 +35,18 @@ settings/transcripts stay outside this operation. The installer checks absolute
 source/backup paths and refuses linked runtime/history directories before moving.
 Close Translito before upgrading; an interrupted install retains its runtime
 backup and restores it when no replacement directory was created.
+
+Before moving the previous runtime, the installer requires enough free space for
+the entire measured new app plus 256 MiB. It does not count the retained runtime
+as space that an overwrite will recover. If space is insufficient, installation
+stops before archiving any runtime. Compile through `build_windows.ps1` so this
+requirement reflects the actual packaged files.
+
+To verify an installed or portable build without opening the GUI or downloading
+models, run `Translito.exe --check-runtime D:\new-report.json` and wait for exit.
+The absolute report path must not already exist. Exit 0 means the dependency
+probe passed; 1 means a dependency failed, and 2 means the report arguments or
+file could not be used. The JSON includes each import result.
 
 Models are not bundled. Whisper and Helsinki-NLP models download on first run and then use the Hugging Face cache. On Windows, downloads validate HTTPS certificates against the Windows certificate store.
 

@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import threading
+from contextlib import contextmanager
 
 from engines.mt_local import LocalOpusPipeline
 from engines.asr_codeswitch import CODESWITCH_REPO, prepared_codeswitch_directory, prepare_codeswitch_model
@@ -119,6 +120,22 @@ class ModelLoadManager:
         self._loaded = None
         self._loading_key = None
         self._loading_error = None
+        self._maintenance = False
+
+    @contextmanager
+    def maintenance(self):
+        """Exclude new loads while an idle application's model files change."""
+        with self._condition:
+            if self._loading_key is not None or self._maintenance:
+                raise RuntimeError("Wait for the current model operation to finish.")
+            self._maintenance = True
+            self._loaded = None
+        try:
+            yield
+        finally:
+            with self._condition:
+                self._maintenance = False
+                self._condition.notify_all()
 
     def load_models(
         self,
@@ -131,6 +148,8 @@ class ModelLoadManager:
     ):
         key = (whisper_model, translation_model, torch_device, str(torch_dtype), bool(offline_only))
         with self._condition:
+            if self._maintenance:
+                raise RuntimeError("Model files are being managed. Try again when that finishes.")
             if self._loaded is not None and self._loaded.key == key:
                 return self._loaded
             while self._loading_key is not None:
@@ -142,6 +161,8 @@ class ModelLoadManager:
                         raise self._loading_error
                 else:
                     self._condition.wait()
+                if self._maintenance:
+                    raise RuntimeError("Model files are being managed. Try again when that finishes.")
             self._loading_key = key
             self._loading_error = None
 

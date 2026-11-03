@@ -78,6 +78,23 @@ try {
         Where-Object { $_.FullName.Length -gt 259 } | Select-Object -First 1
     if ($tooLong) { throw 'A packaged dependency path exceeds Inno limits. Use a shorter BuildRoot.' }
 
+    # Probe the frozen EXE, not the build Python. Missing native dependencies
+    # must fail before either downloadable artifact is produced.
+    $runtimeReport = Join-Path $stageRoot 'runtime-check.json'
+    $probe = Start-Process -FilePath (Join-Path $releaseAppDir 'Translito.exe') -ArgumentList @('--check-runtime', ('"' + $runtimeReport + '"')) -WindowStyle Hidden -PassThru
+    if (-not $probe.WaitForExit(120000)) {
+        Stop-Process -Id $probe.Id -ErrorAction SilentlyContinue
+        throw 'Frozen runtime check timed out.'
+    }
+    $probe.Refresh()
+    if ($probe.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $runtimeReport)) {
+        throw "Frozen runtime check failed. Report: $runtimeReport"
+    }
+    $runtimeResult = Get-Content -LiteralPath $runtimeReport -Raw | ConvertFrom-Json
+    if (-not $runtimeResult.ok -or -not $runtimeResult.frozen) {
+        throw "Frozen runtime check did not pass: $runtimeReport"
+    }
+
     $cablePackage = Join-Path $installerDir "redist\vbcable\VBCABLE_Driver_Pack45.zip"
     $cablePin = ((Get-Content -LiteralPath (Join-Path $installerDir "vbcable.sha256") -Raw).Trim() -split '\s+')[0]
     if ((Get-FileHash -LiteralPath $cablePackage -Algorithm SHA256).Hash.ToLowerInvariant() -ne $cablePin) {
@@ -90,6 +107,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $installerDir "vbcable.sha256") -Destination $cableDestination -Force
 
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+    Copy-Item -LiteralPath $runtimeReport -Destination (Join-Path $outputDir 'runtime-check.json')
 
     & tar.exe -a -c -f $portableOutput -C $releaseDistRoot "Translito"
     if ($LASTEXITCODE -ne 0) { throw "Portable ZIP build failed." }
@@ -104,7 +122,8 @@ try {
         throw "Inno Setup 6 is required. Install it with: winget install JRSoftware.InnoSetup"
     }
 
-    & $iscc "/DSourceDir=$releaseAppDir" "/DOutputDir=$outputDir" Translito.iss
+    $runtimeBytes = [long](Get-ChildItem -LiteralPath $releaseAppDir -File -Recurse | Measure-Object -Property Length -Sum).Sum
+    & $iscc "/DSourceDir=$releaseAppDir" "/DOutputDir=$outputDir" "/DRuntimeBytes=$runtimeBytes" Translito.iss
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup build failed." }
 
     @($installerOutput, $portableOutput) | ForEach-Object {

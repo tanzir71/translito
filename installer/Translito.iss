@@ -1,6 +1,9 @@
 #define MyAppName "Translito"
 #define MyAppExeName "Translito.exe"
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.1.4"
+#ifndef RuntimeBytes
+  #error "Build with build_windows.ps1 so the runtime disk requirement is measured."
+#endif
 #ifndef SourceDir
   #define SourceDir "dist\Translito"
 #endif
@@ -66,6 +69,22 @@ procedure CheckNormalDirectory(Path: String);
 begin
   if (GetFileAttributesW(Path) and $400) <> 0 then
     RaiseException('The runtime upgrade will not move a linked directory. Choose a normal Translito installation folder.');
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  DiskFree, DiskTotal, RequiredBytes: Int64;
+begin
+  Result := '';
+  { The old runtime is retained. Inno's normal overwrite estimate can count
+    those files as reusable space, so require a full new copy before moving it. }
+  RequiredBytes := {#RuntimeBytes} + 268435456;
+  if not GetSpaceOnDisk64(ExtractFileDrive(ExpandConstant('{app}')) + '\', DiskFree, DiskTotal) then
+    Result := 'Unable to check free space on the installation drive. No runtime files were moved.'
+  else if DiskFree < RequiredBytes then
+    Result := 'Not enough free space for a complete Translito installation while preserving the previous runtime. ' +
+      'Free at least ' + IntToStr((RequiredBytes - DiskFree + 1048575) div 1048576) +
+      ' MB, or choose another installation drive. No runtime files were moved.';
 end;
 
 procedure ArchivePreviousRuntime;
