@@ -95,6 +95,12 @@ def dependency_failure_message():
             lines.append(f"    {error}")
 
     lines.append("")
+    if getattr(sys, "frozen", False):
+        lines.append("The installed Translito runtime is incomplete or incompatible.")
+        lines.append("Check free space on the installation drive, then close Translito")
+        lines.append("and reinstall using the latest Windows installer.")
+        return "\n".join(lines)
+
     lines.append("Install or repair dependencies:")
     lines.append("  pip install -r requirements.txt")
 

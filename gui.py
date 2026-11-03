@@ -3,6 +3,12 @@ from datetime import datetime
 from pathlib import Path
 import subprocess
 import sys
+
+if __name__ == "__main__" and sys.argv[1:2] == ["--check-runtime"]:
+    from runtime_check import check_main
+
+    raise SystemExit(check_main(sys.argv[2:]))
+
 import threading
 import tkinter as tk
 from tkinter import filedialog
