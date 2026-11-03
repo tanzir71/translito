@@ -1,6 +1,6 @@
 #define MyAppName "Translito"
 #define MyAppExeName "Translito.exe"
-#define MyAppVersion "1.1.4"
+#define MyAppVersion "1.1.5"
 #ifndef RuntimeBytes
   #error "Build with build_windows.ps1 so the runtime disk requirement is measured."
 #endif
