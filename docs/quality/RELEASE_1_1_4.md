@@ -68,6 +68,15 @@ The portable ZIP passed its CRC integrity check and includes the complete
 305,081,856-byte `torch_cpu.dll`. Installed EXE SHA-256:
 `524347e523b0e78450e5f072a1daef41bdd708d1443b6f1e2f4a89d987f27107`.
 
+## Publication
+
+[Windows 1.1.4](https://github.com/tanzir71/translito/releases/tag/v1.1.4) is
+published as latest. The installer, portable ZIP, unchanged macOS DMG and
+SHA256SUMS.txt all match GitHub's uploaded asset sizes and SHA-256 digests. The
+release targets `5ab1fd65017097b4b137aaa9dae3b1aee12550e7`; production code is
+unchanged from the source revision above. Landing links and the Pages workflow
+target 1.1.4; the workflow verifies the downloads before deployment.
+
 This release also includes the model manager and Windows audio COM changes from
 the pending 1.1.2/1.1.3 branches. It does not establish Saudi speech accuracy,
 physical VB-CABLE routing after reboot or real cloud-account acceptance.

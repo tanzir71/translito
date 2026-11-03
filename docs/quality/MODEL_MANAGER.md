@@ -99,7 +99,8 @@ model files were removed by the upgrade, and no restart was requested.
 Local receipts, final test output and the archive-inspection script are under
 `D:\TranslitoReleases\1.1.3\validation-01`.
 
-The 1.1.3 release notes, checksums and unchanged macOS DMG are prepared locally.
-GitHub API connections timed out before release creation; public release and
-landing deployment remain pending. The 1.1.3 links in this branch are staged for
-that publication and are not a claim of a live release.
+The initial 1.1.3 publication was blocked by GitHub API timeouts. It is superseded
+by published [Windows 1.1.4](https://github.com/tanzir71/translito/releases/tag/v1.1.4),
+which includes this manager, an installer disk-space guard and a frozen runtime
+probe. See RELEASE_1_1_4.md for the later full-drive repair, installed checks and
+preserved runtime archives. The landing links now target 1.1.4.
