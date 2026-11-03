@@ -32,7 +32,8 @@ caches without network calls. It does not scan every drive or arbitrary folders.
   The next session reloads its needed model, or needs a new download if removed.
 - Recursive targets are checked as absolute descendants of their known cache
   root, with Windows junction/symlink-directory checks. Settings, usage and the
-  configured transcript folder are protected. Arbitrary external Whisper model
+  configured transcript folder are protected. Transcript-folder protection is
+  refreshed at deletion time if that setting changed. Arbitrary external Whisper model
   folders are visible but cannot be recursively deleted here. Closing the
   manager while a download runs does not leave the host's controls locked.
 
@@ -43,7 +44,7 @@ not enable cloud providers, alter model terms consent or delete transcripts.
 
 ## Verification
 
-**391 tests passed**, one existing Torch JIT warning (37.27 seconds). Temporary
+**394 tests passed**, one existing Torch JIT warning (41.34 seconds). Temporary
 cache fixtures exercise local/shared duplicate copies, partial downloads,
 protected paths, selected-file GGUF deletion, cross-model revision collisions,
 legacy cache discovery, offline/terms gates, anonymous download arguments,
@@ -55,7 +56,13 @@ transient display-creation skip seen in the first full run.
 
 A final confirmation-time recheck prevents deletion if a session/model operation
 starts while the dialog is open. All **nine focused UI tests pass** after this
-guard, including two regressions covering that change in activity.
+guard, including two regressions covering that change in activity. A separate
+fixture changes the transcript folder after the manager opens and verifies that
+its newly protected data is preserved.
+
+One intervening run hit UsageUnavailable in an existing multiprocess usage-ledger
+test while packaging was active. The targeted rerun passed (27 tests), followed
+by the quiet full-suite pass above. No metering implementation was changed.
 
 A read-only inventory on the owner's PC found 28 catalog/cache rows, including
 app/shared Small copies and older original Whisper caches. No existing model

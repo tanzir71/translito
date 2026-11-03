@@ -144,6 +144,7 @@ class ModelLibrary:
         self.specs = tuple(default_catalog() if specs is None else specs)
         self._default_specs = specs is None
         self._default_roots = hub_roots is None
+        self._default_protected = protected_paths is None
         self.models_root = Path(models_root or CONFIG_FILE.parent / "models").absolute()
         roots = hub_roots if hub_roots is not None else [HF_HUB_CACHE, load_cohere_cache_dir()]
         self.hub_roots = tuple(dict.fromkeys(Path(p).expanduser().absolute() for p in roots if p))
@@ -246,6 +247,9 @@ class ModelLibrary:
             path = _safe_tree(row.path, row.root)
             if row.spec.format == "gguf" and not path.is_file():
                 raise ModelLibraryError("Only the selected model file can be removed; its folder was preserved.")
+            if self._default_protected:
+                from app_config import CONFIG_FILE, load_transcript_folder
+                self.protected = (CONFIG_FILE, Path(load_transcript_folder()).absolute(), CONFIG_FILE.parent / "usage.json")
             if any(p.resolve() == path.resolve() or p.resolve().is_relative_to(path.resolve()) or
                    (p.is_dir() and path.resolve().is_relative_to(p.resolve())) for p in self.protected):
                 raise ModelLibraryError("This folder contains settings or transcripts; its files were preserved.")

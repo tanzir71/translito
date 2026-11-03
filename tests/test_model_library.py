@@ -145,6 +145,20 @@ def test_protected_transcripts_and_linked_parent_are_rejected(library, monkeypat
     assert path.exists()
 
 
+def test_transcript_folder_changed_after_opening_manager_is_still_protected(library, monkeypatch):
+    import app_config
+    path = library.specs[0].local_path
+    write_ct2(path)
+    row = library.inventory()[0]
+    saved = path / "new-transcripts" / "session.txt"
+    saved.parent.mkdir(); saved.write_text("preserve newly selected transcript folder")
+    library._default_protected = True
+    monkeypatch.setattr(app_config, "load_transcript_folder", lambda: saved.parent)
+    with pytest.raises(ModelLibraryError, match="transcripts"):
+        library.delete(row, confirmed=True)
+    assert saved.read_text() == "preserve newly selected transcript folder"
+
+
 def test_gemma_deletes_only_the_selected_file_or_its_partial_download(library, tmp_path):
     folder = tmp_path / "chosen-gguf"
     folder.mkdir()
