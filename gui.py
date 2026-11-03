@@ -194,12 +194,14 @@ def center_window(window, parent=None, width=None, height=None):
     else:
         x = window.winfo_vrootx() + (window.winfo_vrootwidth() - width) // 2
         y = window.winfo_vrooty() + (window.winfo_vrootheight() - height) // 2
-        screen_left = window.winfo_vrootx()
-        screen_top = window.winfo_vrooty()
-        screen_right = screen_left + window.winfo_vrootwidth()
-        screen_bottom = screen_top + window.winfo_vrootheight()
-        x = max(screen_left, min(x, screen_right - width))
-        y = max(screen_top, min(y, screen_bottom - height))
+    screen_left = window.winfo_vrootx()
+    screen_top = window.winfo_vrooty()
+    screen_right = screen_left + window.winfo_vrootwidth()
+    screen_bottom = screen_top + window.winfo_vrootheight()
+    # A larger dialog centered over a parent near a screen edge can otherwise
+    # start outside the desktop, hiding its controls even when its size fits.
+    x = max(screen_left, min(x, screen_right - width))
+    y = max(screen_top, min(y, screen_bottom - height))
     window.geometry(f"{width}x{height}+{x}+{y}")
 
 

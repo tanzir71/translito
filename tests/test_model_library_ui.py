@@ -56,6 +56,24 @@ def test_model_filters_and_disk_usage(ui):
     assert ui.manager.tree.get_children() == (ui.available.key,)
 
 
+@pytest.mark.parametrize("geometry", ["680x400", "900x580"])
+def test_actions_stay_visible_above_the_list_when_window_shrinks(ui, geometry):
+    window = ui.manager.window
+    window.transient("")
+    window.geometry(geometry)
+    window.deiconify()
+    window.update()
+    select(ui, ui.downloaded)
+    for button in (ui.manager.download_button, ui.manager.delete_button, ui.manager.folder_button):
+        assert button.winfo_ismapped()
+        x = button.winfo_rootx() - window.winfo_rootx()
+        y = button.winfo_rooty() - window.winfo_rooty()
+        assert x >= 0 and x + button.winfo_width() <= window.winfo_width()
+        assert y >= 0 and y + button.winfo_height() <= window.winfo_height()
+        assert button.winfo_rooty() + button.winfo_height() <= ui.manager.tree.winfo_rooty()
+    assert not ui.manager.delete_button.instate(["disabled"])
+
+
 def test_cancelled_confirmation_does_not_start_deletion(ui, monkeypatch):
     select(ui, ui.downloaded)
     monkeypatch.setattr("model_library_ui.messagebox.askyesno", Mock(return_value=False))

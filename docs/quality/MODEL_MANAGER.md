@@ -5,6 +5,11 @@ Download Models shortcut now opens this manager. It has All models, Downloaded
 and Available / partial filters, with model name, speech/translation purpose,
 download status, disk use, storage location and the selected path.
 
+Windows **1.1.5** fixes an action-row clipping bug in the initial layout.
+**Download**, **Delete model…** and **Open folder** stay above the list, including
+at 680×400. Select a downloaded model to enable Delete, then review its path and
+confirm removal. See RELEASE_1_1_5.md for the layout regression checks.
+
 The catalog covers the supported Whisper CT2 sizes (including the base LID
 model), Arabic/English code-switch fallback, Cohere Arabic, TranslateGemma 4B
 and verified Lite translation pairs. It also discovers cached original OpenAI
@@ -20,7 +25,7 @@ caches without network calls. It does not scan every drive or arbitrary folders.
   safetensors when available instead of downloading both weight formats. Offline
   mode blocks downloads. Cohere/Gemma use the existing setup windows, preserving
   explicit terms/token consent and Gemma's integrity/RAM checks.
-- **Delete cached files…** confirms the model, cached-copy path and size, with
+- **Delete model…** confirms the model, cached-copy path and size, with
   an additional shared-cache notice. All revisions of that selected repository
   copy are removed via the installed Hugging Face cache API; its shared-blob
   reference checks retain files still used elsewhere. Interrupted downloads
@@ -100,7 +105,7 @@ Local receipts, final test output and the archive-inspection script are under
 `D:\TranslitoReleases\1.1.3\validation-01`.
 
 The initial 1.1.3 publication was blocked by GitHub API timeouts. It is superseded
-by published [Windows 1.1.4](https://github.com/tanzir71/translito/releases/tag/v1.1.4),
-which includes this manager, an installer disk-space guard and a frozen runtime
-probe. See RELEASE_1_1_4.md for the later full-drive repair, installed checks and
-preserved runtime archives. The landing links now target 1.1.4.
+by published [Windows 1.1.5](https://github.com/tanzir71/translito/releases/tag/v1.1.5),
+which includes the visible action row, an installer disk-space guard and a frozen
+runtime probe. See RELEASE_1_1_5.md for the installed Delete-button check and
+RELEASE_1_1_4.md for the earlier full-drive repair. The landing links target 1.1.5.
