@@ -82,7 +82,7 @@ def provider_factories():
 def build_session_routers(recognizer, translator, settings, *, offline_only=False,
                            credentials=None, ledger=None, on_event=None, factories=None, pair=None):
     emit = on_event or (lambda *args: None)
-    private = offline_only or settings.profile == "offline"
+    private = offline_only or settings.profile == "offline" or settings.engine_choice == "local"
     selected = {"asr": [], "mt": []}
     factories = provider_factories() if factories is None else factories
     defaults = settings.resolve(*(pair or ("", "")))
@@ -125,11 +125,10 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
 
             binding.ready = ready
             binding.enabled, binding.tested = True, True
-            # P3 uses only verified free/trial allowances. Paid connections are
-            # reserved for the explicitly enabled P4 booster, not text overage.
-            binding.monthly_cap = 0
+            binding.monthly_cap = preference.monthly_cap
             selected[factory.kind].append(binding)
-    options = dict(offline_only=private, ledger=ledger, total_monthly_cap=settings.monthly_cap, on_event=emit)
+    options = dict(offline_only=private, ledger=ledger, total_monthly_cap=settings.monthly_cap, on_event=emit,
+                   fallback_on_budget=settings.fallback_on_budget, budget_warn_percent=settings.budget_warn_percent)
     for kind in ("asr", "mt"):
         chosen = defaults.get("default_" + kind + "_provider", "")
         if chosen and chosen != "local" and not any(binding.name == chosen for binding in selected[kind]):

@@ -72,11 +72,12 @@ class ProviderSetup:
 
     def _validate(self, name, preference):
         factory = self.factory(name)
-        if budget(preference.monthly_cap) != 0:
+        paid = preference.account_kind == "paid" and (factory.account_kind == "paid" or factory.name == "gemini")
+        if budget(preference.monthly_cap) != 0 and not paid:
             raise SetupError("These providers use free allowances only. Their paid cap must remain $0.")
-        if preference.account_kind != factory.account_kind:
+        if preference.account_kind != factory.account_kind and not paid:
             raise SetupError("Confirm the provider's free or trial account before testing or enabling it.")
-        if factory.training_required and not preference.training_consent:
+        if factory.training_required and not preference.training_consent and not paid:
             raise SetupError("Review and explicitly accept this provider's data-use terms first.")
         return factory
 
@@ -120,14 +121,14 @@ class ProviderSetup:
             binding = factory.build(disabled, credentials)
             if binding.rate is None:
                 raise SetupError("This account configuration has no verified free pricing policy.")
-            binding.enabled, binding.tested, binding.monthly_cap = True, True, 0
+            binding.enabled, binding.tested, binding.monthly_cap = True, True, preference.monthly_cap
             binding.ready = lambda: credential_signature(name, credentials.get(name) or "", disabled) == signature
             hints = []
             def event(kind, payload):
                 if kind == "hint":
                     hints.append(payload)
                 self.emit(kind, payload)
-            options = dict(ledger=self.ledger, total_monthly_cap=0, on_event=event)
+            options = dict(ledger=self.ledger, total_monthly_cap=current.monthly_cap, on_event=event)
             began = time.perf_counter()
             try:
                 if factory.kind == "mt":

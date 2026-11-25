@@ -40,6 +40,9 @@ class EngineSettings:
     default_mt_provider: str = ""
     default_mt_model: str = ""
     pair_overrides: dict = field(default_factory=dict)
+    engine_choice: str = ""
+    fallback_on_budget: str = "local"
+    budget_warn_percent: int = 80
 
     def resolve(self, source, target):
         values = {key: getattr(self, key) for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")}
@@ -91,13 +94,24 @@ def load_engine_settings(path=None):
         match = re.fullmatch(r"pair_([a-z]{2,3}_[a-z]{2,3})_(asr_provider|asr_model|mt_provider|mt_model)", key)
         if match:
             overrides.setdefault(match[1], {})[match[2]] = value
-    return EngineSettings(profile, cap, providers, **defaults, pair_overrides=overrides)
+    choice = section.get("engine_choice", "")
+    fallback = section.get("fallback_on_budget", "local")
+    try:
+        warning = min(100, max(1, int(section.get("budget_warn_percent", "80"))))
+    except ValueError:
+        warning = 80
+    return EngineSettings(profile, cap, providers, **defaults, pair_overrides=overrides,
+        engine_choice=choice if choice in {"cloud", "local", "free"} else "",
+        fallback_on_budget=fallback if fallback in {"local", "stop"} else "local", budget_warn_percent=warning)
 
 
 def _values(settings):
     if settings.profile not in PROFILES:
         raise ValueError("Unknown translation profile")
     values = {"profile": settings.profile, "monthly_cap_usd": str(budget(settings.monthly_cap))}
+    values.update(fallback_on_budget=settings.fallback_on_budget, budget_warn_percent=str(settings.budget_warn_percent))
+    if settings.engine_choice:
+        values["engine_choice"] = settings.engine_choice
     values.update({key: getattr(settings, key) for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")})
     for pair, overrides in settings.pair_overrides.items():
         if not re.fullmatch(r"[a-z]{2,3}_[a-z]{2,3}", pair):

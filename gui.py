@@ -2129,6 +2129,11 @@ class TranslatorGUI:
         def handle():
             if event_type == "status":
                 self.set_status(self.pretty_status(str(payload)))
+            elif event_type == "budget":
+                self.set_status("Budget reached")
+                self.show_hint("Monthly budget reached. " + ("Continuing on this PC." if (payload or {}).get("action") == "local" else "Stopped."))
+                if (payload or {}).get("action") == "stop" and self.transcriber is not None:
+                    self.stop()
             elif event_type == "delay":
                 delay = (payload or {}).get("delay_median_s")
                 self.delay_var.set(f"Delay {delay:.1f} s" if delay is not None else "Delay —")

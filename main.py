@@ -369,6 +369,9 @@ class ArabicAudioTranscriber:
         print("Initialization complete.\n")
 
     def emit(self, event_type, payload=None):
+        if event_type == "budget" and (payload or {}).get("action") == "stop":
+            self._stop_event.set()
+            self.running = False
         if callable(self.on_event):
             try:
                 self.on_event(event_type, payload)

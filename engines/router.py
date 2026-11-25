@@ -73,7 +73,10 @@ def translate_utterance(result, mode, conversation, translator, *, context=None,
 class ProviderRouter:
     """Ordered fallback with no network call before key and budget checks."""
     def __init__(self, providers, *, offline_only=False, ledger=None,
-                 total_monthly_cap=Decimal("0"), on_event=None, clock=time.monotonic):
+                 total_monthly_cap=Decimal("0"), on_event=None, clock=time.monotonic,
+                 fallback_on_budget="local", budget_warn_percent=80):
+        self.fallback_on_budget, self.budget_warn_percent = fallback_on_budget, budget_warn_percent
+        self.budget_reached, self.budget_warned = False, False
         self.providers = list(providers)
         self.offline_only = offline_only
         self.ledger = ledger if ledger is not None else UsageLedger()
@@ -110,7 +113,7 @@ class ProviderRouter:
                     failed = True
                     continue
             if provider.network:
-                if self.offline_only:
+                if self.offline_only or self.budget_reached:
                     continue
                 if self.accounting_failed:
                     failed = True
@@ -144,6 +147,11 @@ class ProviderRouter:
                         provider.name, quantity, rate=provider.rate, allowance=provider.allowance,
                         quota=provider.quota, monthly_cap=provider.monthly_cap,
                         total_monthly_cap=self.total_monthly_cap, windows=provider.windows)
+                    if self.total_monthly_cap > 0 and not self.budget_warned:
+                        spent = sum(Decimal(value["estimated_usd"]) for value in self.ledger.snapshot()["providers"].values())
+                        if spent >= self.total_monthly_cap * Decimal(self.budget_warn_percent) / 100:
+                            self.budget_warned = True
+                            self.emit("hint", "The monthly budget warning level has been reached.")
                 check_cancelled()
                 result = getattr(provider.engine, operation)(*args, **kwargs)
                 self._settle(reservation, actual=getattr(result, "usage", None))
@@ -155,7 +163,13 @@ class ProviderRouter:
             except GenerationCancelled:
                 self._settle(reservation, outcome="cancelled")
                 raise
-            except (BudgetExceeded, QuotaExceeded) as exc:
+            except BudgetExceeded as exc:
+                self.budget_reached = True
+                self.emit("budget", {"action": self.fallback_on_budget, "message": str(exc)})
+                self._hint(provider.name, "budget", str(exc) + " Continuing on this PC." if self.fallback_on_budget == "local" else "Monthly budget reached. Stopping.")
+                if self.fallback_on_budget == "stop":
+                    raise
+            except QuotaExceeded as exc:
                 self._hint(provider.name, type(exc).__name__, str(exc) + " Using the next available engine.")
             except (UsageUnavailable, OSError) as exc:
                 self._settle(reservation, outcome="network")
