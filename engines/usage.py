@@ -230,6 +230,18 @@ class UsageLedger:
         with self._locked():
             return self._read()["months"].get(month, {"providers": {}})
 
+    def record_session(self, session_id, **values):
+        allowed = {"delay_p50_s", "delay_p95_s", "delay_median_s", "measured_lines",
+                   "captured_seconds", "sent_seconds", "translated_chars"}
+        if set(values) - allowed or any(value is not None and (not math.isfinite(value) or value < 0) for value in values.values()):
+            raise ValueError("Invalid session measurements")
+        with self._locked():
+            data = self._read()
+            month = data["months"].setdefault(self.clock().strftime("%Y-%m"), {"providers": {}})
+            session = month.setdefault("sessions", {}).setdefault(session_id, {})
+            session.update(values)
+            self._write(data)
+
     def _window(self, data, provider, seconds, now):
         cutoff = now.timestamp() - seconds
         totals = dict.fromkeys(_COUNTERS, 0)

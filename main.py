@@ -257,6 +257,10 @@ class ArabicAudioTranscriber:
         self.live_pipeline = None
         from engines.settings import load_engine_settings
         self.engine_settings = engine_settings or load_engine_settings()
+        from engines.usage import UsageLedger
+        from engines.delay import DelayTracker
+        self.usage_ledger = UsageLedger()
+        self.delays = DelayTracker(ledger=self.usage_ledger)
         self.recognition_router = self.translation_router = None
         self._one_way_context = []
 
@@ -328,7 +332,7 @@ class ArabicAudioTranscriber:
             self.conversation_pipeline = ConversationPipeline(
                 recognizer, translator_engine, conversation, mode=self.mode, emit=self.emit,
                 transcripts=self.transcripts, stop_event=self._stop_event,
-                speech_player=self.speech_player, voice=self.speech_voice, glossary=glossary)
+                speech_player=self.speech_player, voice=self.speech_voice, glossary=glossary, ledger=self.usage_ledger)
             from engines.registry import configured_live_interpreter
             interpreter = configured_live_interpreter(self.engine_settings, offline_only=self.offline_only, on_event=self.emit)
             if interpreter is not None:
@@ -607,6 +611,7 @@ class ArabicAudioTranscriber:
                     "mode": self.mode,
                     "arabic_text": source_text,
                     "english_text": "",
+                    "source_shown_at": time.monotonic(),
                     "captured_at": captured_at,
                     "speech_end_at": (captured_at - item.endpoint_delay_s
                                       if captured_at is not None and getattr(item, "endpoint_delay_s", None) is not None
@@ -624,6 +629,10 @@ class ArabicAudioTranscriber:
                     continue
                 transcript_entry["translated_text"] = translated_text
                 transcript_entry["english_text"] = translated_text
+                if not hasattr(self, "delays"):
+                    from engines.delay import DelayTracker
+                    self.delays = DelayTracker()
+                self.emit("delay", self.delays.record(transcript_entry, time.monotonic()))
                 self.emit("target", translated_text)
                 self.emit("english", translated_text)
                 self.emit("transcript_update", transcript_entry.copy())

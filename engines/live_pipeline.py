@@ -42,6 +42,7 @@ class LiveConversationPipeline:
         self.latest_input_row, self.orphan_target = None, []
         self.sample_count, self.transport_base, self.confirmed_end = 0, 0, 0
         self.capture_lock = threading.Lock()
+        self.capture_origin = None
         self.played_chunks = set()
 
     def start(self):
@@ -66,6 +67,8 @@ class LiveConversationPipeline:
         if self.noise_gate and audio.size and float(np.sqrt(np.mean(audio ** 2))) < self.noise_gate:
             audio = np.zeros_like(audio)
         with self.capture_lock:
+            if self.capture_origin is None:
+                self.capture_origin = self.clock() - len(audio) / 16000
             self.sample_count += len(audio)
         if not self.interpreter.push_audio(audio):
             self.events.put(("fallback", "Live Translate stopped accepting audio. Continuing with the Free profile."))
@@ -127,6 +130,8 @@ class LiveConversationPipeline:
         if self.input_row is None:
             self.input_row = self._new_row()
         state, text = self.input_row, data["text"]
+        if text and "source_shown_at" not in state["entry"]:
+            state["entry"]["source_shown_at"] = self.clock()
         self.latest_input_row = state
         entry = state["entry"]
         state["raw_source"] = state.get("raw_source", "") + text
@@ -138,6 +143,8 @@ class LiveConversationPipeline:
         ended = _offset(data.get("end_offset"))
         if ended is not None:
             state["end"] = self.transport_base + ended
+            if self.capture_origin is not None:
+                entry["speech_end_at"] = self.capture_origin + state["end"]
         route = self._route(state)
         if not route.translate:
             self.orphan_target.clear()
@@ -258,6 +265,8 @@ class LiveConversationPipeline:
                     entry["translation_error"] = "Secondary translation was unavailable."
             elif state.get("secondary_text"):
                 entry["translated_text"] = entry["english_text"] = state["secondary_text"]
+        if not cancelled and not interrupted and not entry.get("translation_error"):
+            self.emit("delay", self.fallback.delays.record(entry, self.clock()))
         self.emit("transcript_update", entry.copy())
         if (not cancelled and not interrupted and state["end"] is not None
                 and (not route.translate or entry["translated_text"])):

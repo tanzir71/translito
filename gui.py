@@ -390,6 +390,7 @@ class TranslatorGUI:
         self.last_saved_path = None
         self.transcript_entries = []
         self.transcript_targets = {}
+        self.transcript_meta = {}
         self.transcript_text_labels = []
         self.recording_action = None
         self.settings_window = None
@@ -2128,6 +2129,9 @@ class TranslatorGUI:
         def handle():
             if event_type == "status":
                 self.set_status(self.pretty_status(str(payload)))
+            elif event_type == "delay":
+                delay = (payload or {}).get("delay_median_s")
+                self.delay_var.set(f"Delay {delay:.1f} s" if delay is not None else "Delay —")
             elif event_type == "model_progress":
                 self.handle_model_progress(payload or {})
             elif event_type == "hint":
@@ -2254,13 +2258,18 @@ class TranslatorGUI:
                  bg=COLORS["field"], fg=COLORS["blue"], padx=5,
                  font=("Segoe UI Semibold", 8)).pack(side="left", padx=(8, 0))
         source_info = self.current_source_info(entry)
-        tk.Label(
+        if entry.get("delay_s") is not None:
+            source_info += f" · {entry['delay_s']:.1f} s"
+
+        meta_label = tk.Label(
             header,
             text=source_info,
             bg=card_bg,
             fg=COLORS["tertiary"],
             font=("Segoe UI", 8),
-        ).pack(side="left", padx=(9, 0))
+        )
+        meta_label.pack(side="left", padx=(9, 0))
+        self.transcript_meta[entry.get("id")] = meta_label
 
         source_text = entry.get("source_text", entry.get("arabic_text", ""))
         translated_text = entry.get("translated_text", entry.get("english_text", ""))
@@ -2322,6 +2331,10 @@ class TranslatorGUI:
             return
         stored_entry, label, source_label = target
         stored_entry.update(entry)
+        meta = self.transcript_meta.get(entry.get("id"))
+        if meta is not None and entry.get("delay_s") is not None:
+            meta.configure(text=self.current_source_info(stored_entry) + f" · {entry['delay_s']:.1f} s")
+
         label.configure(text=self.transcript_target_text(stored_entry))
         source = stored_entry.get("source_text", "")
         source_rtl = dominant_rtl(source) or (stored_entry.get("source_language") in RTL_LANGUAGES

@@ -13,7 +13,9 @@ from engines.sentence_assembler import SentenceAssembler
 class ConversationPipeline:
     def __init__(self, recognizer, translator, conversation, *, mode="listen", emit,
                  transcripts, stop_event, speech_player=None, voice="Automatic", glossary=None,
-                 assembler=None):
+                 assembler=None, clock=time.monotonic, ledger=None):
+        from engines.delay import DelayTracker
+        self.clock, self.delays = clock, DelayTracker(ledger=ledger)
         self.recognizer = recognizer
         self.translator = translator
         self.conversation = conversation
@@ -71,6 +73,7 @@ class ConversationPipeline:
                 "pass_through": not route.translate, "mode": self.mode,
                 "asr_engine": result.provider, "avg_logprob": result.avg_logprob,
                 "language_probability": result.language_prob,
+                "source_shown_at": self.clock(),
             }
             self.transcripts.append(entry)
             self.emit("transcript", entry.copy())
@@ -137,6 +140,7 @@ class ConversationPipeline:
             else:
                 entry["mt_called"] = False
             entry["translation_pending"] = False
+            self.emit("delay", self.delays.record(entry, self.clock()))
             self.emit("target", output)
             self.emit("english", output)
             self.emit("transcript_update", entry.copy())

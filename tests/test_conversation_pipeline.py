@@ -22,6 +22,22 @@ def chunk(value=0.2):
     return AudioChunkResult("audio", np.full(32000, value, dtype=np.float32), 16000, value, value)
 
 
+def test_delay_uses_speech_end_and_persists_session_percentiles(tmp_path):
+    from dataclasses import replace
+    from engines.usage import UsageLedger
+    clock = iter([100.5, 102.0])
+    ledger = UsageLedger(tmp_path / "usage.json")
+    runtime, _, _, entries, events = pipeline([recognized("Hola.", "es")], Conversation(other_language="es", audience_language="es"),
+        clock=lambda: next(clock), ledger=ledger)
+    runtime.feed(replace(chunk(), captured_at=100.0, endpoint_delay_s=.4))
+    assert entries[0]["speech_end_at"] == 99.6
+    assert entries[0]["source_shown_at"] == 100.5
+    assert entries[0]["target_shown_at"] == 102
+    assert entries[0]["delay_s"] == pytest.approx(2.4)
+    summary = next(iter(ledger.snapshot()["sessions"].values()))
+    assert summary["delay_p50_s"] == summary["delay_p95_s"] == pytest.approx(2.4)
+
+
 def pipeline(results, conversation=None, mode="listen", **kwargs):
     events, entries = [], []
     recognizer = Mock()
