@@ -6,8 +6,10 @@ import pytest
 import gui
 
 
-@pytest.fixture
-def app(tmp_path, monkeypatch):
+@pytest.fixture(scope="module")
+def app(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("v2-ui")
+    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setenv("TRANSLITO_UI_PREVIEW", "1")
     monkeypatch.setattr(gui, "CONFIG_FILE", tmp_path / "config.ini")
     monkeypatch.setattr(gui, "is_open_at_login_enabled", lambda: False)
@@ -20,6 +22,7 @@ def app(tmp_path, monkeypatch):
     yield value
     value.preferences.close()
     root.destroy()
+    monkeypatch.undo()
 
 
 def test_settings_sidebar_dimensions_and_section_layout(app):

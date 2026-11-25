@@ -36,3 +36,15 @@ def test_typed_bindings_and_preview_are_safe(tmp_path, tcl):
     preview = SettingsState(path, writable=lambda: False)
     preview.bind(tk.BooleanVar(tcl), "UI", "toggle", False).set(False)
     assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("source,target,english,one_way,my", [
+    ("ar", "en", True, False, "en"), ("ar", "en", False, True, "en"),
+    ("es", "en", True, False, "en"), ("es", "fr", True, True, "en"),
+    ("en", "ar", True, False, "ar"), ("en", "es", False, False, "es"),
+    ("en", "en", True, True, "en")])
+def test_language_pair_maps_to_existing_engine_model(source, target, english, one_way, my):
+    from app_config import conversation_for_pair
+    pair = conversation_for_pair(source, target, english)
+    assert pair.one_way is one_way and pair.my_language == my
+    assert pair.other_language != "en"

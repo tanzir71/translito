@@ -469,6 +469,10 @@ class TranslatorGUI:
         if re.fullmatch(r"\d{3,4}x\d{3,4}(?:[+-]\d+[+-]\d+)?", geometry):
             self.root.geometry(geometry)
 
+        self.english_passthrough_var = self.preferences.bind(tk.BooleanVar(value=not conversation.one_way),
+            "LANGUAGE", "english_passthrough", not conversation.one_way)
+        self.variety_var = self.preferences.bind(tk.StringVar(), "LANGUAGE", "variety", "")
+
         self.apply_styles()
         self.build_ui()
         self.bind_events()
@@ -1112,55 +1116,26 @@ class TranslatorGUI:
             "Hotkeys work system-wide. Toggle starts the last-used mode or switches between listening and speaking.",
         )
 
-        languages = self._settings_section(content, "Bilingual conversation")
-        other_settings = self._settings_combo(languages, "English +", self.conversation_other_var,
-                                             [name for name, _, iso in LANGUAGES if iso != "en"])
-        my_settings = self._settings_combo(languages, "My language", self.my_language_var,
-                                          ["English", self.conversation_other_var.get()])
-        audience_settings = self._settings_combo(languages, "Audience language", self.audience_language_var,
-                                                ["English", self.conversation_other_var.get()])
-        self.conversation_settings_combos = (my_settings, audience_settings)
-        for combo in (other_settings, my_settings, audience_settings):
-            combo.bind("<<ComboboxSelected>>", lambda _event: self.update_conversation_controls())
-        for text, variable in (("Show both languages for every line", self.both_languages_var),
-                               ("Keep English technical terms in English", self.keep_english_var)):
-            control = tk.Checkbutton(languages, text=text, variable=variable,
-                                     command=self.persist_settings, **self._checkbutton_options())
-            control.pack(anchor="w", pady=3)
+        languages = self._settings_section(content, "Languages")
+        self._settings_help(languages, "What is being spoken and what you want to read.")
+        pair = tk.Frame(languages, bg=COLORS["surface"])
+        pair.pack(fill="x", pady=(10, 12))
+        for label, variable in (("Spoken language", self.listen_source_var), ("Translate to", self.listen_target_var)):
+            field, combo = self._field(pair, label, variable, width=22)
+            field.pack(side="left", fill="x", expand=True, padx=(0, 10))
+            combo.configure(values=[name for name, _, _ in LANGUAGES])
+            combo.bind("<<ComboboxSelected>>", lambda _event: self.apply_language_pair())
+            self.settings_controls.append(combo)
+        from quality_settings import _entry
+        _entry(languages, "Variety (optional, for example ar-SA)", self.variety_var, COLORS)
+        for text, variable, callback in (
+            ("Speakers also use English. Show it as spoken, do not translate.", self.english_passthrough_var, self.apply_language_pair),
+            ("Keep English technical terms in English", self.keep_english_var, self.persist_settings),
+            ("Show the original line under each translation", self.both_languages_var, self.persist_settings)):
+            control = tk.Checkbutton(languages, text=text, variable=variable, command=callback, **self._checkbutton_options())
+            control.pack(anchor="w", pady=5)
             self.settings_controls.append(control)
-        speech_settings = self._settings_combo(languages, f"When I speak {self.audience_language_var.get()}", self.same_language_speech_var,
-            ["Pass my voice through", "Read it with the voice", "Mute"])
-        self.speech_routing_settings_label = speech_settings.master.winfo_children()[0]
-        speech_settings.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
-        self._settings_help(languages, "Listen shows your language. Speak translates for your audience. "
-                            "Speech already in the audience language can use your own voice.")
-        terms_button = ttk.Button(languages, text="Edit terms", style="Mac.TButton", command=self.open_terms)
-        terms_button.pack(anchor="w", pady=(8, 0))
-        self.settings_controls.append(terms_button)
-
-        advanced_languages = self._settings_section(content, "Advanced one-way pair")
-        advanced_toggle = tk.Checkbutton(advanced_languages, text="Use a fixed source → target pair",
-            variable=self.one_way_var, command=self.update_conversation_controls, **self._checkbutton_options())
-        advanced_toggle.pack(anchor="w")
-        self.settings_controls.append(advanced_toggle)
-        languages = tk.Frame(advanced_languages, bg=COLORS["surface"])
-        self.advanced_language_frame = languages
-        if self.one_way_var.get():
-            languages.pack(fill="x")
-        listen_source_settings = self._settings_combo(
-            languages,
-            "Source language",
-            self.listen_source_var,
-            [name for name, _bcp, _iso in LANGUAGES],
-        )
-        listen_target_settings = self._settings_combo(
-            languages,
-            "Target language",
-            self.listen_target_var,
-            [name for name, _bcp, _iso in LANGUAGES],
-        )
-        for combo in (listen_source_settings, listen_target_settings):
-            combo.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
+        ttk.Button(languages, text="Edit terms", style="Mac.TButton", command=self.open_terms).pack(anchor="w", pady=10)
 
         recognition = self._settings_section(content, "Speech Recognition")
         cohere_button = ttk.Button(recognition, text="Set up Saudi Arabic recognition", style="Mac.TButton",
@@ -1434,8 +1409,8 @@ class TranslatorGUI:
         self.speak_output_combo.bind(
             "<<ComboboxSelected>>", lambda _event: (self.update_routing_banner(), self.persist_settings())
         )
-        self.listen_source_combo.bind("<<ComboboxSelected>>", lambda _event: self.update_conversation_controls())
-        self.listen_target_combo.bind("<<ComboboxSelected>>", lambda _event: self.update_conversation_controls())
+        self.listen_source_combo.bind("<<ComboboxSelected>>", lambda _event: self.apply_language_pair())
+        self.listen_target_combo.bind("<<ComboboxSelected>>", lambda _event: self.apply_language_pair())
         self.speak_source_combo.bind("<<ComboboxSelected>>", lambda _event: self.update_conversation_controls())
         self.speak_target_combo.bind(
             "<<ComboboxSelected>>", lambda _event: (self.refresh_voices(), self.update_conversation_controls())
@@ -1473,6 +1448,17 @@ class TranslatorGUI:
                 return entry
         return LANGUAGES[0]
 
+    def apply_language_pair(self):
+        from app_config import conversation_for_pair
+        pair = conversation_for_pair(self.language_entry_by_name(self.listen_source_var.get())[2],
+            self.language_entry_by_name(self.listen_target_var.get())[2], self.english_passthrough_var.get(),
+            previous=self.current_conversation())
+        self.conversation_other_var.set(self.language_name_for_iso(pair.other_language))
+        self.my_language_var.set(self.language_name_for_iso(pair.my_language))
+        self.audience_language_var.set(self.language_name_for_iso(pair.audience_language))
+        self.one_way_var.set(pair.one_way)
+        self.update_conversation_controls()
+
     def current_conversation(self):
         other = self.language_entry_by_name(self.conversation_other_var.get())[2]
         my_language = self.language_entry_by_name(self.my_language_var.get())[2]
@@ -1498,15 +1484,14 @@ class TranslatorGUI:
         one_way = self.one_way_var.get()
         for combo, variable in ((self.listen_source_combo, self.listen_source_var),
                                 (self.speak_source_combo, self.speak_source_var)):
-            combo.configure(textvariable=variable if one_way else self.conversation_other_var,
-                            values=all_names if one_way else [x for x in all_names if x != "English"])
-        self.listen_target_combo.configure(textvariable=self.listen_target_var if one_way else self.my_language_var,
-                                           values=all_names if one_way else pair)
+            combo.configure(textvariable=variable if one_way or combo is self.listen_source_combo else self.conversation_other_var,
+                            values=all_names if one_way or combo is self.listen_source_combo else [x for x in all_names if x != "English"])
+        self.listen_target_combo.configure(textvariable=self.listen_target_var, values=all_names)
         self.speak_target_combo.configure(textvariable=self.speak_target_var if one_way else self.audience_language_var,
                                           values=all_names if one_way else pair)
         for label in (self.listen_source_label, self.speak_source_label):
-            label.configure(text="From" if one_way else "English +")
-        self.listen_target_label.configure(text="To" if one_way else "My language")
+            label.configure(text="From" if label is self.listen_source_label or one_way else "English +")
+        self.listen_target_label.configure(text="To")
         self.speak_target_label.configure(text="To" if one_way else "Audience")
         for combo in getattr(self, "conversation_settings_combos", ()):
             if combo.winfo_exists():

@@ -53,11 +53,24 @@ class LanguageConfig:
     source: str = "ar"
     target: str = "en"
     whisper_model: str = "openai/whisper-small"
+    variety: str = ""
 
 
 @dataclass(frozen=True)
 class ConversationConfig(Conversation):
     one_way: bool = False
+
+
+def conversation_for_pair(source, target, english_passthrough=True, *, previous=None):
+    """Map the single UI pair onto the existing bilingual/one-way model."""
+    from dataclasses import replace
+    previous = previous or ConversationConfig()
+    other = target if source == "en" else source
+    if other == "en":
+        other = previous.other_language
+    bilingual = (source == "en" and target != "en") or (target == "en" and source != "en" and english_passthrough)
+    return replace(previous, other_language=other, my_language=target if target in {"en", other} else "en",
+                   audience_language=other, one_way=not bilingual)
 
 
 def _path(path=None):
@@ -161,6 +174,7 @@ def load_language_config(path=None):
     return LanguageConfig(
         source=config.get("LANGUAGE", "source", fallback="ar"),
         target=config.get("LANGUAGE", "target", fallback="en"),
+        variety=config.get("LANGUAGE", "variety", fallback=""),
         whisper_model=config.get(
             "LANGUAGE", "whisper_model", fallback="openai/whisper-small"
         ),
