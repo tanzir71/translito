@@ -34,7 +34,7 @@ class SentenceAssembler:
         self.language_tag = language_tag
         self.pending.append((text.strip(), part))
         self.updated_at = self.clock()
-        if self.text.endswith(self.terminal) or len(self.text) >= self.max_characters:
+        if self.idle_seconds == 0 or self.text.endswith(self.terminal) or len(self.text) >= self.max_characters:
             completed.extend(self.flush())
         return completed
 

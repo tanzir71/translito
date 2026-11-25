@@ -153,6 +153,7 @@ class DesktopRuntime:
 
             pipeline.translator = SimpleNamespace(translate=measured_bilingual)
             pipeline.assembler.clock = self.clock
+            pipeline.clock = self.clock
 
     def _event(self, kind, payload):
         self.events.append((time.perf_counter(), kind, payload))
@@ -193,6 +194,7 @@ class DesktopRuntime:
         pipeline = self.runtime.conversation_pipeline
         if pipeline is not None:
             pipeline.context.clear()
+            pipeline.recent_entry, pipeline.recent_chunks = None, []
             pipeline.last_speech_at = None
             if callable(getattr(pipeline.recognizer, "reset", None)):
                 pipeline.recognizer.reset()

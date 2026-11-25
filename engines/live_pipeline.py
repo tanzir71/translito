@@ -134,7 +134,8 @@ class LiveConversationPipeline:
             state["entry"]["source_shown_at"] = self.clock()
         self.latest_input_row = state
         entry = state["entry"]
-        state["raw_source"] = state.get("raw_source", "") + text
+        state["raw_source"] = text if data.get("replace") else state.get("raw_source", "") + text
+        entry["source_provisional"] = not data.get("finished", False)
         entry["source_text"] = (self.fallback.glossary.restore_english(state["raw_source"])[0]
                                 if self.fallback.glossary else state["raw_source"])
         entry["arabic_text"] = entry["source_text"]
@@ -186,7 +187,9 @@ class LiveConversationPipeline:
                 state["target_done"] = True
                 self.output_row = None
             return
-        entry["translated_text"] += data["text"]
+        raw = data["text"] if data.get("replace") else state.get("raw_target", "") + data["text"]
+        state["raw_target"] = raw
+        entry["translated_text"] = (" ".join(raw.split()[:-3]) if data.get("provisional") and len(raw.split()) > 3 else raw)
         entry["english_text"] = entry["translated_text"]
         entry["mt_called"] = True
         state["updated"] = self.clock()
@@ -203,6 +206,8 @@ class LiveConversationPipeline:
 
     def _commit(self, state, *, cancelled=False, interrupted=False):
         entry = state["entry"]
+        if state.get("raw_target"):
+            entry["translated_text"] = entry["english_text"] = state["raw_target"]
         entry["translation_pending"] = False
         if cancelled:
             entry["translation_cancelled"] = True

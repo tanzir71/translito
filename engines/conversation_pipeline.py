@@ -26,7 +26,9 @@ class ConversationPipeline:
         self.speech_player = speech_player
         self.voice = voice
         self.glossary = glossary
-        self.assembler = assembler or SentenceAssembler()
+        self.assembler = assembler or SentenceAssembler(
+            idle_seconds=0 if getattr(recognizer, "signals_endpoints", False) is True else .5, clock=clock)
+        self.recent_entry, self.recent_chunks = None, []
         self.pending_entry = None
         self.context = []
         self.last_empty_hint_at = None
@@ -56,6 +58,19 @@ class ConversationPipeline:
         self.emit("source", result.text)
         self.emit("arabic", result.text)
         route = route_utterance(result.language_tag, self.mode, self.conversation)
+        recent = self.recent_entry
+        if (route.translate and self.pending_entry is None and recent is not None
+                and recent["language_tag"] == result.language_tag
+                and not recent["source_text"].endswith(SentenceAssembler.terminal)
+                and self.clock() - recent["target_shown_at"] <= 2.5):
+            old = recent["source_text"]
+            recent["source_text"] = recent["arabic_text"] = old + " " + result.text
+            recent["translation_pending"] = True
+            if self.context and self.context[-1][0] == old:
+                self.context.pop()
+            self.emit("transcript_update", recent.copy())
+            self._finish(recent, self.recent_chunks + [chunk], route)
+            return
         merge = (route.translate and self.pending_entry is not None
                  and self.pending_entry["language_tag"] == result.language_tag)
         if merge:
@@ -141,6 +156,7 @@ class ConversationPipeline:
                 entry["mt_called"] = False
             entry["translation_pending"] = False
             self.emit("delay", self.delays.record(entry, self.clock()))
+            self.recent_entry, self.recent_chunks = entry, list(chunks)
             self.emit("target", output)
             self.emit("english", output)
             self.emit("transcript_update", entry.copy())

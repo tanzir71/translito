@@ -25,10 +25,14 @@ def chunk(value=0.2):
 def test_delay_uses_speech_end_and_persists_session_percentiles(tmp_path):
     from dataclasses import replace
     from engines.usage import UsageLedger
-    clock = iter([100.5, 102.0])
+    clock = [100.5]
     ledger = UsageLedger(tmp_path / "usage.json")
-    runtime, _, _, entries, events = pipeline([recognized("Hola.", "es")], Conversation(other_language="es", audience_language="es"),
-        clock=lambda: next(clock), ledger=ledger)
+    runtime, translator, _, entries, events = pipeline([recognized("Hola.", "es")], Conversation(other_language="es", audience_language="es"),
+        clock=lambda: clock[0], ledger=ledger)
+    def translate(*args, **kwargs):
+        clock[0] = 102.0
+        return MtResult("Hello.", "fake-mt")
+    translator.translate.side_effect = translate
     runtime.feed(replace(chunk(), captured_at=100.0, endpoint_delay_s=.4))
     assert entries[0]["speech_end_at"] == 99.6
     assert entries[0]["source_shown_at"] == 100.5
@@ -36,6 +40,22 @@ def test_delay_uses_speech_end_and_persists_session_percentiles(tmp_path):
     assert entries[0]["delay_s"] == pytest.approx(2.4)
     summary = next(iter(ledger.snapshot()["sessions"].values()))
     assert summary["delay_p50_s"] == summary["delay_p95_s"] == pytest.approx(2.4)
+
+
+def test_provider_endpoint_has_no_assembler_wait_and_continuation_updates_same_row():
+    from dataclasses import replace
+    clock = [100.0]
+    runtime, translator, _, entries, _ = pipeline([recognized("Hola", "es"), recognized("mundo.", "es")],
+        Conversation(other_language="es", audience_language="es"), clock=lambda: clock[0])
+    runtime.recognizer.signals_endpoints = True
+    runtime.assembler.idle_seconds = 0
+    runtime.feed(replace(chunk(), captured_at=99.0, endpoint_delay_s=.2))
+    assert translator.translate.call_count == 1
+    clock[0] += .3
+    runtime.feed(replace(chunk(), captured_at=100.0, endpoint_delay_s=.2))
+    assert len(entries) == 1 and entries[0]["source_text"] == "Hola mundo."
+    assert translator.translate.call_count == 2
+    assert entries[0]["segment_count"] == 2
 
 
 def pipeline(results, conversation=None, mode="listen", **kwargs):

@@ -291,7 +291,7 @@ def test_offline_replay_sentence_timeout_uses_wav_silence_without_real_wait(monk
     monkeypatch.setattr(main.ArabicAudioTranscriber, "create_audio_processor", lambda *a, **kw: Capture())
     runtime = DesktopRuntime("offline", runtime_kwargs={"recognizer": recognizer, "translator_engine": translator})
     # Keep a later capture event in the timeline; it must first service the
-    # assembler's 1.5s deadline, rather than translating only at EOF.
+    # assembler's 0.5s local deadline, rather than translating only at EOF.
     original = Capture.append
     def append(self, samples, rate):
         result = original(self, samples, rate)
@@ -300,5 +300,5 @@ def test_offline_replay_sentence_timeout_uses_wav_silence_without_real_wait(monk
         return result
     monkeypatch.setattr(Capture, "append", append)
     result = runtime.evaluate(np.full(48000, .1, dtype=np.float32), 16000)
-    assert 1.5 <= result["entries"][0]["speech_end_latency_s"] < 2
+    assert .5 <= result["entries"][0]["speech_end_latency_s"] < 1
     assert result["elapsed_s"] < 1
