@@ -369,6 +369,12 @@ class TranslatorGUI:
                 self.root.iconbitmap(default=str(icon_path))
             except tk.TclError:
                 pass
+        try:
+            self.window_icons = [tk.PhotoImage(file=str(app_resource_path(f"engines/data/tray/idle-{n}.png")))
+                                 for n in (32, 64)]
+            self.root.iconphoto(True, *self.window_icons)
+        except tk.TclError:
+            self.window_icons = []
 
         self.input_choices = []
         self.listen_choices = []
@@ -2472,7 +2478,9 @@ class TranslatorGUI:
             import pystray
             from PIL import Image
 
-            image = Image.open(app_resource_path("Translito.ico")).convert("RGBA")
+            self.tray_images = {state: Image.open(app_resource_path(f"engines/data/tray/{state}-64.png")).convert("RGBA")
+                                for state in ("idle", "listening", "paused")}
+            image = self.tray_images["idle"]
             menu = pystray.Menu(
                 pystray.MenuItem(
                     lambda _item: self.current_status,
@@ -2529,6 +2537,10 @@ class TranslatorGUI:
     def refresh_tray_menu(self):
         if self.tray_icon is not None:
             try:
+                state = ("paused" if any(word in self.current_status.lower() for word in ("budget", "paused", "error")) else
+                         "listening" if self.transcriber is not None else "idle")
+                if getattr(self, "tray_images", None):
+                    self.tray_icon.icon = self.tray_images[state]
                 self.tray_icon.update_menu()
             except Exception:
                 pass
@@ -2584,6 +2596,9 @@ def gui_main():
 
     require_dependencies()
     hide_console_window()
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Translito.Desktop.v2")
     root = tk.Tk()
     TranslatorGUI(root)
     root.mainloop()

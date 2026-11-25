@@ -31,3 +31,17 @@ def test_generated_windows_and_web_assets(tmp_path):
         web = Image.open(root / "website/static/translito-icon.png")
         assert web.size == (512, 512)
         assert_transparent(web)
+
+
+def test_tray_image_changes_with_session_and_budget_state():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from gui import TranslatorGUI
+    tray = SimpleNamespace(icon=None, update_menu=Mock())
+    app = SimpleNamespace(tray_icon=tray, tray_images={s: object() for s in ("idle", "listening", "paused")},
+                          current_status="Ready", transcriber=None)
+    for status, session, state in (("Ready", None, "idle"), ("Listening", object(), "listening"),
+                                   ("Budget reached", object(), "paused")):
+        app.current_status, app.transcriber = status, session
+        TranslatorGUI.refresh_tray_menu(app)
+        assert tray.icon is app.tray_images[state]
