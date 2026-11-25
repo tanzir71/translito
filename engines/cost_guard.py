@@ -2,6 +2,7 @@
 from collections import deque
 from dataclasses import dataclass
 import math
+import time
 from uuid import uuid4
 
 import numpy as np
@@ -37,6 +38,9 @@ class CostGuard:
         self.onset_seconds = self.idle = self.stream_seconds = self.stream_speech = self.extra = 0.0
         self.reservations = []
         self.finalized = False
+        self.capture_origin = None
+        self.sent_intervals = {}
+        self.stream_sent_seconds = 0
 
     def _reserve(self, seconds):
         estimate = getattr(self.provider, "estimate_usage", None)
@@ -52,6 +56,11 @@ class CostGuard:
             self.provider.open_stream()
             self.active = True
             self.stream_seconds = self.stream_speech = self.extra = 0.0
+            self.stream_sent_seconds = 0
+        generation = getattr(self.provider, "generation", 1)
+        self.sent_intervals.setdefault(generation, []).append((self.stream_sent_seconds,
+            self.stream_sent_seconds + seconds, self.capture_origin + self.captured_seconds - seconds))
+        self.stream_sent_seconds += seconds
         if self.provider.push_audio(audio) is False:
             raise RuntimeError("The streaming provider stopped accepting audio")
         self.sent_seconds += seconds
@@ -62,6 +71,8 @@ class CostGuard:
         if audio.ndim != 1 or sample_rate <= 0 or not np.isfinite(audio).all():
             raise ValueError("The cost guard requires finite mono audio")
         duration = len(audio) / sample_rate
+        if self.capture_origin is None:
+            self.capture_origin = time.monotonic() - duration
         self.captured_seconds += duration
         self.pre_roll.append(audio.copy())  # Local only, never sent to keep alive.
         if self.paused or not duration:
@@ -138,3 +149,9 @@ class CostGuard:
         self.close()
         self.ledger.record_session(self.session_id, captured_seconds=self.captured_seconds,
             sent_seconds=self.sent_seconds, translated_chars=0)
+
+    def speech_end_at(self, offset, generation):
+        for start, end, captured in self.sent_intervals.get(generation, ()):
+            if start <= offset <= end + 1e-6:
+                return captured + min(offset, end) - start
+        return None

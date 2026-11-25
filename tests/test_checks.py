@@ -24,3 +24,14 @@ def test_recording_without_reference_never_invents_accuracy():
     assert result["wer"] is None and result["words_right"] is None
     assert CheckRunner.recommend([result]) is None
     assert normalize("أ إ آ ة ١٢٣") == "ا ا ا ه 123"
+
+
+def test_saved_checks_are_scoped_to_pair_engine_and_machine(tmp_path):
+    from engines.checks import CheckStore
+    path = tmp_path / "checks.json"
+    store = CheckStore(path, machine="fixture-machine")
+    store.save("es", "en", [{"engine":"fake", "wer":0, "outputs":[{"source":"PRIVATE"}]}])
+    assert store.results("es", "en")[0]["engine"] == "fake"
+    assert not store.results("en", "ar")
+    assert not CheckStore(path, machine="other-machine").results("es", "en")
+    assert "PRIVATE" not in path.read_text()

@@ -126,6 +126,7 @@ class PaidStreamingInterpreter:
         if source and any(not piece.translated for piece in update.pieces):
             self.emit("input_transcription", {"text": source, "replace": True, "language": state["language"],
                 "finished": update.endpoint or update.done,
+                "speech_end_at": self.guard.speech_end_at(state["end"], generation) if self.guard and state["end"] is not None else None,
                 "end_offset": f"{state['end']}s" if state["end"] is not None else None})
         target = state["target"] + "".join(target_draft)
         if target:
@@ -156,6 +157,7 @@ class PaidStreamingInterpreter:
             identity = f"{generation}-{state['turn']}"
             self.emit("input_transcription", {"text": text, "language": language, "replace": True,
                 "finished": boundary, "utterance_id": identity,
+                "speech_end_at": self.guard.speech_end_at(piece.end_s, generation) if self.guard and piece.end_s is not None else None,
                 "end_offset": f"{piece.end_s}s" if piece.end_s is not None else None})
             words = len(state["source"].split())
             if piece.final and (boundary or words - state["words"] >= 5):

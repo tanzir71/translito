@@ -206,10 +206,42 @@ def cloud_engine(factory, settings, *, credentials, ledger, translator, lid):
             if any(k == "fallback" for _, k, _ in events):
                 raise ValueError("The cloud check failed; no score was recorded")
             completed = [at for at, k, v in events if k == "output_transcription" and v.get("finished")]
+            ended = [v.get("speech_end_at") for _, k, v in events if k == "input_transcription" and v.get("finished")]
             return {"source_text": " ".join(source), "translated_text": " ".join(target),
-                "delays": [max(0, at - began - sample.seconds) for at in completed[-1:]], "cost_usd": spent()-before}
+                "delays": [max(0, shown-end) for shown, end in zip(completed, ended) if end is not None], "cost_usd": spent()-before}
         finally:
             engine.stop()
     rate = factory.rate
     hourly = rate.per_audio_hour if rate else Decimal(0)
     return CheckEngine(factory.name, run, hourly)
+
+
+class CheckStore:
+    def __init__(self, path=None, *, machine=None):
+        from app_config import CONFIG_FILE
+        self.path = Path(path) if path else CONFIG_FILE.parent / "checks.json"
+        self.machine = machine or hashlib.sha256((platform.node()+platform.machine()+platform.processor()).encode()).hexdigest()[:16]
+
+    def save(self, source, target, results):
+        from engines.fileio import atomic_replace
+        import tempfile
+        data = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {"version": 1, "checks": []}
+        if data.get("version") != 1 or not isinstance(data.get("checks"), list):
+            raise ValueError("Check history is invalid; it was preserved")
+        for result in results:
+            data["checks"].append({"source": source, "target": target, "machine": self.machine,
+                "checked_on": datetime.now(timezone.utc).isoformat(), **{k:v for k,v in result.items() if k != "outputs"}})
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.path.parent, delete=False) as handle:
+            temporary = Path(handle.name)
+            json.dump(data, handle, indent=2, allow_nan=False)
+        try:
+            atomic_replace(temporary, self.path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def results(self, source, target):
+        if not self.path.exists():
+            return []
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        return [r for r in data["checks"] if (r["source"], r["target"], r["machine"]) == (source, target, self.machine)]

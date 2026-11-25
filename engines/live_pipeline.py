@@ -151,6 +151,8 @@ class LiveConversationPipeline:
             if self.capture_origin is not None:
                 entry["speech_end_at"] = self.capture_origin + state["end"]
         route = self._route(state)
+        if data.get("speech_end_at") is not None:
+            entry["speech_end_at"] = data["speech_end_at"]
         if not route.translate:
             self.orphan_target.clear()
         self.emit("source", entry["source_text"])

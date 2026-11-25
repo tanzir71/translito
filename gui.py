@@ -1553,8 +1553,8 @@ class TranslatorGUI:
         if self.transcriber is not None or self.model_setup_busy:
             self.show_hint("Finish the current session or model setup first.")
             return
-        from quality_settings import open_speed_check
-        open_speed_check(self, COLORS, center_window, first_run=first_run)
+        from check_ui import open_check
+        open_check(self, COLORS, center_window, first_run=first_run)
 
     def change_engine_profile(self):
         self.offline_only_var.set(ENGINE_PROFILES[self.engine_profile_var.get()] == "offline")
