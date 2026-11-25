@@ -1,0 +1,312 @@
+{
+  "dataset": "Perle-ai/ASR_Code_Switch",
+  "revision": "1cc5950241e02500c43e39e8f37cce93c2dca5fb",
+  "license": "mit",
+  "selection_rule": "15 per publisher gender, evenly spaced by ensemble-score rank; tie-break audio filename; mixed-script references only; fixed before inference",
+  "scope": "Human-recorded scripted/conversationally delivered Saudi-English benchmark; not owner meetings or a population accuracy estimate",
+  "mt_reference_available": false,
+  "count": 30,
+  "total_seconds": 272.166,
+  "selection": [
+    {
+      "wav": "audio/02066396-a1c0-4d0d-8c07-33ec305be943.wav",
+      "source_file": "02066396-a1c0-4d0d-8c07-33ec305be943.mp3",
+      "source_sha256": "e5a2ac40458c32773e7771d45565c9f6d3922e23cdd02a46437cec7fddace29a",
+      "wav_sha256": "f8cf29c48480868c911ffc872afac9263de0cdbcf40addee312884fe96b2f6c6",
+      "seconds": 6.817,
+      "gender": "FEMALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/08b33334-e68b-42f0-abfa-675db90d762b.wav",
+      "source_file": "08b33334-e68b-42f0-abfa-675db90d762b.mp3",
+      "source_sha256": "1c0fd1eb76dcf2110bef72b2d1d85953e33c0cacf210d7cf0703a2f24693b02d",
+      "wav_sha256": "9a995322ba514233b45c991eb3ca6cf2b63c584681627e42332725ca9d5a197f",
+      "seconds": 8.377,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/161afcf5-39be-46ea-80be-10338d75a795.wav",
+      "source_file": "161afcf5-39be-46ea-80be-10338d75a795.mp3",
+      "source_sha256": "a3d8e26e5d66b8235bbd2dcc62266f1017dfca86a044f566570aab1879988ee7",
+      "wav_sha256": "4c1e9f30f2cb2abda80146da5c22499c9e5ec558f1453ea7b62b8759cb9cf30e",
+      "seconds": 9.673,
+      "gender": "FEMALE",
+      "ensemble_score": 9.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/1856b522-188e-48fd-9ed5-532f0819b900.wav",
+      "source_file": "1856b522-188e-48fd-9ed5-532f0819b900.mp3",
+      "source_sha256": "a72cd3592ca965c3dac5e4d648d9aba62c7db05db22cf519e5abd36114106187",
+      "wav_sha256": "51cd0c6d93f7f0ebdd31f7dcec59466d65f99979e0f5f8e009d1d6267d77a99c",
+      "seconds": 9.073,
+      "gender": "MALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/23516e17-5f7b-4d30-bbcf-c5c3c3d315d3.wav",
+      "source_file": "23516e17-5f7b-4d30-bbcf-c5c3c3d315d3.mp3",
+      "source_sha256": "bffb3ea9305fdbc32fb0eaf4bda7144741abdc99c41ae3b98e7f5bc0c0f08d42",
+      "wav_sha256": "5707eb34427bb817950d822ef231c5efbf34a41a1419418dec257fc0a30d4881",
+      "seconds": 9.673,
+      "gender": "FEMALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/25b1d3c1-4c8f-4dce-b130-c61872c42957.wav",
+      "source_file": "25b1d3c1-4c8f-4dce-b130-c61872c42957.mp3",
+      "source_sha256": "832737417f0fce4bfd89518abf5a3eed5e2a23a541c4f6cb7e22418c4537ad09",
+      "wav_sha256": "fdf9b3b4ba6ddb5fc69bd00d3886a50afbb01efe79a91e5f0e7b4c307ba81bc5",
+      "seconds": 9.673,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/25f2eada-9d7b-4ef3-bab1-b9b65459f07a.wav",
+      "source_file": "25f2eada-9d7b-4ef3-bab1-b9b65459f07a.mp3",
+      "source_sha256": "0ad9a792a40304e65fc95ad6d5c4d0f2277058d316c5e1d3054114a7c44fbf82",
+      "wav_sha256": "4eee217bb4975cf9bf6efcc71869069144464aca8debbbe85dcd6cd35246fddc",
+      "seconds": 8.713,
+      "gender": "FEMALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/311bcdac-7585-4ba0-acf7-06039a07c575.wav",
+      "source_file": "311bcdac-7585-4ba0-acf7-06039a07c575.mp3",
+      "source_sha256": "1420ab248ad72d94e7c119d2f346ad8abec99352cb4ee1c38ccf0439548c6106",
+      "wav_sha256": "2a318c9c60468ac2bd1c1a228d9445f609751aa15341ee8161fd6982f25406df",
+      "seconds": 9.793,
+      "gender": "MALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/3901df99-8a69-4664-928f-8df0e1b2f199.wav",
+      "source_file": "3901df99-8a69-4664-928f-8df0e1b2f199.mp3",
+      "source_sha256": "5b944009b0350e4a3bceef265f9bf9cab41eea03d5fe8dd7a967ea9a6e947851",
+      "wav_sha256": "5094ddf9cbd21d23fefe41e4d35cbe9f9aad1beb605d9833d00d16112515e938",
+      "seconds": 9.313,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/3d3439bb-739c-484e-bc98-2ead61284b72.wav",
+      "source_file": "3d3439bb-739c-484e-bc98-2ead61284b72.mp3",
+      "source_sha256": "3366bbcbe9d225e7c85b8335d3a1a28fbf4051c163a3e5ce96be76d2afb568fe",
+      "wav_sha256": "50cbad60eb574e9fcc16fec3b16d6afd974ba2ed2661637bd0ad34223cce6771",
+      "seconds": 9.577,
+      "gender": "FEMALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/54cc9aa9-ab21-4544-a874-5d8477967b98.wav",
+      "source_file": "54cc9aa9-ab21-4544-a874-5d8477967b98.mp3",
+      "source_sha256": "e49422922008f1f41270164d3597bb2412b09a3799f2934dcc935d7579c91c33",
+      "wav_sha256": "ec0668f075938da92b9135548c50c61fff60b1763aeb4067695f42bc8b18de24",
+      "seconds": 9.697,
+      "gender": "FEMALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/56865afe-8587-4c8d-90a0-6022c02fd102.wav",
+      "source_file": "56865afe-8587-4c8d-90a0-6022c02fd102.mp3",
+      "source_sha256": "f80cbaaa65a546ae5b41a86d79848a303646fc9604e79565cbb4b72d97dde651",
+      "wav_sha256": "e0411790104468a167003a8d420ce2192466bbdfe9cd182a01b7c52810fab9c2",
+      "seconds": 8.617,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/5d2d1545-1c28-47ce-9994-2a9940fe37f1.wav",
+      "source_file": "5d2d1545-1c28-47ce-9994-2a9940fe37f1.mp3",
+      "source_sha256": "104b3b1c964747ea96fc35f54a127fe571219b500c40859a02d700819e861187",
+      "wav_sha256": "011e01eb57fa02732fa924d25a7a279c61321862941707816e23a551e1d186ae",
+      "seconds": 8.713,
+      "gender": "FEMALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/7181af5e-7d23-44dc-b08d-14139ecbe117.wav",
+      "source_file": "7181af5e-7d23-44dc-b08d-14139ecbe117.mp3",
+      "source_sha256": "e4a72987b21430e9bc1ae9bee8a07e29d9acf550eed25d174b8d1eb1c93a6df5",
+      "wav_sha256": "bbdafbc2269323f68fb4bb703e004745d445713883dc79e6795ae496cb11784b",
+      "seconds": 9.337,
+      "gender": "FEMALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/78e7df39-6a5c-4d1b-b856-6878d948499d.wav",
+      "source_file": "78e7df39-6a5c-4d1b-b856-6878d948499d.mp3",
+      "source_sha256": "4ef5f3f9a09b386360577916efbbe44a6b218dbf37657cf4f0f452b1a3a306a7",
+      "wav_sha256": "97ae93e0f2f91483c7def527db74c91f4a7aa1bd94607752f2628847315c5da0",
+      "seconds": 9.913,
+      "gender": "FEMALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/78ee3345-fdb5-4c9f-9cbe-6f3f124fdb32.wav",
+      "source_file": "78ee3345-fdb5-4c9f-9cbe-6f3f124fdb32.mp3",
+      "source_sha256": "99ca4239b3d0f77e370c7a77c71cc5d19f80eda8bc64fc74a188e2f82e9c896e",
+      "wav_sha256": "17cc9fd46dd118e5942528a8aeb533988baaf6e4840817cdd6542c32ca5b6fe6",
+      "seconds": 9.793,
+      "gender": "MALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/8207ca0c-f5e4-40eb-bdb3-dcc1eb393ff5.wav",
+      "source_file": "8207ca0c-f5e4-40eb-bdb3-dcc1eb393ff5.mp3",
+      "source_sha256": "d741b9d1a10810b25ef557bdcca108157d5b543b39460e1699d48b32fe0bba7f",
+      "wav_sha256": "5662603e9d03cb25c4a7c83785bdb11ca0c0184176e04e49305427919a77f57d",
+      "seconds": 9.073,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/8b0f30b9-672d-456d-af79-93df730dd008.wav",
+      "source_file": "8b0f30b9-672d-456d-af79-93df730dd008.mp3",
+      "source_sha256": "1470b3c3d57b1b1bb7c1e42f7ee66c249fd0bcd84f7b7fd462747d115e40109e",
+      "wav_sha256": "9545542fe85762a745bd423bcde0dfaa800d9057cc0774393de754fcdb4f6136",
+      "seconds": 9.457,
+      "gender": "FEMALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/9262783e-43ce-4ca0-8e85-3de1bdfd11f2.wav",
+      "source_file": "9262783e-43ce-4ca0-8e85-3de1bdfd11f2.mp3",
+      "source_sha256": "107ec75bfe9992d166f33e7df3c366a6f85ef00502460add702e699c4f0853d2",
+      "wav_sha256": "9110627e3a9d9af1170470d4a8b773e69d41ff9a1201089b84443617f10c8065",
+      "seconds": 9.145,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/a1b15f61-0d24-40fc-8db5-dcf39e9f5233.wav",
+      "source_file": "a1b15f61-0d24-40fc-8db5-dcf39e9f5233.mp3",
+      "source_sha256": "9e2d236ab2da5dce9a9196d2255fdba4b3db31e1027a53af637ecd81076fbf05",
+      "wav_sha256": "a019452ae463ddde57d0de206f7cac74f4d0f593960057d7bd624945bcb80254",
+      "seconds": 9.217,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/b699c767-3b9d-452b-82d0-d5b525b278b7.wav",
+      "source_file": "b699c767-3b9d-452b-82d0-d5b525b278b7.mp3",
+      "source_sha256": "9e2285a378d99878aa6a8eb20fdec9f41f2c47b5672e50529239a53b54e56247",
+      "wav_sha256": "43025b92c22f752b7c12645e119994fceeead375931a5a16c02a8ead7f87ae07",
+      "seconds": 9.097,
+      "gender": "FEMALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/b8dd0c83-9d9b-4271-bdef-00949cfea558.wav",
+      "source_file": "b8dd0c83-9d9b-4271-bdef-00949cfea558.mp3",
+      "source_sha256": "7cafbdf3206f87768235afa3c2f209fc18f6b0dcdba775281ee32411f9f3e763",
+      "wav_sha256": "f72a994167c08487ab88acbadd2729592d7e14edd8d390eb2b43e58413ec5ac5",
+      "seconds": 9.577,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/b9d8dd00-d68a-41c5-b303-d5929ca739a5.wav",
+      "source_file": "b9d8dd00-d68a-41c5-b303-d5929ca739a5.mp3",
+      "source_sha256": "5063a57ffcbd101646f485a2b04df3534284d91bd1dc7846c47cf200ccd02af1",
+      "wav_sha256": "303806ab7500b52a31abc9f23bbf1124f196d9f5577f8b72d0ec6dee2cca9b74",
+      "seconds": 7.897,
+      "gender": "FEMALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/befceb5e-d0e9-4fbc-81da-7e5418fd21bc.wav",
+      "source_file": "befceb5e-d0e9-4fbc-81da-7e5418fd21bc.mp3",
+      "source_sha256": "4fe8627198c441d8276a22de736ac2cd38cba944a88e009fad97bbd6731cf1fb",
+      "wav_sha256": "e207fba507a95588f0bf45c2e1d0476a43b55993a9fa679e43ba2a2ac1320135",
+      "seconds": 8.497,
+      "gender": "MALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/d1e05731-7ed1-43e6-9ab1-c2462c424c2c.wav",
+      "source_file": "d1e05731-7ed1-43e6-9ab1-c2462c424c2c.mp3",
+      "source_sha256": "f363aa063878b9a31078f83a3a4c04b886149f3ec94978abf819c9b7dfa01583",
+      "wav_sha256": "dc315935f275650d7b900f0e342d285bf0a14c4f80b6530bbb304b4df4701458",
+      "seconds": 8.737,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/d3c26db9-4568-4486-add9-84e75f524b6a.wav",
+      "source_file": "d3c26db9-4568-4486-add9-84e75f524b6a.mp3",
+      "source_sha256": "8924c07783ee357b1398c599288db9dea2284df77758cfd060b6ecd12e476889",
+      "wav_sha256": "84c650d418057d1693a8917bb8d072a188a22a51cdd8070d12d9a3bd1969c356",
+      "seconds": 8.257,
+      "gender": "FEMALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/db6a64ee-d388-4cad-af61-b9125f47cf13.wav",
+      "source_file": "db6a64ee-d388-4cad-af61-b9125f47cf13.mp3",
+      "source_sha256": "eba562b2e38827129dc957f1940b475394b8bcac1cc7dc1274426696815726ca",
+      "wav_sha256": "5451b20f33429cfd9c1a5a1ca934244ed592fc221556521a0fc6b141210025d7",
+      "seconds": 9.433,
+      "gender": "FEMALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/f594fd46-aeb5-42a4-892e-2b1267a507bf.wav",
+      "source_file": "f594fd46-aeb5-42a4-892e-2b1267a507bf.mp3",
+      "source_sha256": "8de86e354a120a7528ac50d74575a0c9489e49eda385f924029860095c07c504",
+      "wav_sha256": "d9f2dc34819703018aed5ab1c7bf958af583229e42e30e60426822a1fd7e68a2",
+      "seconds": 8.233,
+      "gender": "MALE",
+      "ensemble_score": 8.5,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/f89ba3e5-2c77-4b69-95b2-395e5becde81.wav",
+      "source_file": "f89ba3e5-2c77-4b69-95b2-395e5becde81.mp3",
+      "source_sha256": "ccf1f1b7ed7e72cc2d7a92632d4ce4842155810b884714ddc7495b64eaca9ccf",
+      "wav_sha256": "228e5850e3bd4fb5eeeb4cef04a12dbabfd6b2a99855949da7d5823a9e59bc44",
+      "seconds": 9.457,
+      "gender": "MALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    },
+    {
+      "wav": "audio/ff800b40-a15c-422f-8e08-453a72fcb83a.wav",
+      "source_file": "ff800b40-a15c-422f-8e08-453a72fcb83a.mp3",
+      "source_sha256": "3dac0c6d4e3b5d532461650acfbac07ea2e3939dbe661447152d25e04526ea0f",
+      "wav_sha256": "5fed7c949c2d0c6f0a0a63c94a6199e6cd211468b73fc89e0d78c3e865b71535",
+      "seconds": 9.337,
+      "gender": "FEMALE",
+      "ensemble_score": 8.0,
+      "reference_tag": "mix"
+    }
+  ]
+}

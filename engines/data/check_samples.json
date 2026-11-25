@@ -1,0 +1,4 @@
+{
+  "special_sets": [{"source":"ar","target":"en","label":"Perle public Saudi-English · MIT · 30 pinned clips","base":"https://huggingface.co/datasets/Perle-ai/ASR_Code_Switch/resolve/1cc5950241e02500c43e39e8f37cce93c2dca5fb/data/saudi_arabic_english"}],
+  "fleurs_configs": {"ar":"ar_eg","en":"en_us","es":"es_419","fr":"fr_fr","de":"de_de","it":"it_it","pt":"pt_br","ru":"ru_ru","tr":"tr_tr","fa":"fa_ir","ur":"ur_pk"}
+}
