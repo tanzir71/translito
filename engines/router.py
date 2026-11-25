@@ -141,7 +141,9 @@ class ProviderRouter:
                 if provider.network:
                     if provider.rate is None:
                         raise BudgetExceeded("This provider's pricing policy is not configured.")
-                    estimate = getattr(provider.engine, "estimate_usage", None)
+                    estimate = getattr(provider.engine, "estimate_"+operation+"_usage", None)
+                    if estimate is None and operation in {"translate", "transcribe"}:
+                        estimate = getattr(provider.engine, "estimate_usage", None)
                     quantity = estimate(*args, **kwargs) if callable(estimate) else units
                     reservation = self.ledger.reserve(
                         provider.name, quantity, rate=provider.rate, allowance=provider.allowance,
@@ -156,8 +158,8 @@ class ProviderRouter:
                 result = getattr(provider.engine, operation)(*args, **kwargs)
                 self._settle(reservation, actual=getattr(result, "usage", None))
                 check_cancelled()
-                self.emit("engine", {"mt" if operation == "translate" else "asr": result.provider,
-                                       "stage": "mt" if operation == "translate" else "asr",
+                self.emit("engine", {"asr" if operation == "transcribe" else "mt": result.provider,
+                                       "stage": "asr" if operation == "transcribe" else "mt",
                                        "fallback": failed or bool(getattr(provider.engine, "fallback_active", False))})
                 return result
             except GenerationCancelled:
@@ -207,6 +209,10 @@ class TranslatorRouter(ProviderRouter):
         return self._invoke("translate", Units(characters=len(text)), (text, source, target),
                             {"context": context, "glossary": glossary},
                             supports=lambda engine: engine.supports(source, target))
+
+    def suggest_replies(self, context, language, meaning_language, *, variety=""):
+        return self._invoke("suggest_replies", Units(), (context,language,meaning_language), {"variety":variety},
+            supports=lambda engine: callable(getattr(engine,"suggest_replies",None)))
 
 
 class RecognizerRouter(ProviderRouter):

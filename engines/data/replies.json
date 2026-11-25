@@ -1,0 +1,244 @@
+{
+  "en": {
+    "yes": [
+      "Yes",
+      ""
+    ],
+    "no": [
+      "No",
+      ""
+    ],
+    "moment": [
+      "One moment, please",
+      ""
+    ],
+    "repeat": [
+      "Please repeat that",
+      ""
+    ],
+    "thanks": [
+      "Thank you",
+      ""
+    ]
+  },
+  "es": {
+    "yes": [
+      "Si",
+      ""
+    ],
+    "no": [
+      "No",
+      ""
+    ],
+    "moment": [
+      "Un momento, por favor",
+      ""
+    ],
+    "repeat": [
+      "Puedes repetirlo, por favor",
+      ""
+    ],
+    "thanks": [
+      "Gracias",
+      ""
+    ]
+  },
+  "fr": {
+    "yes": [
+      "Oui",
+      ""
+    ],
+    "no": [
+      "Non",
+      ""
+    ],
+    "moment": [
+      "Un instant, s’il vous plait",
+      ""
+    ],
+    "repeat": [
+      "Pouvez-vous repeter, s’il vous plait",
+      ""
+    ],
+    "thanks": [
+      "Merci",
+      ""
+    ]
+  },
+  "de": {
+    "yes": [
+      "Ja",
+      ""
+    ],
+    "no": [
+      "Nein",
+      ""
+    ],
+    "moment": [
+      "Einen Moment, bitte",
+      ""
+    ],
+    "repeat": [
+      "Bitte wiederholen Sie das",
+      ""
+    ],
+    "thanks": [
+      "Danke",
+      ""
+    ]
+  },
+  "it": {
+    "yes": [
+      "Si",
+      ""
+    ],
+    "no": [
+      "No",
+      ""
+    ],
+    "moment": [
+      "Un momento, per favore",
+      ""
+    ],
+    "repeat": [
+      "Puoi ripetere, per favore",
+      ""
+    ],
+    "thanks": [
+      "Grazie",
+      ""
+    ]
+  },
+  "pt": {
+    "yes": [
+      "Sim",
+      ""
+    ],
+    "no": [
+      "Nao",
+      ""
+    ],
+    "moment": [
+      "Um momento, por favor",
+      ""
+    ],
+    "repeat": [
+      "Pode repetir, por favor",
+      ""
+    ],
+    "thanks": [
+      "Obrigado",
+      ""
+    ]
+  },
+  "ar": {
+    "yes": [
+      "نعم",
+      "Naam"
+    ],
+    "no": [
+      "لا",
+      "La"
+    ],
+    "moment": [
+      "لحظة من فضلك",
+      "Lahza min fadlak"
+    ],
+    "repeat": [
+      "ممكن تعيد من فضلك",
+      "Mumkin tiid min fadlak"
+    ],
+    "thanks": [
+      "شكرا",
+      "Shukran"
+    ]
+  },
+  "ru": {
+    "yes": [
+      "Да",
+      "Da"
+    ],
+    "no": [
+      "Нет",
+      "Net"
+    ],
+    "moment": [
+      "Одну минуту пожалуйста",
+      "Odnu minutu pozhaluysta"
+    ],
+    "repeat": [
+      "Повторите пожалуйста",
+      "Povtorite pozhaluysta"
+    ],
+    "thanks": [
+      "Спасибо",
+      "Spasibo"
+    ]
+  },
+  "fa": {
+    "yes": [
+      "بله",
+      "Bale"
+    ],
+    "no": [
+      "نه",
+      "Na"
+    ],
+    "moment": [
+      "یک لحظه لطفا",
+      "Yek lahze lotfan"
+    ],
+    "repeat": [
+      "لطفا تکرار کنید",
+      "Lotfan tekrar konid"
+    ],
+    "thanks": [
+      "ممنون",
+      "Mamnoon"
+    ]
+  },
+  "ur": {
+    "yes": [
+      "جی ہاں",
+      "Ji haan"
+    ],
+    "no": [
+      "نہیں",
+      "Nahin"
+    ],
+    "moment": [
+      "ایک لمحہ براہ کرم",
+      "Ek lamha barah karam"
+    ],
+    "repeat": [
+      "دوبارہ کہیں براہ کرم",
+      "Dobara kahein barah karam"
+    ],
+    "thanks": [
+      "شکریہ",
+      "Shukriya"
+    ]
+  },
+  "tr": {
+    "yes": [
+      "Evet",
+      ""
+    ],
+    "no": [
+      "Hayir",
+      ""
+    ],
+    "moment": [
+      "Bir dakika lutfen",
+      ""
+    ],
+    "repeat": [
+      "Tekrar eder misiniz lutfen",
+      ""
+    ],
+    "thanks": [
+      "Tesekkur ederim",
+      ""
+    ]
+  }
+}

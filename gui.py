@@ -512,6 +512,8 @@ class TranslatorGUI:
         self.subtitle_controller = SubtitleController(self, COLORS)
         from schedule_ui import ScheduleController
         self.schedule_controller = ScheduleController(self, COLORS)
+        from reply_ui import ReplyController
+        self.reply_controller = ReplyController(self, COLORS)
         self._initializing = False
         if not self.preview_mode:
             from engines.hardware import speed_history_path
@@ -739,7 +741,6 @@ class TranslatorGUI:
         self._build_banners()
         self._separator(7)
         self._build_transcript_area()
-        self._separator(9)
         self._build_bottom_bar()
 
     def _separator(self, row):
@@ -1268,6 +1269,8 @@ class TranslatorGUI:
         build_meeting_app_page(self, COLORS)
         from schedule_ui import page as build_schedule_page
         build_schedule_page(self, COLORS)
+        from reply_ui import page as build_reply_page
+        build_reply_page(self, COLORS)
         translation = self._settings_section(content, "Local translation")
         gemma_button = ttk.Button(translation, text="Set up TranslateGemma", style="Mac.TButton",
                                    command=self.open_translation_model_setup)
@@ -2263,6 +2266,8 @@ class TranslatorGUI:
         self.error_var.set("")
 
     def append_transcript_card(self, entry):
+        if hasattr(self, "reply_controller"):
+            self.reply_controller.accept(entry)
         if hasattr(self, "subtitle_controller"):
             self.subtitle_controller.accept(entry)
         if entry.get("id") in self.transcript_targets:
@@ -2367,6 +2372,8 @@ class TranslatorGUI:
         return display_text(entry.get("translated_text", entry.get("english_text", "")))
 
     def update_transcript_card(self, entry):
+        if hasattr(self, "reply_controller"):
+            self.reply_controller.accept(entry)
         if hasattr(self, "subtitle_controller"):
             self.subtitle_controller.accept(entry)
         target = self.transcript_targets.get(entry.get("id"))
