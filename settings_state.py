@@ -17,8 +17,11 @@ class SettingsState:
     def __init__(self, path=None, *, writable=lambda: True):
         self.path, self.writable = path, writable
         self.bindings = []
+        self.transient = {}
 
     def get(self, section, key, default):
+        if (section, key) in self.transient:
+            return self.transient[section, key]
         value = read_config(self.path).get(section, key, fallback=None, raw=True)
         if value is None:
             return default
@@ -35,6 +38,7 @@ class SettingsState:
             return default
 
     def set(self, section, key, value):
+        self.transient[section, key] = value
         if not self.writable():
             return
         config = read_config(self.path)

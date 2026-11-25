@@ -26,6 +26,7 @@ DEFAULT_HOTKEYS = {
     "listen": "ctrl+alt+l",
     "speak": "ctrl+alt+s",
     "stop": "ctrl+alt+x",
+    "subtitles": "ctrl+alt+u",
 }
 
 

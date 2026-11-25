@@ -119,6 +119,7 @@ HOTKEY_LABELS = {
     "listen": "Start Listening",
     "speak": "Start Speaking",
     "stop": "Stop",
+    "subtitles": "Show or hide subtitles",
 }
 
 RTL_LANGUAGES = {"ar", "fa", "ur"}
@@ -491,6 +492,7 @@ class TranslatorGUI:
                 "listen": lambda: self.root.after(0, lambda: self.hotkey_start_mode("listen")),
                 "speak": lambda: self.root.after(0, lambda: self.hotkey_start_mode("speak")),
                 "stop": lambda: self.root.after(0, self.stop),
+                "subtitles": lambda: self.root.after(0, self.toggle_subtitles),
             },
             on_error=lambda message: self.root.after(0, lambda: self.show_error(message)),
         )
@@ -504,6 +506,8 @@ class TranslatorGUI:
         self.update_noise_gate_label()
         self.update_chunk_label()
         self.update_transcript_state()
+        from subtitle_overlay import SubtitleController
+        self.subtitle_controller = SubtitleController(self, COLORS)
         self._initializing = False
         if not self.preview_mode:
             from engines.hardware import speed_history_path
@@ -1054,6 +1058,9 @@ class TranslatorGUI:
         if not self.is_quitting:
             self.root.after(1000, self.refresh_cost_status)
 
+    def toggle_subtitles(self):
+        self.subtitle_controller.toggle()
+
     def open_settings(self):
         if self.settings_window and self.settings_window.winfo_exists():
             self.settings_window.deiconify()
@@ -1095,7 +1102,7 @@ class TranslatorGUI:
         self.settings_controls.append(login)
 
         hotkeys = self._settings_section(content, "Hotkeys")
-        for action in ("toggle", "listen", "speak", "stop"):
+        for action in DEFAULT_HOTKEYS:
             row = tk.Frame(hotkeys, bg=COLORS["surface"])
             row.pack(fill="x", pady=3)
             row.columnconfigure(1, weight=1)
@@ -1248,6 +1255,8 @@ class TranslatorGUI:
 
         from engine_ui import pages as build_engine_pages
         build_engine_pages(self, COLORS)
+        from subtitle_overlay import build_subtitle_page
+        build_subtitle_page(self, COLORS)
         translation = self._settings_section(content, "Local translation")
         gemma_button = ttk.Button(translation, text="Set up TranslateGemma", style="Mac.TButton",
                                    command=self.open_translation_model_setup)
@@ -2230,6 +2239,8 @@ class TranslatorGUI:
         self.error_var.set("")
 
     def append_transcript_card(self, entry):
+        if hasattr(self, "subtitle_controller"):
+            self.subtitle_controller.accept(entry)
         if entry.get("id") in self.transcript_targets:
             self.update_transcript_card(entry)
             return
@@ -2332,6 +2343,8 @@ class TranslatorGUI:
         return display_text(entry.get("translated_text", entry.get("english_text", "")))
 
     def update_transcript_card(self, entry):
+        if hasattr(self, "subtitle_controller"):
+            self.subtitle_controller.accept(entry)
         target = self.transcript_targets.get(entry.get("id"))
         if target is None:
             return
@@ -2540,6 +2553,8 @@ class TranslatorGUI:
                     enabled=False,
                 ),
                 pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Subtitles on screen", lambda _icon, _item: self.root.after(0, self.toggle_subtitles),
+                                checked=lambda _item: self.subtitles_enabled_var.get()),
                 pystray.MenuItem(
                     lambda _item: "Stop" if self.transcriber is not None else "Start Listening",
                     lambda _icon, _item: self.root.after(0, self.tray_primary_action),
@@ -2615,6 +2630,7 @@ class TranslatorGUI:
 
     def quit_app(self):
         self.is_quitting = True
+        self.subtitle_controller.close()
         self.virtual_mic_setup.poll_stop.set()
         if self.tray_icon is not None:
             try:

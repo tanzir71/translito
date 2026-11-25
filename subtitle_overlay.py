@@ -28,6 +28,13 @@ class Win32Overlay:
             for name in ("GetWindowLongPtrW", "SetWindowLongPtrW"):
                 getattr(self.user32, name).restype = ctypes.c_ssize_t
             self.user32.GetParent.restype = ctypes.c_void_p
+            self.user32.GetParent.argtypes = [ctypes.c_void_p]
+            self.user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            self.user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
+            self.user32.SetWindowRgn.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int]
+            self.user32.SetWindowDisplayAffinity.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+            self.user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+            self.user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
             self.gdi32.CreateRoundRectRgn.restype = ctypes.c_void_p
 
     def handle(self, window):
@@ -108,6 +115,7 @@ class SubtitleOverlay:
         self.window.bind("<B1-Motion>", self.drag)
         self.window.bind("<ButtonRelease-1>", self.drag_end)
         self.window.update_idletasks()
+        self.window.geometry(f"720x{max(64, self.window.winfo_reqheight())}")
         self.apply_styles()
 
     def option(self, key, default):
@@ -151,6 +159,7 @@ class SubtitleOverlay:
             self.labels[3].configure(text=display_text(rows[-1].get("source_text", "")), fg=self.colors["secondary"], font=("Segoe UI", 10))
             self.labels[3].pack(fill="x", pady=2)
         self.window.update_idletasks()
+        self.window.geometry(f"720x{max(64, self.window.winfo_reqheight())}")
         self.apply_styles()
 
     def visible(self, enabled, *, listening, minimized):
@@ -208,3 +217,84 @@ class SubtitleOverlay:
         monitor = next((m for m in self.backend.monitors(self.root) if m.left <= x < m.right and m.top <= y < m.bottom), self.monitor)
         self.monitor = monitor
         self.preferences.set("SUBTITLES", self.position_key(monitor), f"{x},{y}")
+
+
+class PreviewBackend:
+    def apply(self, *args, **kwargs): pass
+    def show(self, window): window.deiconify()
+    def cursor(self): return None
+    def monitors(self, root): return [Monitor("primary", 0, 0, root.winfo_screenwidth(), root.winfo_screenheight())]
+
+
+class SubtitleController:
+    def __init__(self, app, colors, *, backend=None, clock=time.monotonic):
+        self.app, self.colors, self.clock = app, colors, clock
+        self.backend = backend or (PreviewBackend() if app.preview_mode else Win32Overlay())
+        self.overlay, self.timer = None, None
+        app.subtitles_enabled_var.trace_add("write", lambda *_: self.tick(schedule=False))
+        self.tick()
+
+    def ensure_overlay(self):
+        if self.overlay is None:
+            self.overlay = SubtitleOverlay(self.app.root, self.app.preferences, self.colors, backend=self.backend,
+                clock=self.clock, on_hide=lambda: self.set_enabled(False), on_open=self.app.show_main_window)
+        return self.overlay
+
+    def set_enabled(self, enabled, origin="main"):
+        self.app.subtitles_enabled_var.set(bool(enabled))
+        self.app.refresh_tray_menu()
+
+    def toggle(self, origin="hotkey"):
+        self.set_enabled(not self.app.subtitles_enabled_var.get(), origin)
+
+    def accept(self, entry):
+        if self.app.subtitles_enabled_var.get():
+            self.ensure_overlay().accept(entry)
+            self.tick(schedule=False)
+
+    def tick(self, *, schedule=True):
+        app = self.app
+        if app.is_quitting:
+            return
+        if app.subtitles_enabled_var.get():
+            overlay = self.ensure_overlay()
+            overlay.render()
+            minimized = app.root.state() == "iconic" or not app.root.winfo_viewable()
+            overlay.visible(True, listening=app.transcriber is not None and app.mode_var.get() == "listen", minimized=minimized)
+            overlay.hover()
+        elif self.overlay:
+            self.overlay.window.withdraw()
+        if schedule:
+            self.timer = app.root.after(200, self.tick)
+
+    def close(self):
+        if self.timer:
+            self.app.root.after_cancel(self.timer)
+        if self.overlay and self.overlay.window.winfo_exists():
+            self.overlay.window.destroy()
+
+
+def build_subtitle_page(app, colors):
+    from engine_ui import heading, field
+    from ui_widgets import Switch
+    page = app.settings_shell.contents["Subtitles"]
+    heading(page, "Subtitles on screen", "Show translations over any window, including when Translito is minimized to the tray.", colors)
+    row = tk.Frame(page, bg=colors["bg"])
+    row.pack(fill="x", pady=10)
+    tk.Label(row, text="Show subtitles on screen", bg=colors["bg"], fg=colors["text"]).pack(side="left")
+    Switch(row, app.subtitles_enabled_var, colors).pack(side="right")
+    preview = tk.Label(page, text="Previous translation\nCurrent translation", bg=colors["black"], fg=colors["text"], font=("Segoe UI", 12), pady=16)
+    preview.pack(fill="x", pady=14)
+    for key, label, default, values in (
+        ("show_when", "Show", "listening", ("listening", "minimized")),
+        ("lines", "Lines", 2, (1,2,3)), ("text_size", "Text size", 24, (16,20,24,28,32,40,48)),
+        ("background_alpha", "Background opacity", .9, (.5,.7,.9,1.0)),
+        ("fade_seconds", "Fade after seconds without speech (0 = never)", 6, (0,3,6,10,20))):
+        variable = tk.IntVar(app.root) if isinstance(default,int) else tk.DoubleVar(app.root) if isinstance(default,float) else tk.StringVar(app.root)
+        app.preferences.bind(variable, "SUBTITLES", key, default)
+        field(page, label, variable, colors, values)
+    for key, label, default in (("show_original", "Show the original line", False),
+        ("click_through", "Let clicks pass through to the window underneath", True),
+        ("hide_from_capture", "Hide subtitles from screen sharing", False)):
+        variable = app.preferences.bind(tk.BooleanVar(app.root), "SUBTITLES", key, default)
+        tk.Checkbutton(page, text=label, variable=variable, **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=6)

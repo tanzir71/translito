@@ -20,3 +20,15 @@ def test_overlay_styles_are_non_activating_layered_click_through_and_excluded_fr
 
 def test_monitor_position_keys_are_stable():
     assert SubtitleOverlay.position_key(Monitor("DISPLAY2", 1920, 0, 3840, 1080)) == "position_display2"
+
+
+def test_per_monitor_position_survives_restart(tmp_path):
+    from settings_state import SettingsState
+    monitor = Monitor("DISPLAY2", 1920, 0, 3840, 1080)
+    window = SimpleNamespace(winfo_x=lambda:2020,winfo_y=lambda:80,geometry=Mock())
+    overlay = SimpleNamespace(window=window, root=None, monitor=monitor, preferences=SettingsState(tmp_path/"config.ini"),
+        backend=SimpleNamespace(monitors=lambda root:[monitor]), position_key=SubtitleOverlay.position_key)
+    SubtitleOverlay.drag_end(overlay, None)
+    overlay.preferences = SettingsState(tmp_path/"config.ini")
+    SubtitleOverlay.restore_position(overlay, monitor)
+    window.geometry.assert_called_with("720x90+2020+80")

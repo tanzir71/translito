@@ -92,3 +92,15 @@ def test_budget_pages_share_one_value_and_connect_has_one_provider_picker(app):
     assert window.key_var.get() == ""
     assert not window.winfo_children()[0].winfo_class() == "TNotebook"
     window.destroy()
+
+
+def test_four_subtitle_entry_points_share_one_state_and_any_pair_text(app):
+    controller = app.subtitle_controller
+    for origin in ("main", "tray", "hotkey", "settings"):
+        controller.set_enabled(False, origin)
+        assert not app.subtitles_enabled_var.get()
+        controller.set_enabled(True, origin)
+        assert app.preferences.get("UI", "subtitles_enabled", False)
+    for source, target in (("Hola", "Hello"), ("Hello", "مرحبا")):
+        controller.accept({"id":target,"source_text":source,"translated_text":target,"translation_pending":False})
+        assert controller.overlay.entries[-1]["translated_text"] == target
