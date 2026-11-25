@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" fill="none">
+  <!-- Translito mark, bold cut for 16 to 40 px: thicker ring and bars. -->
+  <path d="M227 345A163 163 0 1 0 157 341V376Z" fill="#0B0B0C" stroke="#FFFFFF" stroke-width="38" stroke-linejoin="round"/>
+  <rect x="119" y="134" width="42" height="92" rx="21" fill="#FFFFFF"/>
+  <rect x="179" y="104" width="42" height="152" rx="21" fill="#FFFFFF"/>
+  <rect x="239" y="134" width="42" height="92" rx="21" fill="#FFFFFF"/>
+</svg>
