@@ -289,3 +289,5 @@ endpoint-aware assembly (0s for provider endpoints, 0.5s for local), merged-row
 retranslation and a two-beam Fast local MT preset. Fake-clock/provider tests
 verify behavior; these changes are not new latency/accuracy measurements.
 
+
+M4.4: production Soniox stt-rt-v6, pair-driven hints/translation, lazy WebSocket transport and local cost gate. Enable in Settings > Engine > Cloud, connect and Test a Soniox key and set both monthly limits. Rates checked 2026-11-25 at https://soniox.com/pricing and model/wire schema at https://docs.soniox.com/api-reference/stt/websocket-api. Token allocations are conservative estimates, not invoices. Mock transports only; no live calls.

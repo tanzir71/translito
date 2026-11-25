@@ -339,6 +339,8 @@ class ArabicAudioTranscriber:
             from engines.registry import configured_live_interpreter
             interpreter = configured_live_interpreter(self.engine_settings, offline_only=self.offline_only, on_event=self.emit)
             if interpreter is not None:
+                if hasattr(interpreter, "lid"):
+                    interpreter.lid = conversation_lid
                 from engines.live_pipeline import LiveConversationPipeline
                 self.live_pipeline = LiveConversationPipeline(self.conversation_pipeline, interpreter,
                     lid=conversation_lid, noise_gate=self.mic_noise_gate if self.mode == "speak" else 0)

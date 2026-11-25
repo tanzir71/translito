@@ -13,7 +13,7 @@ def test_soniox_header_auth_pcm_and_two_way_configuration():
     assert protocol.headers(SimpleNamespace(get=lambda _: "fake-key")) == {"Authorization": "Bearer fake-key"}
     config = protocol.start()
     assert "fake-key" not in json.dumps(config) + protocol.endpoint
-    assert config["model"] == "stt-rt-v5" and config["sample_rate"] == 16000
+    assert config["model"] == "stt-rt-v6" and config["sample_rate"] == 16000
     assert config["translation"] == {"type": "two_way", "language_a": "en", "language_b": "ar"}
     assert config["context"]["translation_terms"][0] == {"source": "deployment", "target": "deployment"}
     assert protocol.finish(1) == "" and protocol.audio(b"\x00\x00") == b"\x00\x00"

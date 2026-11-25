@@ -64,6 +64,13 @@ class PairLanguageDetector:
         _, _, probabilities = self.model.detect_language(audio=audio)
         return self.restrict(probabilities)
 
+    def detect_any(self, audio):
+        language, probability, probabilities = self.model.detect_language(audio=audio)
+        probabilities = dict(probabilities)
+        values = sorted(probabilities.values(), reverse=True)
+        margin = values[0] - values[1] if len(values) > 1 else probability
+        return LanguageDecision(language, probability, margin, probabilities)
+
 
 def decode_language(decision, other="ar"):
     # Arabic is the matrix language for ambiguous/code-switched segments.

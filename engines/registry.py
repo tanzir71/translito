@@ -75,6 +75,11 @@ def provider_factories():
         "groq": dict(models=("whisper-large-v3",), min_billed_seconds=10),
         "gemini-live": dict(streaming=True, mixed_speech=True, billing_mode="audio_sent"),
     }
+    from engines.paid_streaming import build_soniox, SONIOX_RATE, RATE_CHECKED_ON
+    factories += (ProviderFactory("soniox", "live", build_soniox, "Soniox · recognition and translation", "paid",
+        privacy_note="Gated speech and your terms are sent to Soniox. Bills connection time plus text tokens.",
+        setup_url="https://console.soniox.com/", mixed_speech=True, streaming=True, billing_mode="open_stream",
+        models=("stt-rt-v6",), rate=SONIOX_RATE, rate_checked_on=RATE_CHECKED_ON),)
     return tuple(replace(factory, **metadata.get(factory.name, {})) for factory in factories)
 
 
@@ -157,6 +162,27 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
 
 
 def configured_live_interpreter(settings, *, offline_only=False, credentials=None, ledger=None, on_event=None):
+    if not offline_only and settings.profile != "offline" and settings.engine_choice == "cloud":
+        emit = on_event or (lambda *a: None)
+        name = settings.default_asr_provider or "soniox"
+        preference = settings.provider(name)
+        if not preference.enabled or not preference.tested_signature:
+            emit("hint", f"{name}: Connect and Test the selected provider. Continuing on this PC.")
+            return None
+        try:
+            if credentials is None:
+                from engines.secrets import CredentialStore
+                credentials = CredentialStore()
+            factory = next(factory for factory in provider_factories() if factory.name == name and factory.kind == "live")
+            engine = factory.build(preference, credentials).engine
+            engine.settings = settings
+            if ledger is not None:
+                engine.ledger = ledger
+            engine.authorized_key()
+            return engine
+        except Exception:
+            emit("hint", "The selected cloud engine is unavailable or its tested key changed. Continuing on this PC.")
+            return None
     if offline_only or settings.profile != "live-preview":
         return None
     emit = on_event or (lambda *a: None)
