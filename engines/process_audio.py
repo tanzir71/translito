@@ -80,6 +80,7 @@ class ProcessSource:
     name: str
     exclude: bool = False
     isloopback: bool = True
+    executable: str = ""
 
     def validate(self, process_factory=None):
         if process_factory is None:
@@ -121,7 +122,7 @@ def active_sources(*, bridge=None, process_factory=None, own_pid=None):
             if process.pid in seen:
                 continue
             seen.add(process.pid)
-            result.append(ProcessSource(process.pid, process.create_time(), f"{process.name()} (PID {process.pid})"))
+            result.append(ProcessSource(process.pid, process.create_time(), f"{process.name()} (PID {process.pid})", executable=process.name()))
         except Exception:
             continue  # A process can exit between session enumeration and lookup.
     return result[:1] + sorted(result[1:], key=lambda item: item.name.casefold())

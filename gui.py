@@ -481,6 +481,8 @@ class TranslatorGUI:
         self.month_cost_var = tk.StringVar(value="This month $0.00")
         from engine_ui import initialize as initialize_engine_controls
         initialize_engine_controls(self)
+        from meeting_app import initialize as initialize_meeting_app
+        initialize_meeting_app(self)
         self.apply_styles()
         self.build_ui()
         self.bind_events()
@@ -517,6 +519,9 @@ class TranslatorGUI:
                 self.root.after(350, lambda: self.open_speed_check(first_run=True))
             self.root.after(3000, self.auto_refresh_devices)
             self.root.after(1000, self.refresh_cost_status)
+            if not self.preferences.get("CAPTURE", "default_app_prompted", False):
+                self.preferences.set("CAPTURE", "default_app_prompted", True)
+                self.root.after(600, lambda: self.show_hint("Choose your default meeting app in Settings → Audio."))
 
     # ------------------------------------------------------------------
     # Window construction
@@ -1257,6 +1262,8 @@ class TranslatorGUI:
         build_engine_pages(self, COLORS)
         from subtitle_overlay import build_subtitle_page
         build_subtitle_page(self, COLORS)
+        from meeting_app import page as build_meeting_app_page
+        build_meeting_app_page(self, COLORS)
         translation = self._settings_section(content, "Local translation")
         gemma_button = ttk.Button(translation, text="Set up TranslateGemma", style="Mac.TButton",
                                    command=self.open_translation_model_setup)
@@ -1903,12 +1910,20 @@ class TranslatorGUI:
         }
 
     def toggle_capture(self):
+        if getattr(self, "_waiting_meeting_app", False):
+            self.stop()
+            self.set_status("Ready")
+            return
         if self.transcriber is None:
             self.start()
         else:
             self.stop()
 
     def start(self):
+        if hasattr(self, "default_app_var") and not self.model_setup_busy:
+            from meeting_app import prepare_source
+            if not prepare_source(self):
+                return
         if self.transcriber is not None:
             return
         if getattr(self, "model_setup_busy", False):
@@ -2037,6 +2052,10 @@ class TranslatorGUI:
         self.update_routing_banner()
 
     def stop(self, after=None):
+        self._waiting_meeting_app = False
+        if getattr(self, "_meeting_timer", None) is not None:
+            self.root.after_cancel(self._meeting_timer)
+            self._meeting_timer = None
         transcriber = self.transcriber
         if transcriber is None:
             if callable(after):

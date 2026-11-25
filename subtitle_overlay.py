@@ -85,6 +85,24 @@ class Win32Overlay:
         self.user32.EnumDisplayMonitors(None, None, callback_type(collect), 0)
         return result or [Monitor("primary", 0, 0, root.winfo_screenwidth(), root.winfo_screenheight())]
 
+    def meeting_window_center(self, pid):
+        if not self.user32:
+            return None
+        from ctypes.wintypes import DWORD, RECT
+        self.user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(DWORD)]
+        self.user32.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(RECT)]
+        result = []
+        callback_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_ssize_t)
+        def visit(handle, extra):
+            owner, rectangle = DWORD(), RECT()
+            self.user32.GetWindowThreadProcessId(handle, ctypes.byref(owner))
+            if owner.value == pid and self.user32.IsWindowVisible(handle) and self.user32.GetWindowRect(handle, ctypes.byref(rectangle)):
+                result.append(((rectangle.left+rectangle.right)//2, (rectangle.top+rectangle.bottom)//2))
+                return False
+            return True
+        self.user32.EnumWindows(callback_type(visit), 0)
+        return result[0] if result else None
+
 
 class SubtitleOverlay:
     def __init__(self, root, preferences, colors, *, backend=None, clock=time.monotonic, on_hide=lambda: None,
@@ -258,6 +276,13 @@ class SubtitleController:
             return
         if app.subtitles_enabled_var.get():
             overlay = self.ensure_overlay()
+            meeting = getattr(app, "meeting_source", None)
+            if meeting and hasattr(self.backend, "meeting_window_center"):
+                center = self.backend.meeting_window_center(meeting.pid)
+                if center:
+                    monitor = next((m for m in self.backend.monitors(app.root) if m.left <= center[0] < m.right and m.top <= center[1] < m.bottom), overlay.monitor)
+                    if monitor.name != overlay.monitor.name:
+                        overlay.restore_position(monitor)
             overlay.render()
             minimized = app.root.state() == "iconic" or not app.root.winfo_viewable()
             overlay.visible(True, listening=app.transcriber is not None and app.mode_var.get() == "listen", minimized=minimized)
