@@ -13,7 +13,8 @@ from engines.sentence_assembler import SentenceAssembler
 class ConversationPipeline:
     def __init__(self, recognizer, translator, conversation, *, mode="listen", emit,
                  transcripts, stop_event, speech_player=None, voice="Automatic", glossary=None,
-                 assembler=None, clock=time.monotonic, ledger=None):
+                 assembler=None, clock=time.monotonic, ledger=None, variety=""):
+        self.variety = variety
         from engines.delay import DelayTracker
         self.clock, self.delays = clock, DelayTracker(ledger=ledger)
         self.recognizer = recognizer
@@ -44,7 +45,7 @@ class ConversationPipeline:
             return
         self.emit("status", "transcribing")
         result = self.recognizer.transcribe(chunk.samples, chunk.sample_rate,
-                                           hint_language=None, prompt=None, stop_event=self.stop_event)
+                                           hint_language=self.variety or None, prompt=None, stop_event=self.stop_event)
         if self.stop_event.is_set():
             return
         if not result.text:

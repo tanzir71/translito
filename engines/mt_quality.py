@@ -10,6 +10,7 @@ class LocalQualityTranslator:
     requires_network = False
 
     def __init__(self, *, offline_only=True, device=-1, on_hint=None, opus=None, gemma=None, preset="balanced"):
+        self.model = "automatic"
         self.opus = opus or OpusTranslator(offline_only=offline_only, device=device, on_hint=on_hint,
                                           beam_size=2 if preset == "fast" else 4)
         self.gemma = gemma or cached_translator(str(configured_model_path()))
@@ -21,7 +22,13 @@ class LocalQualityTranslator:
         return self.opus.models
 
     def supports(self, source, target):
-        return self.gemma.supports(source, target) or self.opus.supports(source, target)
+        return (self.model != "opus" and self.gemma.supports(source, target)) or self.opus.supports(source, target)
+
+    def select_model(self, model):
+        model = "automatic" if model == "Local translation" else model
+        if model not in {"automatic", "opus", "translategemma"}:
+            raise ValueError("Choose automatic, Opus or TranslateGemma for local translation")
+        self.model = model
 
     def _hint_fallback(self):
         if not self._fallback_shown:
@@ -29,7 +36,7 @@ class LocalQualityTranslator:
             self._fallback_shown = True
 
     def preload(self, source, target):
-        if self.gemma.supports(source, target):
+        if self.model != "opus" and self.gemma.supports(source, target):
             try:
                 return self.gemma.warmup()
             except (LocalTranslationUnavailable, OSError, RuntimeError, ValueError):
@@ -38,7 +45,7 @@ class LocalQualityTranslator:
 
     def translate(self, text, source, target, *, context, glossary):
         check_cancelled()
-        if self.gemma.supports(source, target):
+        if self.model != "opus" and self.gemma.supports(source, target):
             try:
                 return self.gemma.translate(text, source, target, context=context, glossary=glossary)
             except GenerationCancelled:

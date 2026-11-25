@@ -489,6 +489,8 @@ class TranslatorGUI:
         initialize_meeting_app(self)
         self.apply_styles()
         self.build_ui()
+        from engine_ui import refresh_measurements
+        refresh_measurements(self)
         self.bind_events()
         self.update_conversation_controls(persist=False)
 
@@ -820,6 +822,7 @@ class TranslatorGUI:
         self.listen_source_type_combo.bind("<<ComboboxSelected>>", lambda _event: self.refresh_devices())
         self.app_audio_hint = tk.Label(source_kind, text="", bg=COLORS["bg"], fg=COLORS["secondary"], font=("Segoe UI", 8))
         self.app_audio_hint.pack(side="left", padx=10)
+        source_kind.grid_remove()
         return frame
 
     def _build_speak_controls(self, parent):
@@ -940,6 +943,7 @@ class TranslatorGUI:
             label.grid(row=0, column=column, padx=(14, 0), sticky="w")
             if column == 3:
                 self.engine_label = label
+                label.configure(width=24)
         tk.Label(self.status_bar, textvariable=self.lag_var, bg=COLORS["bg"], fg=COLORS["orange"],
                  font=("Segoe UI", 8)).grid(row=1, column=5, sticky="e")
 
@@ -1038,6 +1042,10 @@ class TranslatorGUI:
             font=("Segoe UI", 9),
         )
         self.empty_help_label.pack(pady=(5, 0))
+        self.empty_measurements_var = tk.StringVar(value="Delay and accuracy: not measured for this pair.")
+        tk.Label(self.empty_state, textvariable=self.empty_measurements_var, bg=COLORS["bg"], fg=COLORS["tertiary"],
+                 wraplength=460, justify="center", font=("Segoe UI", 9)).pack(pady=(12, 0))
+        ttk.Button(self.empty_state, text="Compare engines", command=self.open_speed_check, style="Mac.TButton").pack(pady=10)
 
     def _build_bottom_bar(self):
         bar = tk.Frame(self.root, bg=COLORS["bg"], padx=12, pady=12)
@@ -1505,6 +1513,10 @@ class TranslatorGUI:
         self.audience_language_var.set(self.language_name_for_iso(pair.audience_language))
         self.one_way_var.set(pair.one_way)
         self.update_conversation_controls()
+        if hasattr(self, "engine_default_vars"):
+            from engine_ui import restore_scope, refresh_measurements
+            restore_scope(self)
+            refresh_measurements(self)
 
     def current_conversation(self):
         other = self.language_entry_by_name(self.conversation_other_var.get())[2]
@@ -1907,18 +1919,25 @@ class TranslatorGUI:
             _tgt_name, _tgt_bcp47, tgt_iso = self.language_entry_by_name(
                 self.listen_target_var.get()
             )
+        settings = load_engine_settings(self.preferences.path)
+        defaults = settings.resolve(src_iso, tgt_iso)
+        whisper_model = self.whisper_var.get().strip() or "openai/whisper-small"
+        if defaults["default_asr_provider"] == "local":
+            whisper_model = defaults["default_asr_model"] or whisper_model
+        cloud_available = (not self.offline_only_var.get() and self.engine_profile_var.get() != "Offline (private)" and
+            any(p.enabled and p.tested_signature and (settings.engine_choice != "free" or p.account_kind != "paid")
+                for name,p in settings.providers.items() if name in {"azure","deepl","google","gemini","gemini-live","soniox","elevenlabs","speechmatics"}))
+        translation_model = translation_model_for(src_iso, tgt_iso, cloud_available=cloud_available)
+        if defaults["default_mt_provider"] == "local" and defaults["default_mt_model"] == "opus":
+            translation_model = resolve_local_mt(src_iso,tgt_iso,offline=True).model_id
         return {
             "mode": mode,
             "src_bcp47": src_bcp47,
             "src_iso": src_iso,
             "tgt_iso": tgt_iso,
-            "whisper_model": self.whisper_var.get().strip() or "openai/whisper-small",
-            "translation_model": translation_model_for(src_iso, tgt_iso, cloud_available=(
-                not self.offline_only_var.get() and self.engine_profile_var.get() != "Offline (private)" and
-                any(p.enabled and p.tested_signature for name, p in load_engine_settings().providers.items()
-                    if name in ({"azure", "deepl", "google", "gemini", "gemini-live"}
-                        if self.engine_profile_var.get() == "Live interpreter (Gemini preview)" else
-                        {"azure", "deepl", "google", "gemini"})))),
+            "whisper_model": whisper_model,
+            "variety": self.variety_var.get(),
+            "translation_model": translation_model,
             "conversation": conversation,
         }
 
@@ -1957,6 +1976,12 @@ class TranslatorGUI:
 
         self.configure_offline_env()
         self.persist_settings()
+        from engines.usage import UsageLedger
+        from decimal import Decimal
+        try:
+            self.session_cost_baseline = sum(Decimal(v["estimated_usd"]) for v in UsageLedger().snapshot()["providers"].values())
+        except Exception:
+            self.session_cost_baseline = Decimal(0)
         self.hide_banners()
         self.active_fallbacks = {"asr": False, "mt": False}
         self.engine_label.configure(fg=COLORS["secondary"])
@@ -2034,6 +2059,8 @@ class TranslatorGUI:
                     transcript_folder=self.transcript_folder_var.get(),
                     conversation=request["conversation"],
                     asr_preset=self.quality_var.get().lower(),
+                    variety=request.get("variety", ""),
+                    whisper_model=request.get("whisper_model"),
                 )
             except Exception as exc:
                 self.root.after(0, lambda exc=exc: self.start_failed(exc))
@@ -2048,7 +2075,7 @@ class TranslatorGUI:
                 self.progress.stop()
                 self.progress.grid_remove()
                 self.phase_label.grid_remove()
-                self.level_frame.grid()
+                self.level_frame.grid(row=1,column=5)
                 self.update_action_button(running=True)
                 transcriber.start_background(enable_keyboard_shortcuts=False)
 
@@ -2185,6 +2212,10 @@ class TranslatorGUI:
                 self.handle_model_progress(payload or {})
             elif event_type == "hint":
                 self.show_hint(str(payload))
+            elif event_type == "gap":
+                seconds = round((payload or {}).get("seconds", 0))
+                tk.Label(self.transcript_scroll.content, text=f"{seconds//60} min {seconds%60} s · nothing sent",
+                         bg=COLORS["bg"], fg=COLORS["tertiary"], font=("Segoe UI", 8), pady=12).pack(fill="x")
             elif event_type == "error":
                 self.show_error(str(payload))
                 self.set_status("Error")
@@ -2390,8 +2421,8 @@ class TranslatorGUI:
         stored_entry, label, source_label = target
         stored_entry.update(entry)
         meta = self.transcript_meta.get(entry.get("id"))
-        if meta is not None and entry.get("delay_s") is not None:
-            meta.configure(text=self.current_source_info(stored_entry) + f" · {entry['delay_s']:.1f} s")
+        if meta is not None:
+            meta.configure(text=self.current_source_info(stored_entry) + (f" · {entry['delay_s']:.1f} s" if entry.get("delay_s") is not None else ""))
 
         label.configure(text=self.transcript_target_text(stored_entry), fg=COLORS["tertiary"] if stored_entry.get("translation_pending") else COLORS["text"])
         source = stored_entry.get("source_text", "")
@@ -2410,6 +2441,8 @@ class TranslatorGUI:
         self.refresh_tray_menu()
 
     def current_source_info(self, entry):
+        if entry.get("not_sent"):
+            return "shown as spoken, not sent"
         mode = entry.get("mode", self.mode_var.get())
         if mode == "speak":
             choice = self.selected_speak_mic_choice()

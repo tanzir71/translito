@@ -36,6 +36,8 @@ def page(app, colors):
     tk.Label(parent, text="Browser meetings include all audio from that browser. The executable name is remembered after it restarts.",
         bg=colors["bg"], fg=colors["tertiary"], wraplength=560, justify="left", anchor="w").pack(fill="x", pady=(6,16))
     refresh()
+    capture = field(parent,"Capture source",app.listen_source_type_var,colors,("Device","App audio"))
+    capture.bind("<<ComboboxSelected>>",lambda _event:app.refresh_devices())
 
 
 def prepare_source(app):

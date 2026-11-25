@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 
 
-def mark(size, *, masters=ROOT / "branding"):
-    svg = ET.parse(masters / ("translito-mark-small.svg" if size <= 40 else "translito-mark.svg")).getroot()
+def mark(size, *, masters=ROOT / "branding", cut_size=None):
+    svg = ET.parse(masters / ("translito-mark-small.svg" if (cut_size or size) <= 40 else "translito-mark.svg")).getroot()
     scale = size * 4 / 400
     canvas = Image.new("RGBA", (size * 4, size * 4))
     draw = ImageDraw.Draw(canvas)
@@ -47,7 +47,7 @@ def build_windows(root=ROOT):
     tray.mkdir(parents=True, exist_ok=True)
     for size in (32, 64):
         for state, color in (("idle", None), ("listening", "#30d158"), ("paused", "#ff9f0a")):
-            icon = mark(size * 4)
+            icon = mark(size * 4,cut_size=size)
             if color:
                 d = ImageDraw.Draw(icon)
                 d.ellipse((size * 2.7, size * 2.7, size * 3.7, size * 3.7), fill=color, outline="#0b0b0c", width=max(1, size // 8))

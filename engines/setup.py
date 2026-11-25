@@ -4,6 +4,8 @@ import os
 import time
 import threading
 import wave
+import json
+from pathlib import Path
 
 import numpy as np
 
@@ -36,16 +38,42 @@ def _test_live(engine, audio):
             translated.set()
         elif kind == "fallback":
             failed.set()
-    engine.start(("en", "ar"), "en", False, event)
+    sample = json.loads((Path(__file__).parent/"data/speed-check.json").read_text())
+    engine.start((sample["source"],sample["target"]),sample["target"],False,event)
     try:
         for offset in range(0, len(audio), 1600):
             if failed.is_set() or not engine.push_audio(audio[offset:offset + 1600]):
                 raise SetupError("Live Translate could not process the public test clip.")
             failed.wait(.1)
+        if getattr(engine,"guard",None) is not None:
+            engine.guard.close()
         translated.wait(8)
         if not text or not source or failed.is_set():
             raise SetupError("Live Translate returned no source/target text for the public test clip.")
         return MtResult("".join(text), engine.name)
+    finally:
+        engine.stop()
+
+
+def _test_streaming_recognizer(engine, audio):
+    from engines.types import MtResult
+    sample = json.loads((Path(__file__).parent/"data/speed-check.json").read_text())
+    finished, text = threading.Event(), []
+    def event(value):
+        if value.final and value.text.strip():
+            text.append(value.text)
+            finished.set()
+    engine.start_recognition((sample["source"],sample["target"]),event)
+    try:
+        for offset in range(0,len(audio),1600):
+            if not engine.push_audio(audio[offset:offset+1600]):
+                raise SetupError("The public speech test stopped at its cost gate.")
+            finished.wait(.1)
+        engine.guard.close()
+        finished.wait(8)
+        if not text:
+            raise SetupError("The streaming recognizer returned no public sample text.")
+        return MtResult(" ".join(text),engine.name)
     finally:
         engine.stop()
 
@@ -73,6 +101,8 @@ class ProviderSetup:
     def _validate(self, name, preference):
         factory = self.factory(name)
         paid = preference.account_kind == "paid" and (factory.account_kind == "paid" or factory.name == "gemini")
+        if paid and (budget(preference.monthly_cap) <= 0 or load_engine_settings(self.path).monthly_cap <= 0):
+            raise SetupError("Set the monthly budget and provider limit above $0 before a paid Test.")
         if budget(preference.monthly_cap) != 0 and not paid:
             raise SetupError("These providers use free allowances only. Their paid cap must remain $0.")
         if preference.account_kind != factory.account_kind and not paid:
@@ -141,7 +171,16 @@ class ProviderSetup:
                     if factory.kind == "live":
                         binding.engine.preference = replace(disabled, enabled=True, tested_signature=signature)
                         binding.engine.ledger = self.ledger
-                        response = _test_live(binding.engine, audio)
+                        if hasattr(binding.engine,"settings"):
+                            binding.engine.settings = current
+                        if hasattr(binding.engine,"inspect_audio"):
+                            from engines.cost_guard import GateDecision
+                            sample = json.loads((Path(__file__).parent/"data/speed-check.json").read_text())
+                            binding.engine.inspect_audio = lambda *a:GateDecision(1,sample["source"],0)
+                        if factory.account_kind == "paid" and factory.name != "soniox":
+                            response = _test_streaming_recognizer(binding.engine,audio)
+                        else:
+                            response = _test_live(binding.engine, audio)
                     else:
                         response = RecognizerRouter([binding], **options).transcribe(audio, 16000, hint_language="ar")
             except Exception:

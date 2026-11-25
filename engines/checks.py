@@ -45,6 +45,7 @@ class CheckSample:
     reference: str | None = None
     variety: str = ""
     label: str = "Recording"
+    english_terms: tuple[str, ...] | None = None
 
     @property
     def seconds(self):
@@ -80,7 +81,13 @@ class CheckRunner:
                 else:
                     e, n = word_errors(sample.reference, text)
                     errors, words = errors + e, words + n
-                    terms = Counter(re.findall(r"\b[a-z]+\b", sample.reference.casefold()))
+                    # Latin source sentences aren't all embedded English terms.
+                    # Prefer annotated terms, otherwise use Latin words in mixed
+                    # scripts or explicit acronyms in Latin-script references.
+                    non_latin = any(c.isalpha() and "LATIN" not in unicodedata.name(c, "") for c in sample.reference)
+                    tokens = (sample.english_terms if sample.english_terms is not None else
+                              re.findall(r"\b[a-zA-Z]+\b" if non_latin else r"\b[A-Z]{2,}\b", sample.reference))
+                    terms = Counter(t.casefold() for t in tokens)
                     seen = Counter(re.findall(r"\b[a-z]+\b", text.casefold()))
                     expected += sum(terms.values())
                     kept += sum((terms & seen).values())
@@ -89,6 +96,7 @@ class CheckRunner:
             results.append({"engine": engine.name, "wer": wer,
                 "words_right": max(0, 100*(1-wer)) if wer is not None else None,
                 "english_term_recall": kept/expected if expected and referenced else None,
+                "english_terms_expected": expected if referenced else None,
                 "delay_p50_s": percentile(delays, .5), "delay_p95_s": percentile(delays, .95),
                 "cost_usd": str(costs), "cost_per_speech_hour": str(costs * 3600 / Decimal(str(seconds))) if seconds else "0",
                 "outputs": outputs, "label": "measured"})
@@ -98,8 +106,9 @@ class CheckRunner:
     def recommend(results):
         scored = [r for r in results if r["wer"] is not None]
         best = min((r["wer"] for r in scored), default=None)
-        eligible = [r for r in scored if r["wer"] <= best + .03 and r["english_term_recall"] is not None
-                    and r["english_term_recall"] >= .8 and r["delay_p95_s"] is not None and r["delay_p95_s"] <= 2.5]
+        eligible = [r for r in scored if r["wer"] <= best + .03
+                    and (r.get("english_terms_expected") == 0 or (r["english_term_recall"] is not None and r["english_term_recall"] >= .8))
+                    and r["delay_p95_s"] is not None and r["delay_p95_s"] <= 2.5]
         return min(eligible, key=lambda r: Decimal(r["cost_per_speech_hour"]))["engine"] if eligible else None
 
 
@@ -200,15 +209,26 @@ def cloud_engine(factory, settings, *, credentials, ledger, translator, lid):
                     raise ValueError("The cloud check stopped at its cost gate")
                 time.sleep(len(sample.audio[at:at+1600])/16000)
             engine.guard.close()
-            time.sleep(2)
+            deadline = time.monotonic()+12
+            while time.monotonic() < deadline:
+                final_sources = [v for _,k,v in events if k == "input_transcription" and v.get("finished")]
+                final_targets = [v for _,k,v in events if k == "output_transcription" and v.get("finished")]
+                if any(k == "fallback" for _,k,_ in events):
+                    break
+                if final_sources and len(final_targets) >= len(final_sources):
+                    break
+                time.sleep(.05)
             source = [v["text"] for _, k, v in events if k == "input_transcription" and v.get("finished")]
             target = [v["text"] for _, k, v in events if k == "output_transcription" and v.get("finished")]
             if any(k == "fallback" for _, k, _ in events):
                 raise ValueError("The cloud check failed; no score was recorded")
-            completed = [at for at, k, v in events if k == "output_transcription" and v.get("finished")]
-            ended = [v.get("speech_end_at") for _, k, v in events if k == "input_transcription" and v.get("finished")]
+            completed = {v["utterance_id"]: at for at, k, v in events if k == "output_transcription" and v.get("finished") and v.get("utterance_id")}
+            ended = {v["utterance_id"]: v["speech_end_at"] for _, k, v in events
+                     if k in {"input_transcription", "timing"} and v.get("utterance_id") and v.get("speech_end_at") is not None}
+            # Native Soniox targets have no source IDs; do not invent an alignment.
+            delays = [shown-ended[identity] for identity, shown in completed.items() if identity in ended and shown >= ended[identity]]
             return {"source_text": " ".join(source), "translated_text": " ".join(target),
-                "delays": [max(0, shown-end) for shown, end in zip(completed, ended) if end is not None], "cost_usd": spent()-before}
+                "delays": delays, "cost_usd": spent()-before}
         finally:
             engine.stop()
     rate = factory.rate

@@ -68,7 +68,7 @@ def provider_factories():
     from engines.mt_cloud import LANGUAGES
     metadata = {
         "azure": dict(models=("standard",), translates_to=tuple(sorted(LANGUAGES))),
-        "deepl": dict(models=("quality_optimized",), translates_to=tuple(sorted(LANGUAGES))),
+        "deepl": dict(models=(), translates_to=tuple(sorted(LANGUAGES))),
         "google": dict(models=("nmt",), translates_to=tuple(sorted(LANGUAGES))),
         "gemini": dict(models=("gemini-3.1-flash-lite",), translates_to=tuple(sorted(LANGUAGES))),
         "cohere-api": dict(models=("cohere-transcribe-arabic-07-2026",), source_languages=("ar", "en"), mixed_speech=True),
@@ -104,6 +104,10 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
     selected = {"asr": [], "mt": []}
     factories = provider_factories() if factories is None else factories
     defaults = settings.resolve(*(pair or ("", "")))
+    if defaults["default_mt_provider"] == "local" and defaults["default_mt_model"]:
+        select_local = getattr(translator, "select_model", None)
+        if callable(select_local):
+            select_local(defaults["default_mt_model"])
     factories = sorted(factories, key=lambda factory: factory.name != defaults.get("default_" + factory.kind + "_provider"))
     if settings.profile == "booster":
         emit("hint", "This interpreter profile is not configured. Continuing with the Free fallback.")
@@ -112,6 +116,8 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
             if factory.kind not in selected:
                 continue
             preference = settings.provider(factory.name)
+            if settings.engine_choice == "free" and preference.account_kind == "paid":
+                continue
             if pair and factory.unavailable_reason(*pair):
                 continue
             if not preference.enabled:
@@ -131,7 +137,7 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
                     select = getattr(binding.engine, "select_model", None)
                     if callable(select):
                         select(model)
-                    elif model != getattr(binding.engine, "model", None):
+                    elif model != getattr(binding.engine, "model", None) and not (factory.models and model in factory.models):
                         raise ValueError("This adapter does not support the chosen model")
             except Exception:
                 emit("hint", f"{factory.name}: Provider setup is unavailable. Continuing locally.")
@@ -165,7 +171,7 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
         asr = RecognizerRouter([*selected["asr"], ProviderBinding.local(recognizer)], **options)
     mt = TranslatorRouter([*selected["mt"], ProviderBinding.local(translator)], **options)
     for kind, router in (("asr", asr), ("mt", mt)):
-        order = getattr(router, "providers", None)
+        order = getattr(router, "providers", None) or getattr(getattr(router,"router",None),"providers",None)
         if defaults.get("default_" + kind + "_provider") == "local" and order:
             order.sort(key=lambda binding: binding.network)
     return (
@@ -174,10 +180,13 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
     )
 
 
-def configured_live_interpreter(settings, *, offline_only=False, credentials=None, ledger=None, on_event=None):
+def configured_live_interpreter(settings, *, offline_only=False, credentials=None, ledger=None, on_event=None, pair=None):
     if not offline_only and settings.profile != "offline" and settings.engine_choice == "cloud":
         emit = on_event or (lambda *a: None)
-        name = settings.default_asr_provider or "soniox"
+        defaults = settings.resolve(*(pair or ("", "")))
+        name = defaults["default_asr_provider"] or "soniox"
+        if name == "local" or any(f.name == name and f.kind == "asr" for f in provider_factories()):
+            return None
         preference = settings.provider(name)
         if not preference.enabled or not preference.tested_signature:
             emit("hint", f"{name}: Connect and Test the selected provider. Continuing on this PC.")
@@ -187,7 +196,11 @@ def configured_live_interpreter(settings, *, offline_only=False, credentials=Non
                 from engines.secrets import CredentialStore
                 credentials = CredentialStore()
             factory = next(factory for factory in provider_factories() if factory.name == name and factory.kind == "live")
+            if pair and factory.unavailable_reason(*pair):
+                raise ValueError("The provider does not support this pair")
             engine = factory.build(preference, credentials).engine
+            if defaults["default_asr_model"]:
+                engine.select_model(defaults["default_asr_model"])
             engine.settings = settings
             if ledger is not None:
                 engine.ledger = ledger

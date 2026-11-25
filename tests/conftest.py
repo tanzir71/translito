@@ -6,6 +6,13 @@ from engines.usage import UsageLedger
 
 @pytest.fixture(autouse=True)
 def isolated_usage_and_network(tmp_path, monkeypatch):
+    from engines.secrets import CredentialStore
+    initialize_credentials = CredentialStore.__init__
+    def fake_credentials_only(self, backend=None):
+        if backend is None:
+            raise AssertionError("Tests must inject a credential backend; the real vault is forbidden")
+        initialize_credentials(self, backend=backend)
+    monkeypatch.setattr(CredentialStore, "__init__", fake_credentials_only)
     original = UsageLedger.__init__
     def initialize(self, path=None, **kwargs):
         original(self, path if path is not None else tmp_path / "default-usage.json", **kwargs)

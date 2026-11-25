@@ -63,6 +63,7 @@ def open_provider_settings(app, colors, center):
         unavailable = factory.unavailable_reason(*pair(app))
         details.set(factory.privacy_note + (" Rate checked " + factory.rate_checked_on + "; list estimate." if factory.rate_checked_on else " Free allowance/account limits apply.") + (" " + unavailable if unavailable else ""))
         region_entry.configure(state="normal" if factory.name == "azure" else "disabled")
+        button.configure(state="disabled" if unavailable else "normal")
         status.set("Tested key saved" if saved.tested_signature else "Connect starts disabled. Test is required before use.")
         loading[0] = False
     provider.trace_add("write", restore)
@@ -115,6 +116,8 @@ def open_provider_settings(app, colors, center):
                 if success and make_default.get():
                     kind = "mt" if factories[chosen].kind == "mt" else "asr"
                     app.engine_default_vars[f"default_{kind}_provider"].set(chosen)
+                    if factories[chosen].models:
+                        app.engine_default_vars[f"default_{kind}_model"].set(factories[chosen].models[0])
             app.root.after(0, finish)
         threading.Thread(target=work, daemon=True).start()
     button = ttk.Button(body, text="Test and connect", style="Primary.TButton", command=test)

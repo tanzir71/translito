@@ -7,7 +7,7 @@ from tkinter import filedialog, ttk
 from engines.checks import CheckRunner, CheckStore, SampleCatalog, local_engine, cloud_engine
 from engines.registry import provider_factories, build_session_routers
 from engines.settings import load_engine_settings
-from engine_ui import heading, pair
+from engine_ui import heading, pair, refresh_measurements
 from quality_settings import _window
 
 
@@ -39,13 +39,18 @@ def open_check(app, colors, center, *, first_run=False):
         hours = Decimal(str(sum(s.seconds for s in samples))) / 3600
         estimate = sum((f.rate.per_audio_hour * hours for f in connected if f.rate), Decimal(0))
         status.set(f"{len(samples)} clips · {sum(s.seconds for s in samples):.1f} s. Base audio list estimate ${estimate:.4f}; text tokens and conservative reservations are additional. Monthly and provider caps apply.")
-    def background(work, finish):
+    def background(work, finish, *, owns_setup=False):
         def run():
             try:
                 value, error = work(), None
             except Exception:
                 value, error = None, "Check unavailable. Verify the cached models, connected providers, sample and budget."
-            app.root.after(0, lambda: finish(value, error) if window.winfo_exists() else None)
+            def complete():
+                if owns_setup:
+                    app.model_setup_busy = False
+                if window.winfo_exists():
+                    finish(value, error)
+            app.root.after(0, complete)
         threading.Thread(target=run, daemon=True).start()
     def loaded(value, error):
         load_button.configure(state="normal")
@@ -60,7 +65,8 @@ def open_check(app, colors, center, *, first_run=False):
             status.set("Preview: no sample downloads, model loads or cloud requests.")
             return
         load_button.configure(state="disabled")
-        background(lambda: SampleCatalog().public(source, target, variety=app.variety_var.get()), loaded)
+        variety, full = app.variety_var.get(), full_sample.get()
+        background(lambda: SampleCatalog().public(source, target, variety=variety, full=full), loaded)
     def own():
         path = filedialog.askopenfilename(parent=window, filetypes=[("Audio recording", "*.wav *.flac *.mp3")])
         if path:
@@ -68,13 +74,19 @@ def open_check(app, colors, center, *, first_run=False):
     load_button = ttk.Button(top, text="Load public sample", style="Mac.TButton", command=load)
     load_button.pack(side="left")
     ttk.Button(top, text="Use my recording", style="Mac.TButton", command=own).pack(side="left", padx=8)
+    full_sample = tk.BooleanVar(window, value=False)
+    if source == "ar" and target == "en":
+        tk.Checkbutton(top, text="Full set (300)", variable=full_sample,
+            **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(side="right")
     def run():
         if app.preview_mode or not samples or app.transcriber is not None:
             return
         run_button.configure(state="disabled")
         app.model_setup_busy = True
         def work():
-            engines = [local_engine(source, target, app.whisper_var.get())]
+            defaults = settings.resolve(source,target)
+            model = defaults["default_asr_model"] if defaults["default_asr_provider"] == "local" else ""
+            engines = [local_engine(source, target, model or app.whisper_var.get())]
             if connected and settings.profile != "offline":
                 from engines.secrets import CredentialStore
                 from engines.mt_quality import LocalQualityTranslator
@@ -108,6 +120,7 @@ def open_check(app, colors, center, *, first_run=False):
                 status.set(error)
                 return
             results[:] = value
+            refresh_measurements(app)
             tree.delete(*tree.get_children())
             def number(value, suffix=""):
                 return "not measured" if value is None else f"{value:.1f}{suffix}"
@@ -116,10 +129,22 @@ def open_check(app, colors, center, *, first_run=False):
                     number(row["words_right"],"%"), number(row["english_term_recall"]*100 if row["english_term_recall"] is not None else None,"%"), "$"+row["cost_per_speech_hour"]))
             recommendation = CheckRunner.recommend(results)
             status.set("Recommended: " + recommendation if recommendation else "No engine meets all recommendation criteria. Choose an engine in Settings.")
-        background(work, finished)
+        background(work, finished, owns_setup=True)
+    def transcripts():
+        if not results:
+            return
+        detail = _window(app, "Check transcripts", colors, center, 760, 500)
+        text = tk.Text(detail, wrap="word", bg=colors["field"], fg=colors["text"], padx=18, pady=18)
+        text.pack(fill="both", expand=True)
+        for result in results:
+            text.insert("end", result["engine"] + "\n\n")
+            for index, output in enumerate(result["outputs"], 1):
+                text.insert("end", f"{index}. {output['source']}\n→ {output['target']}\n\n")
+        text.configure(state="disabled")
     bottom = tk.Frame(body, bg=colors["bg"])
     bottom.pack(fill="x")
     ttk.Button(bottom, text="Connect providers", command=app.open_provider_settings, style="Mac.TButton").pack(side="left")
+    ttk.Button(bottom, text="View transcripts", command=transcripts, style="Mac.TButton").pack(side="left", padx=8)
     run_button = ttk.Button(bottom, text="Run check", command=run, style="Primary.TButton", state="disabled")
     run_button.pack(side="right")
     window.results = results

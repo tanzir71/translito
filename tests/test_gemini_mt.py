@@ -28,6 +28,7 @@ def test_gemini_batches_existing_sentences_and_uses_current_rest_json_schema():
         assert data["context"] == [["قبل", "Before"]]
         assert data["glossary"] == {"API": ""}
         schema = payload["generationConfig"]["responseFormat"]["text"]
+        assert payload["generationConfig"]["thinkingConfig"] == {"thinkingLevel":"MINIMAL"}
         assert schema["mimeType"] == "APPLICATION_JSON"
         assert schema["schema"]["properties"]["translations"]["minItems"] == 3
         return httpx2.Response(200, json={"candidates": [{"finishReason": "STOP", "content": {"parts": [

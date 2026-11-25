@@ -31,6 +31,9 @@ class InputDeviceChoice:
 
     @property
     def display_name(self):
+        if getattr(self.raw,"is_process_loopback",False):
+            executable = getattr(self.raw,"executable","")
+            return (executable.removesuffix(".exe")+" · your meeting app") if executable else self.name
         tag = "Loopback" if self.is_loopback else "Mic"
         if self.is_virtual:
             tag += ", virtual"

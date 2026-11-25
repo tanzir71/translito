@@ -1,3 +1,35 @@
+# Current v2 source status · 2026-11-25
+
+All milestones M0–M8.2 from `CODEX_HANDOFF_V2_SPEED_COST_UX.md` are implemented
+and pushed directly to `main`, following the owner's instruction to use no PR.
+Milestone commit messages carry `[skip ci]`; no workflow files, release tags,
+installer builds or installations were changed by this handoff.
+
+The main window defaults to 800×640 and Settings to 820×680, matching the Figma
+frame dimensions. Dark input states, titlebar requests, compact app bar and row
+hierarchy have automated assertions. Saved main-window geometry takes precedence.
+This is source implementation, not a visual-manual or installed-app acceptance.
+
+The final integration pass covers pair-specific streaming defaults and local
+model selection, paid Test budgets, free-account isolation, target-language
+speech recognized locally without upload, immediate active budget changes,
+late timestamp metadata without repeated MT, saved Engine-card measurements,
+active captured/sent usage and the 30/full-300 public check controls.
+
+Verification: **498 tests pass** with `python -m pytest -q` against isolated usage/config paths, blocked
+external sockets and a fixture that forbids the real credential backend.
+No provider key, live inference, calendar account, physical audio device, model
+download or manual app check was used. These tests do not establish new accuracy,
+latency, music-rejection rates or invoice agreement. Cloud figures remain labelled
+unknown/estimate until the owner explicitly runs a check. Native Soniox targets
+lack source IDs, so the comparison does not invent a source/target delay alignment.
+
+Gemini requests explicitly choose MINIMAL thinking, the lowest supported setting
+for 3.1 Flash-Lite rather than an unsupported thinking-off parameter. Checked
+2026-11-25 against https://ai.google.dev/gemini-api/docs/thinking.
+
+The earlier installed-release record below is retained as historical evidence.
+
 # Translation-quality implementation
 
 Specification: `CODEX_HANDOFF_TRANSLATION_QUALITY.md` supplied by the owner.

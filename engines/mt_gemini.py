@@ -42,6 +42,7 @@ class GeminiTranslator:
             "contents":[{"role":"user","parts":[{"text":json.dumps(dict(context=[str(line)[:500] for line in context[-3:]],
                 reply_language=language,meaning_language=meaning_language,variety=variety),ensure_ascii=False)}]}],
             "generationConfig":{"temperature":.3,"maxOutputTokens":512,
+                "thinkingConfig":{"thinkingLevel":"MINIMAL"},
                 "responseFormat":{"text":{"mimeType":"APPLICATION_JSON","schema":schema}}}}
 
     def estimate_suggest_replies_usage(self, context, language, meaning_language, *, variety=""):
@@ -96,6 +97,7 @@ class GeminiTranslator:
                        "target_language": target, "variety": self.variety, "sentences": [p.text for p in protected],
                        "context": context[-2:], "glossary": glossary}, ensure_ascii=False)}]}],
                    "generationConfig": {"temperature": 0, "maxOutputTokens": maximum,
+                       "thinkingConfig": {"thinkingLevel": "MINIMAL"},
                        "responseFormat": {"text": {"mimeType": "APPLICATION_JSON", "schema": schema}}}}
         return payload, protected
 

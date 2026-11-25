@@ -117,3 +117,21 @@ def test_overlay_reply_tray_shares_current_set_and_shortcuts(app):
     assert {"replies","reply_1","reply_2","reply_3"} <= set(app.hotkey_vars)
     app.reply_controller.options["show_on_overlay"].set(False)
     assert not tray.winfo_manager()
+
+
+def test_engine_cards_restore_measured_results_for_the_current_pair_only(app):
+    from engines.checks import CheckStore
+    from engine_ui import pair, refresh_measurements
+    source, target = pair(app)
+    store = CheckStore(app.preferences.path.parent/"checks.json")
+    store.save(source,target,[dict(engine="soniox",delay_p50_s=1.2,words_right=90,cost_per_speech_hour=".2")])
+    refresh_measurements(app)
+    assert "measured" in app.engine_card_descriptions["cloud"].get()
+    assert "1.2 s" in app.engine_card_descriptions["cloud"].get()
+    app.listen_source_var.set("Spanish" if source != "es" else "French")
+    from engine_ui import refresh_provider_choices
+    refresh_provider_choices(app)
+    assert "cohere-api" not in app.engine_provider_widgets["asr"].cget("values")
+    refresh_measurements(app)
+    assert "not measured" in app.engine_card_descriptions["cloud"].get()
+    app.listen_source_var.set(app.language_name_for_iso(source))

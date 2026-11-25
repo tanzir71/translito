@@ -35,7 +35,9 @@ class PaidStreamingInterpreter:
                      "speechmatics": Rate(per_audio_hour=Decimal(".20"))}[provider]
         self.billing_mode = "audio_sent" if provider == "elevenlabs" else "open_stream"
         self.guard = self.worker = None
+        self.gates_target_language = True
         self.buffers = {}
+        self.commits, self.annotations, self.timings = {}, {}, {}
         self._vad = None
         self._tail = np.empty(0, np.float32)
 
@@ -64,6 +66,8 @@ class PaidStreamingInterpreter:
             probabilities.append(self._vad.speech_probability(self._tail[:512], rate))
             self._tail = self._tail[512:]
         probability = max(probabilities, default=0)
+        if probability < .25:
+            self._lid_audio = np.empty(0,np.float32)
         language = None
         if probability >= .25 and self.lid is not None:
             self._lid_audio = np.concatenate((getattr(self, "_lid_audio", np.empty(0, np.float32)), audio))[-16000:]
@@ -89,7 +93,7 @@ class PaidStreamingInterpreter:
             self._mt_thread = threading.Thread(target=self._translate_finals, daemon=True)
             self._mt_thread.start()
         if self.variety:
-            self.protocol_context_variety = self.variety
+            self.protocol.variety = self.variety
         self.worker = self.worker_factory(self.protocol, self.credentials, self._update,
             lambda message: self.emit("fallback", message), authorize=self.authorized_key)
         from app_config import read_config
@@ -97,15 +101,17 @@ class PaidStreamingInterpreter:
         self.guard = CostGuard(self.worker, ledger=self.ledger, rate=self.rate,
             monthly_cap=self.preference.monthly_cap, total_monthly_cap=self.settings.monthly_cap,
             billing_mode=self.billing_mode, languages=conversation, inspect_audio=self.inspect_audio or self._inspect,
+            excluded_languages=(output_language,),
             fallback_on_budget=self.settings.fallback_on_budget, emit=on_event,
             skip_non_speech=config.getboolean("COSTGUARD", "skip_non_speech", fallback=True),
             skip_other_languages=config.getboolean("COSTGUARD", "skip_other_languages", fallback=True),
             close_idle_seconds=config.getfloat("COSTGUARD", "close_idle_seconds", fallback=8))
+        self.guard.budget_warn_percent = self.settings.budget_warn_percent
 
     def _update(self, update, generation):
         if self.name != "soniox":
             return self._recognizer_update(update, generation)
-        state = self.buffers.setdefault(generation, {"source": "", "target": "", "language": None, "end": None})
+        state = self.buffers.setdefault(generation, {"source": "", "target": "", "language": None, "end": None,"languages":set()})
         source_draft, target_draft = [], []
         for piece in update.pieces:
             if piece.translated:
@@ -121,7 +127,8 @@ class PaidStreamingInterpreter:
                 else:
                     source_draft.append(piece.text)
                 if piece.language:
-                    state["language"] = piece.language
+                    state["languages"].add(piece.language)
+                    state["language"] = "mix" if len(state["languages"]) > 1 else piece.language
         source = state["source"] + "".join(source_draft)
         if source and any(not piece.translated for piece in update.pieces):
             self.emit("input_transcription", {"text": source, "replace": True, "language": state["language"],
@@ -134,9 +141,13 @@ class PaidStreamingInterpreter:
             self.emit("output_transcription", {"text": target, "replace": True, "finished": finished,
                                                 "provisional": not finished})
             if finished:
+                if self.guard:
+                    self.guard.translated_chars += len(target)
+                    self.ledger.record_session(self.guard.session_id,translated_chars=self.guard.translated_chars)
                 state["target"] = ""
         if update.endpoint or update.done:
             state["source"] = ""
+            state["languages"].clear()
         if update.done:
             self.emit("turn_complete", None)
 
@@ -146,7 +157,7 @@ class PaidStreamingInterpreter:
             for piece in update.pieces:
                 self.recognition_callback(RecognitionEvent(piece.text, piece.final, piece.language, piece.start_s, piece.end_s))
             return
-        state = self.buffers.setdefault(generation, {"source": "", "turn": 0, "words": 0, "language": self.pair[0]})
+        state = self.buffers.setdefault(generation, {"source": "", "turn": 0, "words": 0, "language":next((code for code in self.pair if code != self.target),self.pair[0])})
         for piece in update.pieces:
             if piece.final:
                 state["source"] = (state["source"] + " " + piece.text).strip()
@@ -155,6 +166,9 @@ class PaidStreamingInterpreter:
             state["language"] = language
             boundary = piece.final and (update.endpoint or update.done or bool(re.search(r"[.!?؟。]\s*$", text)))
             identity = f"{generation}-{state['turn']}"
+            if piece.final:
+                self.commits.setdefault(generation, []).append({"text": piece.text.strip(), "id": identity,
+                    "end": self.guard.speech_end_at(piece.end_s, generation) if self.guard and piece.end_s is not None else None})
             self.emit("input_transcription", {"text": text, "language": language, "replace": True,
                 "finished": boundary, "utterance_id": identity,
                 "speech_end_at": self.guard.speech_end_at(piece.end_s, generation) if self.guard and piece.end_s is not None else None,
@@ -173,6 +187,37 @@ class PaidStreamingInterpreter:
             self._mt_queue.put_nowait((identity, state["source"], state["language"], True))
             state["source"], state["words"] = "", 0
             state["turn"] += 1
+        annotations = self.annotations.setdefault(generation, {})
+        for piece in update.annotations:
+            key = (piece.text.strip(), piece.start_s, piece.end_s)
+            if key in annotations and annotations[key] != piece:
+                annotations[key] = None
+            elif key not in annotations:
+                annotations[key] = piece
+        self._join_timing(generation)
+
+    def _join_timing(self, generation):
+        """Late vendor metadata updates timing only, never source or MT work."""
+        from collections import defaultdict
+        commits, metadata, rows = defaultdict(list), defaultdict(list), defaultdict(list)
+        for commit in self.commits.get(generation, ()):
+            commits[commit["text"]].append(commit)
+            rows[commit["id"]].append(commit)
+        for piece in self.annotations.get(generation, {}).values():
+            if piece is not None and piece.start_s is not None and piece.end_s is not None and piece.start_s <= piece.end_s:
+                metadata[piece.text.strip()].append(piece)
+        for text, group in commits.items():
+            candidates = metadata[text]
+            if len(candidates) == len(group):
+                for commit, piece in zip(group, sorted(candidates, key=lambda p: (p.start_s,p.end_s))):
+                    if self.guard:
+                        commit["end"] = self.guard.speech_end_at(piece.end_s, generation)
+        for identity, group in rows.items():
+            if all(c["end"] is not None for c in group):
+                end = max(c["end"] for c in group)
+                if self.timings.get(identity) != end:
+                    self.timings[identity] = end
+                    self.emit("timing", {"utterance_id": identity, "speech_end_at": end})
 
     def _translate_finals(self):
         from engines.cancellation import generation_scope
@@ -197,6 +242,9 @@ class PaidStreamingInterpreter:
                     "provisional": not boundary, "utterance_id": identity})
                 if boundary:
                     context.append((text, result.text))
+                    if self.guard:
+                        self.guard.translated_chars += len(result.text)
+                        self.ledger.record_session(self.guard.session_id,translated_chars=self.guard.translated_chars)
             except Exception:
                 self.emit("fallback", "Streaming translation could not complete. Continuing on this PC.")
 

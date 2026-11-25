@@ -62,6 +62,8 @@ class ScheduleController:
                 def refresh():
                     try:
                         self.events = self.calendar_feed().meetings(now-timedelta(days=1), now+timedelta(days=7))
+                    except Exception:
+                        pass
                     finally:
                         self.refreshing = False
                 threading.Thread(target=refresh, daemon=True).start()

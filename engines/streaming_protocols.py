@@ -90,12 +90,15 @@ class SonioxProtocol:
     def start(self):
         translation = ({"type": "two_way", "language_a": "en", "language_b": self.other} if self.two_way else
                        {"type": "one_way", "target_language": self.target})
-        return {"model": self.model, "audio_format": "pcm_s16le", "sample_rate": 16000, "num_channels": 1,
+        value = {"model": self.model, "audio_format": "pcm_s16le", "sample_rate": 16000, "num_channels": 1,
                 "language_hints": list(self.languages), "language_hints_strict": True,
                 "enable_language_identification": True, "enable_speaker_diarization": True,
                 "enable_endpoint_detection": True, "translation": translation,
                 "context": {"terms": list(self.terms),
                             "translation_terms": [{"source": term, "target": term} for term in self.terms]}}
+        if getattr(self,"variety",""):
+            value["context"]["general"] = [{"key":"spoken variety","value":self.variety}]
+        return value
 
     def audio(self, pcm):
         return bytes(pcm)

@@ -26,6 +26,13 @@ def test_recording_without_reference_never_invents_accuracy():
     assert normalize("أ إ آ ة ١٢٣") == "ا ا ا ه 123"
 
 
+def test_latin_source_words_are_not_fabricated_english_terms():
+    sample = CheckSample(np.ones(16000),16000,"fr","de","Bonjour le monde")
+    result = CheckRunner().run([sample],[CheckEngine("fixture",lambda s:dict(source_text=s.reference,delays=[1]))])[0]
+    assert result["english_terms_expected"] == 0 and result["english_term_recall"] is None
+    assert CheckRunner.recommend([result]) == "fixture"
+
+
 def test_saved_checks_are_scoped_to_pair_engine_and_machine(tmp_path):
     from engines.checks import CheckStore
     path = tmp_path / "checks.json"

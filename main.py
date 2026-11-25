@@ -185,6 +185,8 @@ class ArabicAudioTranscriber:
         translator_engine=None,
         glossary=None,
         asr_preset=None,
+        variety="",
+        whisper_model=None,
         engine_settings=None,
     ):
         print("\nInitializing Translito...")
@@ -210,6 +212,7 @@ class ArabicAudioTranscriber:
         self.monitor_spoken_audio = bool(monitor_spoken_audio)
         runtime_config = load_runtime_config(CONFIG_FILE)
         self.asr_preset = asr_preset or runtime_config.asr_preset
+        self.variety = variety
         self.mic_noise_gate = (
             runtime_config.mic_noise_gate
             if mic_noise_gate is None
@@ -275,7 +278,7 @@ class ArabicAudioTranscriber:
 
         self.asr = None
         self.translator = None
-        self.whisper_model = os.environ.get("WHISPER_MODEL", "openai/whisper-small").strip()
+        self.whisper_model = whisper_model or os.environ.get("WHISPER_MODEL", "openai/whisper-small").strip()
         if self.offline_only:
             os.environ.setdefault("HF_HUB_OFFLINE", "1")
             os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
@@ -335,13 +338,14 @@ class ArabicAudioTranscriber:
             self.conversation_pipeline = ConversationPipeline(
                 recognizer, translator_engine, conversation, mode=self.mode, emit=self.emit,
                 transcripts=self.transcripts, stop_event=self._stop_event,
-                speech_player=self.speech_player, voice=self.speech_voice, glossary=glossary, ledger=self.usage_ledger)
+                speech_player=self.speech_player, voice=self.speech_voice, glossary=glossary, ledger=self.usage_ledger,variety=self.variety)
             from engines.registry import configured_live_interpreter
-            interpreter = configured_live_interpreter(self.engine_settings, offline_only=self.offline_only, on_event=self.emit)
+            interpreter = configured_live_interpreter(self.engine_settings, offline_only=self.offline_only, on_event=self.emit, ledger=self.usage_ledger, pair=(self.whisper_language,self.translation_target_language))
             if interpreter is not None:
                 if hasattr(interpreter, "lid"):
                     interpreter.lid = conversation_lid
                     interpreter.translator = translator_engine
+                    interpreter.variety = self.variety
                 from engines.live_pipeline import LiveConversationPipeline
                 self.live_pipeline = LiveConversationPipeline(self.conversation_pipeline, interpreter,
                     lid=conversation_lid, noise_gate=self.mic_noise_gate if self.mode == "speak" else 0)
@@ -356,7 +360,7 @@ class ArabicAudioTranscriber:
             from engines.settings import load_engine_settings
             self.glossary = glossary or Glossary()
             recognizer = recognizer or LocalOneWayRecognizer(
-                self._recognize_speech_local, self.whisper_language, glossary=self.glossary)
+                self._recognize_speech_local, self.whisper_language, glossary=self.glossary, accepts_language_hint=True)
             translator_engine = translator_engine or self.loaded_translator_engine or LocalQualityTranslator(
                 offline_only=self.offline_only, device=self.torch_device,
                 on_hint=lambda text: self.emit("hint", text))
@@ -369,6 +373,32 @@ class ArabicAudioTranscriber:
                 recognizer, translator_engine, self.engine_settings,
                 offline_only=self.offline_only, on_event=self.emit, pair=(self.whisper_language, self.translation_target_language))
 
+            from engines.registry import configured_live_interpreter
+            interpreter = (configured_live_interpreter(self.engine_settings,offline_only=self.offline_only,on_event=self.emit,
+                ledger=self.usage_ledger,pair=(self.whisper_language,self.translation_target_language))
+                if self.engine_settings.engine_choice == "cloud" else None)
+            if interpreter is not None:
+                from engines.router import FixedPair
+                from engines.lid import PairLanguageDetector
+                from engines.conversation_pipeline import ConversationPipeline
+                from engines.live_pipeline import LiveConversationPipeline
+                other = next((code for code in (self.whisper_language,self.translation_target_language) if code != "en"),self.whisper_language)
+                lid = PairLanguageDetector(getattr(self.asr,"model",self.asr),other)
+                interpreter.lid, interpreter.translator = lid, self.translation_router
+                interpreter.variety = self.variety
+                policy = FixedPair(self.whisper_language,self.translation_target_language,
+                    same_language_speech=getattr(conversation,"same_language_speech","passthrough"))
+                fallback = ConversationPipeline(self.recognition_router,self.translation_router,policy,mode=self.mode,
+                    emit=self.emit,transcripts=self.transcripts,stop_event=self._stop_event,glossary=self.glossary,
+                    speech_player=self.speech_player,voice=self.speech_voice,ledger=self.usage_ledger,variety=self.variety)
+                self.live_pipeline = LiveConversationPipeline(fallback,interpreter,lid=lid)
+                self.conversation_pipeline = self.live_pipeline
+
+        router = (getattr(self.conversation_pipeline,"fallback",self.conversation_pipeline).translator
+                  if self.conversation_pipeline is not None else self.translation_router)
+        for binding in getattr(router,"providers",()):
+            if hasattr(binding.engine,"variety"):
+                binding.engine.variety = self.variety
         print("Initialization complete.\n")
 
     def emit(self, event_type, payload=None):
@@ -393,20 +423,20 @@ class ArabicAudioTranscriber:
             return self.glossary.restore_english(text)[0] if self.whisper_language == "ar" else text
         return self._recognize_speech_local(audio_array)
 
-    def _recognize_speech_local(self, audio_array):
+    def _recognize_speech_local(self, audio_array, *, hint_language=None):
         if not self.asr:
             raise RuntimeError("Offline ASR is not initialized")
         if hasattr(self.asr, "transcribe"):
             text = self.asr.transcribe(
                 audio_array.astype(np.float32),
-                language=(self.whisper_language or "ar"),
+                language=(hint_language or self.whisper_language or "ar"),
                 stop_event=getattr(self, "_stop_event", None),
             )
             return postprocess(text).text
         duration = len(audio_array) / self.sample_rate
         generate_kwargs = {
             "task": "transcribe",
-            "language": (self.whisper_language or "ar"),
+            "language": (hint_language or self.whisper_language or "ar"),
             "num_beams": 1,
             "do_sample": False,
             "use_cache": True,

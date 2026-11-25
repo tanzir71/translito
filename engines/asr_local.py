@@ -38,17 +38,19 @@ class LocalOneWayRecognizer:
     name = "local-whisper"
     requires_network = False
 
-    def __init__(self, decode, language, *, glossary=None):
+    def __init__(self, decode, language, *, glossary=None, accepts_language_hint=False):
         self.decode, self.language, self.glossary = decode, language, glossary
+        self.accepts_language_hint = accepts_language_hint
 
     def transcribe(self, audio, sample_rate, *, hint_language=None, prompt=None, stop_event=None):
         with generation_scope(stop_event):
             check_cancelled()
-            text = self.decode(audio)
+            language = (hint_language or self.language).split("-")[0]
+            text = self.decode(audio, hint_language=language) if self.accepts_language_hint else self.decode(audio)
             check_cancelled()
-            if self.language == "ar" and self.glossary:
+            if language == "ar" and self.glossary:
                 text = self.glossary.restore_english(text)[0]
-            return AsrResult(text, self.language, None, self.language, latin_ratio(text),
+            return AsrResult(text, language, None, language, latin_ratio(text),
                              None, None, len(audio) / sample_rate, self.name)
 
 

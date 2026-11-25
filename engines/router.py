@@ -38,7 +38,29 @@ class Route:
     secondary_target: str | None = None
 
 
+@dataclass(frozen=True)
+class FixedPair:
+    source: str
+    target: str
+    show_both: bool = False
+    keep_english_terms: bool = True
+    same_language_speech: str = "passthrough"
+    one_way: bool = True
+
+    @property
+    def other_language(self): return self.source
+    @property
+    def my_language(self): return self.target
+    @property
+    def audience_language(self): return self.target
+
+
 def route_utterance(tag, mode, conversation):
+    if isinstance(conversation, FixedPair):
+        source = conversation.target if tag == conversation.target else conversation.source
+        translate = source != conversation.target
+        speech = ("voice" if translate else conversation.same_language_speech) if mode == "speak" else "none"
+        return Route(source,conversation.target,translate,speech,protect_glossary=conversation.keep_english_terms)
     other = conversation.other_language
     if tag not in {"en", other, "mix"}:
         raise ValueError(f"Utterance language {tag!r} is outside the conversation pair")
@@ -230,6 +252,8 @@ class RecognizerRouter(ProviderRouter):
 
     def transcribe(self, audio, sample_rate, *, hint_language=None, prompt=None, stop_event=None):
         from engines.cancellation import generation_scope
+        if hint_language and "-" in hint_language:
+            hint_language = hint_language.split("-",1)[0]
         with generation_scope(stop_event):
             return self._invoke("transcribe", Units(audio_seconds=len(audio) / sample_rate),
                                 (audio, sample_rate), {"hint_language": hint_language,

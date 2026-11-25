@@ -49,7 +49,8 @@ class LiveConversationPipeline:
         self.started = True
         target = self.conversation.my_language if self.mode == "listen" else self.conversation.audience_language
         try:
-            self.interpreter.start(("en", self.conversation.other_language), target, False,
+            pair = ((self.conversation.source,self.conversation.target) if hasattr(self.conversation,"source") else ("en",self.conversation.other_language))
+            self.interpreter.start(pair, target, False,
                                    lambda kind, data=None: self.events.put((kind, data)))
         except Exception:
             self.live = False
@@ -87,6 +88,30 @@ class LiveConversationPipeline:
         if not self.live:
             self.fallback.feed(chunk)
             return
+        if getattr(self.interpreter,"gates_target_language",False) is True and self.lid is not None:
+            target = self.conversation.my_language if self.mode == "listen" else self.conversation.audience_language
+            detect = getattr(self.lid,"detect_any",None) or self.lid.detect
+            decision = detect(chunk.samples)
+            if decision.language == target:
+                from engines.router import FixedPair, RecognizerRouter
+                original, policy, variety = self.fallback.recognizer, self.fallback.conversation, self.fallback.variety
+                local = getattr(original,"local",None)
+                if local is None and isinstance(original,RecognizerRouter):
+                    local = next((p.engine for p in original.providers if not p.network),None)
+                local = local or original
+                self.fallback.recognizer = local
+                self.fallback.variety = target
+                self.fallback.conversation = FixedPair(target,target,same_language_speech=self.conversation.same_language_speech)
+                before = len(self.transcripts)
+                try:
+                    self.fallback.feed(chunk)
+                    if len(self.transcripts) > before:
+                        self.transcripts[-1]["not_sent"] = True
+                        self.emit("transcript_update",self.transcripts[-1].copy())
+                finally:
+                    self.fallback.recognizer, self.fallback.conversation = original, policy
+                    self.fallback.variety = variety
+                return
         self.retained.append(chunk)
         # Cheap local pair-LID preserves the original voice without waiting for
         # cloud timestamps or running another full recognizer. It only applies
@@ -117,6 +142,8 @@ class LiveConversationPipeline:
         entry = state["entry"]
         tag = language_tag(entry["source_text"], self.conversation.other_language,
                            acoustic_language=entry["source_language"])
+        if hasattr(self.conversation,"source"):
+            tag = entry["source_language"] or self.conversation.source
         entry["language_tag"] = tag
         route = route_utterance(tag, self.mode, self.conversation)
         entry["pass_through"] = not route.translate
@@ -153,6 +180,8 @@ class LiveConversationPipeline:
         route = self._route(state)
         if data.get("speech_end_at") is not None:
             entry["speech_end_at"] = data["speech_end_at"]
+            if self.capture_origin is not None:
+                state["end"] = data["speech_end_at"]-self.capture_origin
         if not route.translate:
             self.orphan_target.clear()
         self.emit("source", entry["source_text"])
@@ -325,8 +354,23 @@ class LiveConversationPipeline:
             self._source(data)
         elif kind == "output_transcription":
             self._target(data)
+        elif kind == "timing":
+            entry = next((e for e in self.transcripts if e.get("utterance_id") == data.get("utterance_id")), None)
+            if entry is not None:
+                end, shown = data.get("speech_end_at"), entry.get("target_shown_at")
+                if end is not None and (shown is None or end <= shown):
+                    entry["speech_end_at"] = end
+                    if shown is not None:
+                        self.emit("delay", self.fallback.delays.record(entry, shown))
+                    self.emit("transcript_update", entry.copy())
         elif text_only:
             return
+        elif kind == "budget":
+            self.emit("budget",data)
+            if data.get("action") == "stop":
+                self.stop_event.set()
+        elif kind in {"gap", "hint"}:
+            self.emit(kind, data)
         elif kind == "connected":
             if data and not data.get("resumed"):
                 self.transport_base = data.get("offset_s", 0)

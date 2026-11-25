@@ -1,10 +1,38 @@
 # Translito
 
 A desktop audio transcription and translation app for Windows and macOS. The
-Windows edition understands a conversation as English plus one other language,
-passes through lines already in your language, and protects English technical
+Windows edition supports selected language pairs and conversations mixing English
+with another language, passes through lines already in your language, and protects English technical
 terms in mixed speech. Listen captures a device or one app; Speak sends translated
 speech to a virtual microphone. Local processing works without a cloud key.
+
+## v2 source implementation
+
+The current source implements `CODEX_HANDOFF_V2_SPEED_COST_UX`. The downloadable
+1.1.5 installer below predates these changes; no new installer or release was built.
+
+- Dark 800×640 main window and 820×680 Settings with Languages, Engine, Cost & usage,
+  Subtitles, Schedule, Audio, Models and General. Controls save immediately;
+  existing main-window geometry is retained.
+- Engine → Cloud enables gated Soniox recognition/translation, or ElevenLabs and
+  Speechmatics recognition followed by the selected text translator. Manage keys
+  opens Test and connect. Paid accounts require positive global and provider caps;
+  the initial monthly budget is $0. Free and On this PC remain available.
+- Run check compares cached local models and connected cloud engines on public
+  clips or a recording. Figures appear only after measurement on this PC; recordings
+  without reference text have no accuracy score. Saved checks include pair, engine,
+  machine and date. Public audio downloads require the Load public sample action.
+- Subtitles remain above other windows and support remembered positions, text size,
+  opacity, fade and capture exclusion. Audio remembers a meeting executable across
+  restarts. Schedule supports weekly times and a private read-only iCal link.
+- Short replies have readable romanization, meanings and a bundled phrasebook
+  fallback. General records subtitle/reply shortcuts as well as the original
+  Listen/Speak shortcuts. The subtitle tray shares the current replies.
+
+Verification uses `python -m pytest -q`, isolated usage/config files, fake credentials,
+mock providers and synthetic audio. Live provider quality, invoice agreement,
+physical audio and visual acceptance remain unmeasured. See
+[implementation status](docs/quality/IMPLEMENTATION_STATUS.md).
 
 ## Downloads
 
@@ -62,19 +90,19 @@ and download network access once the selected models are cached.
 | Custom | Enabled and tested providers in the configured routing order. | Each cloud provider requires its own setup/Test. |
 | Live interpreter (Gemini preview) | Opt-in streaming speech/text translation with Free recovery. | A tested free-tier key and separate data-reuse consent; one-way preview, with real meeting timing/quality still unverified. |
 
-The paid booster candidates are evaluation work only. No paid booster is selected
-or enabled in this release, and the default monthly paid cap is $0. Private Saudi
+The 1.1.5 downloads contain evaluation-only paid candidates. The v2 source above
+adds opt-in paid providers; the default monthly paid cap remains $0. Private Saudi
 meeting clips were unavailable and their evaluation was waived; public/synthetic
 smoke tests do not establish Saudi accuracy or the target meeting latency.
 
-Conversation controls are **English +**, **My language** for Listen, and
-**Audience** for Speak. Settings offers both-language captions, protected English
+In v2, Languages uses **Spoken language → Translate to**, an optional variety and
+an English pass-through checkbox. Settings offers both-language captions, protected English
 terms, an editable glossary and original-voice/mute/voice handling when your
 speech already matches the audience. Advanced one-way pairs remain available.
 
 ## Optional free cloud keys
 
-Cloud providers start disabled. Open Settings → provider setup, read its data
+Cloud providers start disabled. Open Settings → Engine → Manage keys, read its data
 notice, enter a key, choose the correct account tier, press Test and enable it.
 Test sends a short public sample, never a current meeting. A changed key, region,
 tier or consent requires a new Test. Provider errors and exhausted limits fall
@@ -134,6 +162,8 @@ optional preview. Paid account pricing is not silently inferred from a free key.
 | Cohere API / Groq ASR | Speech segments and the configured language/hotword hints. | Usage totals and generated transcripts. |
 | Gemini text | Text, recent context and glossary data. Free-tier reuse consent is required. | Usage totals and generated transcripts. |
 | Gemini Live preview | Captured audio and session/language instructions; receives translated text/speech. Free-tier reuse consent is required. | Usage totals and transcripts; resume handles stay in memory. |
+| Paid streaming speech (v2 source) | Locally gated speech and supported language/term hints; cascaded engines send source text to the selected translator. | Conservative reservations, captured/sent totals and transcripts. |
+| iCal schedule (v2 source) | HTTPS requests to the calendar link configured by the user. | URL in Credential Manager; calendar events cached in memory. |
 | App-audio capture / virtual-mic self-test | No data is uploaded. | Audio stays in memory; original-audio files are not written. |
 
 Settings live in `%LOCALAPPDATA%\Translito\config.ini`; API keys are in Windows

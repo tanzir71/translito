@@ -19,6 +19,8 @@ def _window(app, title, colors, center, width, height):
     window.configure(bg=colors["bg"])
     window.transient(app.root)
     window.minsize(width, height)
+    from ui_theme import dark_titlebar
+    window.after_idle(lambda: dark_titlebar(window) if window.winfo_exists() else None)
     center(window, app.settings_window or app.root, width=width, height=height)
     return window
 
