@@ -510,6 +510,8 @@ class TranslatorGUI:
         self.update_transcript_state()
         from subtitle_overlay import SubtitleController
         self.subtitle_controller = SubtitleController(self, COLORS)
+        from schedule_ui import ScheduleController
+        self.schedule_controller = ScheduleController(self, COLORS)
         self._initializing = False
         if not self.preview_mode:
             from engines.hardware import speed_history_path
@@ -1264,6 +1266,8 @@ class TranslatorGUI:
         build_subtitle_page(self, COLORS)
         from meeting_app import page as build_meeting_app_page
         build_meeting_app_page(self, COLORS)
+        from schedule_ui import page as build_schedule_page
+        build_schedule_page(self, COLORS)
         translation = self._settings_section(content, "Local translation")
         gemma_button = ttk.Button(translation, text="Set up TranslateGemma", style="Mac.TButton",
                                    command=self.open_translation_model_setup)
@@ -2174,6 +2178,7 @@ class TranslatorGUI:
                 self.show_error(str(payload))
                 self.set_status("Error")
             elif event_type == "transcript":
+                self.schedule_controller.scheduler.notify_speech()
                 self.append_transcript_card(payload or {})
             elif event_type == "transcript_update":
                 self.update_transcript_card(payload or {})

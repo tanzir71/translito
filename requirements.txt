@@ -40,6 +40,8 @@ pyttsx3>=2.90
 # Windows notification-area menu (macOS MenuBarExtra counterpart)
 pystray>=0.19.5
 Pillow>=10.0.0
+icalendar==7.3.2
+recurring-ical-events==3.8.2
 
 # Windows packaging
 pyinstaller>=6.0.0

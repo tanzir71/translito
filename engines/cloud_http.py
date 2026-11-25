@@ -15,11 +15,14 @@ class CloudHttp:
     def get(self, url, **kwargs):
         return self._request("get", url, **kwargs)
 
+    def get_text(self, url, **kwargs):
+        return self._request("get", url, response_text=True, **kwargs)
+
     def close(self):
         if self.client is not None:
             self.client.close()
 
-    def _request(self, method, url, *, capture_headers=None, **kwargs):
+    def _request(self, method, url, *, capture_headers=None, response_text=False, **kwargs):
         check_cancelled()
         if os.environ.get("OFFLINE_ONLY", "0").strip() == "1":
             raise ProviderNetworkError()
@@ -48,6 +51,8 @@ class CloudHttp:
             value = response.headers.get("x-metered-usage")
             if value is not None:
                 capture_headers["x-metered-usage"] = value
+        if response_text:
+            return response.text
         try:
             return response.json()
         except (ValueError, UnicodeError):
