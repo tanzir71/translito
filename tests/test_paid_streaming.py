@@ -72,3 +72,26 @@ def test_source_partial_revision_replaces_text():
         engine._update(protocol.parse({"tokens": [{"text": text, "is_final": False, "language": "es"}]}), 1)
     sources = [v for k, v in events if k == "input_transcription"]
     assert sources[-1]["text"] == "Hola" and sources[-1]["replace"]
+
+
+@pytest.mark.parametrize("provider", ["elevenlabs", "speechmatics"])
+def test_streaming_recognizers_support_pair_hints_and_emit_partial_and_final(provider, tmp_path):
+    from engines.streaming_protocols import ElevenLabsProtocol, SpeechmaticsProtocol
+    from engines.types import RecognitionEvent
+    protocol = ElevenLabsProtocol(languages=("es", "en")) if provider == "elevenlabs" else SpeechmaticsProtocol(model="melia-1", languages=("es", "en"))
+    if provider == "elevenlabs":
+        assert "model_id=scribe_v3_live" in protocol.endpoint and "multilang_mode=true" in protocol.endpoint
+        assert "secondary_languages=es" in protocol.endpoint
+        partial = protocol.parse({"message_type": "partial_transcript", "text": "Hola"})
+        final = protocol.parse({"message_type": "committed_transcript", "text": "Hola."})
+    else:
+        assert protocol.start()["transcription_config"]["language_hints"] == ["es", "en"]
+        partial = protocol.parse({"message": "AddPartialTranscript", "metadata": {"transcript": "Hola"}})
+        final = protocol.parse({"message": "AddTranscript", "metadata": {"transcript": "Hola.", "end_time": 1}})
+    engine = PaidStreamingInterpreter(None, ProviderSettings(), provider=provider, ledger=UsageLedger(tmp_path / "usage.json"))
+    events = []
+    engine.recognition_only, engine.recognition_callback = True, events.append
+    engine._recognizer_update(partial, 1)
+    engine._recognizer_update(final, 1)
+    assert isinstance(events[0], RecognitionEvent) and not events[0].final
+    assert events[1].final and events[1].text == "Hola."

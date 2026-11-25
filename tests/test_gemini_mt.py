@@ -60,10 +60,11 @@ def test_gemini_retries_span_loss_once_and_keeps_total_usage_for_both_attempts()
         engine.translate("راجع deployment", "ar", "en", context=[], glossary={})
 
 
-def test_training_consent_and_free_account_are_required_for_a_priced_binding():
+def test_free_training_consent_and_explicit_paid_rates_are_distinct():
     credentials = Mock()
     assert build(ProviderSettings(account_kind="free"), credentials).rate is None
-    assert build(ProviderSettings(account_kind="paid", training_consent=True), credentials).rate is None
+    paid = build(ProviderSettings(account_kind="paid"), credentials).rate
+    assert paid.per_million_input_tokens == .25 and str(paid.per_million_output_tokens) == "1.50"
     assert build(ProviderSettings(account_kind="free", training_consent=True), credentials).rate is not None
 
 

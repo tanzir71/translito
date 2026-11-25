@@ -127,8 +127,12 @@ class LiveConversationPipeline:
         return route
 
     def _source(self, data):
+        if data.get("utterance_id"):
+            self.input_row = next((state for state in self.pending if state["entry"].get("utterance_id") == data["utterance_id"]), None)
         if self.input_row is None:
             self.input_row = self._new_row()
+            if data.get("utterance_id"):
+                self.input_row["entry"]["utterance_id"] = data["utterance_id"]
         state, text = self.input_row, data["text"]
         if text and "source_shown_at" not in state["entry"]:
             state["entry"]["source_shown_at"] = self.clock()
@@ -165,6 +169,8 @@ class LiveConversationPipeline:
                 self._commit(state)
 
     def _target(self, data):
+        if data.get("utterance_id"):
+            self.output_row = next((state for state in self.pending if state["entry"].get("utterance_id") == data["utterance_id"]), None)
         if self.output_row and not self.output_row["entry"]["translation_pending"]:
             following = next((state for state in self.pending if state is not self.output_row and not state["target_done"]
                               and state["entry"]["source_text"] and self._route(state).translate), None)

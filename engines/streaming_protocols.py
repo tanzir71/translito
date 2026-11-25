@@ -134,7 +134,8 @@ class SpeechmaticsProtocol:
     name = "speechmatics"
     wait_for_ready = True
 
-    def __init__(self, *, model="enhanced", region="global", terms=()):
+    def __init__(self, *, model="enhanced", region="global", terms=(), languages=("en", "ar")):
+        self.languages = tuple(dict.fromkeys(languages))
         if model not in {"enhanced", "melia-1"} or region not in {"global", "eu", "us", "au"}:
             raise ValueError("Choose a verified Speechmatics model and region")
         self.model, self.terms = model, _terms(terms)
@@ -152,7 +153,7 @@ class SpeechmaticsProtocol:
         else:
             # Melia rejects Enhanced's conversation_config; the runner must use
             # local VAD and ForceEndOfUtterance for the low-latency comparison.
-            config["language_hints"] = ["en", "ar"]
+            config["language_hints"] = list(self.languages)
         return {"message": "StartRecognition", "audio_format": {"type": "raw", "encoding": "pcm_s16le", "sample_rate": 16000},
                 "transcription_config": config}
 
@@ -178,15 +179,17 @@ class SpeechmaticsProtocol:
 class ElevenLabsProtocol:
     name = "elevenlabs"
     wait_for_ready = True
-    model = "scribe_v2_realtime"
+    model = "scribe_v3_live"
 
-    def __init__(self, *, terms=(), allow_keyterm_premium=False):
+    def __init__(self, *, terms=(), allow_keyterm_premium=False, languages=("en", "ar")):
+        self.languages = tuple(dict.fromkeys(languages))
         self.terms = _terms(terms)
         if self.terms and not allow_keyterm_premium:
             raise ValueError("ElevenLabs keyterms add a premium; verify and explicitly approve its account price first")
         params = [("model_id", self.model), ("audio_format", "pcm_16000"), ("commit_strategy", "vad"),
                   ("vad_silence_threshold_secs", "0.6"), ("include_timestamps", "true"),
-                  ("include_language_detection", "true"), ("secondary_languages", "en"), ("secondary_languages", "ar")]
+                  ("include_language_detection", "true"), ("multilang_mode", "true")]
+        params.extend(("secondary_languages", language) for language in self.languages)
         params.extend(("keyterms", term) for term in self.terms)
         self.endpoint = "wss://api.elevenlabs.io/v1/speech-to-text/realtime?" + urlencode(params)
 
@@ -232,7 +235,7 @@ class ElevenLabsProtocol:
                     speakers.append(speaker)
             language = message.get("language_code")
             language = {"ara": "ar", "eng": "en"}.get(language, language) if isinstance(language, str) else None
-            language = language if language in {"ar", "en"} else None
+            language = language if language in self.languages else None
             annotation = StreamPiece(_text(message.get("text")), True, language=language,
                 speaker=speakers[0] if len(speakers) == 1 else None,
                 start_s=min(starts) if starts and complete else None,

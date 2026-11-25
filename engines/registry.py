@@ -80,6 +80,19 @@ def provider_factories():
         privacy_note="Gated speech and your terms are sent to Soniox. Bills connection time plus text tokens.",
         setup_url="https://console.soniox.com/", mixed_speech=True, streaming=True, billing_mode="open_stream",
         models=("stt-rt-v6",), rate=SONIOX_RATE, rate_checked_on=RATE_CHECKED_ON),)
+    from engines.paid_streaming import build_elevenlabs, build_speechmatics
+    from engines.usage import Rate
+    from decimal import Decimal
+    factories += (
+        ProviderFactory("elevenlabs", "live", build_elevenlabs, "ElevenLabs Scribe v3 Live + translator", "paid",
+            privacy_note="Gated speech is sent to ElevenLabs; recognized text goes to the selected translator.",
+            setup_url="https://elevenlabs.io/app/settings/api-keys", mixed_speech=True, streaming=True,
+            billing_mode="audio_sent", models=("scribe_v3_live",), rate=Rate(per_audio_hour=Decimal(".22")), rate_checked_on=RATE_CHECKED_ON),
+        ProviderFactory("speechmatics", "live", build_speechmatics, "Speechmatics Melia + translator", "paid",
+            privacy_note="Gated speech is sent to Speechmatics; recognized text goes to the selected translator.",
+            setup_url="https://portal.speechmatics.com/", mixed_speech=True, streaming=True,
+            billing_mode="open_stream", models=("melia-1",), rate=Rate(per_audio_hour=Decimal(".20")), rate_checked_on=RATE_CHECKED_ON),
+    )
     return tuple(replace(factory, **metadata.get(factory.name, {})) for factory in factories)
 
 

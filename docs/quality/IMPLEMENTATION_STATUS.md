@@ -291,3 +291,5 @@ verify behavior; these changes are not new latency/accuracy measurements.
 
 
 M4.4: production Soniox stt-rt-v6, pair-driven hints/translation, lazy WebSocket transport and local cost gate. Enable in Settings > Engine > Cloud, connect and Test a Soniox key and set both monthly limits. Rates checked 2026-11-25 at https://soniox.com/pricing and model/wire schema at https://docs.soniox.com/api-reference/stt/websocket-api. Token allocations are conservative estimates, not invoices. Mock transports only; no live calls.
+
+M4.5: ElevenLabs scribe_v3_live (multilang_mode) and Speechmatics melia-1 feed committed source through the selected text translator; partials stay provisional. Gemini paid text uses $0.25/M input and $1.50/M output tokens, with response-token settlement. Enable the selected Engine cloud provider, connect its key and optionally a paid Gemini key. Checked 2026-11-25: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime, https://elevenlabs.io/pricing/api ($0.22/h, add-ons off), https://www.speechmatics.com/pricing ($0.20/h Melia realtime), https://ai.google.dev/gemini-api/docs/pricing. Mock transports only.

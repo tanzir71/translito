@@ -55,3 +55,20 @@ class StreamingInterpreter(Protocol):
     def push_audio(self, pcm16k_mono_f32: np.ndarray) -> None: ...
 
     def stop(self) -> None: ...
+
+
+@dataclass(frozen=True)
+class RecognitionEvent:
+    text: str
+    final: bool
+    language: str | None = None
+    start_s: float | None = None
+    end_s: float | None = None
+
+
+class StreamingRecognizer(Protocol):
+    """Source-only streaming interface; translation has its own router/budget."""
+    name: str
+    def start_recognition(self, languages: tuple[str, ...], on_event: Callable[[RecognitionEvent], None]) -> None: ...
+    def push_audio(self, pcm16k_mono_f32: np.ndarray) -> bool: ...
+    def stop(self) -> None: ...
