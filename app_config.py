@@ -132,7 +132,8 @@ def write_config(config, path=None):
             handle.write(encoded)
             handle.flush()
             os.fsync(handle.fileno())
-        temp_path.replace(config_path)
+        from engines.fileio import atomic_replace
+        atomic_replace(temp_path, config_path)
     finally:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
@@ -252,7 +253,8 @@ def append_missing_settings(section, defaults, path=None):
             handle.write(updated)
             handle.flush()
             os.fsync(handle.fileno())
-        temp_path.replace(config_path)
+        from engines.fileio import atomic_replace
+        atomic_replace(temp_path, config_path)
     finally:
         if temp_path:
             temp_path.unlink(missing_ok=True)

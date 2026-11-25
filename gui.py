@@ -84,6 +84,10 @@ COLORS = {
     "yellow_bg": "#3a3320",
     "green_bg": "#203629",
     "red_bg": "#3a2424",
+    "blue_bg": "#16293f",
+    "on_accent": "#ffffff",
+    "black": "#000000",
+    "desktop": "#0f1114",
 }
 
 LANGUAGES = [
@@ -508,6 +512,9 @@ class TranslatorGUI:
         except tk.TclError:
             pass
         self.style = style
+        from ui_theme import input_styles, dark_titlebar
+        input_styles(self.root, style, COLORS)
+        self.root.after_idle(lambda: dark_titlebar(self.root))
         self.root.option_add("*Font", "{Segoe UI} 10")
         self.root.option_add("*TCombobox*Listbox.background", COLORS["field"])
         self.root.option_add("*TCombobox*Listbox.foreground", COLORS["text"])
@@ -1020,7 +1027,7 @@ class TranslatorGUI:
     def open_settings(self):
         if self.settings_window and self.settings_window.winfo_exists():
             self.settings_window.deiconify()
-            center_window(self.settings_window, self.root, 520, 560)
+            center_window(self.settings_window, self.root, 820, 680)
             self.settings_window.lift()
             self.settings_window.focus_force()
             return
@@ -1028,19 +1035,22 @@ class TranslatorGUI:
         window = tk.Toplevel(self.root)
         self.settings_window = window
         window.title("Translito Settings")
-        window.geometry("520x560")
-        window.minsize(520, 460)
-        window.resizable(False, True)
+        window.geometry("820x680")
+        window.minsize(720, 460)
+        window.resizable(True, True)
         window.configure(bg=COLORS["bg"])
         window.transient(self.root)
         try:
             window.iconbitmap(default=str(app_resource_path("Translito.ico")))
         except tk.TclError:
             pass
-        scroll = ScrollableFrame(window, background=COLORS["bg"])
-        scroll.pack(fill="both", expand=True)
-        content = scroll.content
-        content.configure(padx=18, pady=14)
+        from settings_shell import SettingsShell
+        from ui_theme import dark_titlebar
+        self.settings_shell = SettingsShell(window, COLORS, ScrollableFrame,
+            initial=self.preferences.get("UI", "last_settings_page", "Languages"),
+            on_page=lambda page: self.preferences.set("UI", "last_settings_page", page))
+        content = self.settings_shell.contents["General"]
+        window.after_idle(lambda: dark_titlebar(window))
         self.settings_controls = []
 
         general = self._settings_section(content, "General")
@@ -1338,19 +1348,21 @@ class TranslatorGUI:
             self._set_settings_controls_state(False)
         self.update_noise_gate_label()
         self.update_chunk_label()
-        center_window(window, self.root, 520, 560)
+        center_window(window, self.root, 820, 680)
         window.lift()
         window.focus_force()
 
     def _settings_section(self, parent, title):
+        if getattr(self, "settings_shell", None):
+            parent = self.settings_shell.section_parent(title)
         outer = tk.Frame(parent, bg=COLORS["bg"])
         outer.pack(fill="x", pady=(0, 14))
         tk.Label(
             outer,
             text=title,
             bg=COLORS["bg"],
-            fg=COLORS["secondary"],
-            font=("Segoe UI Semibold", 9),
+            fg=COLORS["text"],
+            font=("Segoe UI Semibold", 12),
             anchor="w",
         ).pack(fill="x", padx=3, pady=(0, 5))
         card = tk.Frame(

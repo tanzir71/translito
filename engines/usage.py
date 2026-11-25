@@ -215,7 +215,8 @@ class UsageLedger:
                 handle.write("\n")
                 handle.flush()
                 os.fsync(handle.fileno())
-            temporary.replace(self.path)
+            from engines.fileio import atomic_replace
+            atomic_replace(temporary, self.path)
         except OSError:
             raise UsageUnavailable("Usage could not be saved. Using a local engine.") from None
         finally:
