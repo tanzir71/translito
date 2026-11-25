@@ -278,3 +278,9 @@ Verification is automated only; no device, installer or live cloud checks.
 The owner requested direct commits to main instead of a PR. Milestone commits
 use `[skip ci]` to keep push-triggered Actions from running.
 
+M2.1–M2.4: typed immediate settings bindings, grouped 820×680 sidebar, a single
+language pair with English pass-through and variety, 800×640 main window,
+translation-first transcript rows, compact app bar and persisted subtitle switch.
+Dark input states and Windows caption requests have automated checks. No visual
+manual acceptance is claimed; saved user window geometry remains supported.
+

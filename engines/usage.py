@@ -147,10 +147,6 @@ class UsageLedger:
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.with_suffix(self.path.suffix + ".lock").open("a+b") as handle:
-                handle.seek(0, os.SEEK_END)
-                if handle.tell() == 0:
-                    handle.write(b"0")
-                    handle.flush()
                 acquired = False
                 deadline = time.monotonic() + 5
                 try:
@@ -168,6 +164,12 @@ class UsageLedger:
                             if time.monotonic() >= deadline:
                                 raise UsageUnavailable("The usage file is busy. Using a local engine.") from None
                             time.sleep(.02)
+                    # Windows can lock beyond EOF. Initialize only while owning
+                    # that region; two first users otherwise race a write/lock.
+                    handle.seek(0, os.SEEK_END)
+                    if handle.tell() == 0:
+                        handle.write(b"0")
+                        handle.flush()
                     yield
                 finally:
                     if acquired:

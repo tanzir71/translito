@@ -361,7 +361,7 @@ class TranslatorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title(APP_NAME)
-        self.root.geometry("760x560")
+        self.root.geometry("800x640")
         self.root.minsize(640, 480)
         self.root.configure(bg=COLORS["bg"])
         self.preview_mode = os.environ.get("TRANSLITO_UI_PREVIEW", "0").strip() == "1"
@@ -433,7 +433,7 @@ class TranslatorGUI:
         self.same_language_speech_var = tk.StringVar(value={"passthrough": "Pass my voice through",
             "voice": "Read it with the voice", "mute": "Mute"}[conversation.same_language_speech])
         self.one_way_var = tk.BooleanVar(value=conversation.one_way)
-        self.engine_var = tk.StringVar(value="ASR: Local · MT: Local")
+        self.engine_var = tk.StringVar(value="Engine  On this PC")
         self.lag_var = tk.StringVar(value="")
         self.active_engines = {"asr": "Local", "mt": "Local"}
         self.active_fallbacks = {"asr": False, "mt": False}
@@ -464,7 +464,7 @@ class TranslatorGUI:
             self.preferences.bind(var, "UI", name, var.get())
         for action, var in self.hotkey_vars.items():
             self.preferences.bind(var, "HOTKEYS", action, var.get())
-        geometry = self.preferences.get("UI", "window_geometry", "760x560")
+        geometry = self.preferences.get("UI", "window_geometry", "800x640")
         import re
         if re.fullmatch(r"\d{3,4}x\d{3,4}(?:[+-]\d+[+-]\d+)?", geometry):
             self.root.geometry(geometry)
@@ -473,6 +473,10 @@ class TranslatorGUI:
             "LANGUAGE", "english_passthrough", not conversation.one_way)
         self.variety_var = self.preferences.bind(tk.StringVar(), "LANGUAGE", "variety", "")
 
+        self.subtitles_enabled_var = self.preferences.bind(tk.BooleanVar(), "UI", "subtitles_enabled", False)
+        self.delay_var = tk.StringVar(value="Delay —")
+        self.session_cost_var = tk.StringVar(value="Session $0.00")
+        self.month_cost_var = tk.StringVar(value="This month $0.00")
         self.apply_styles()
         self.build_ui()
         self.bind_events()
@@ -674,26 +678,34 @@ class TranslatorGUI:
         segment.grid(row=0, column=0, sticky="w", padx=12, pady=(10, 4))
         self.listen_mode_button = ttk.Button(
             segment,
-            text="Translate Audio",
+            text="Listen",
             style="SegmentActive.TButton",
             command=lambda: self.set_mode("listen"),
         )
         self.listen_mode_button.pack(side="left")
         self.speak_mode_button = ttk.Button(
             segment,
-            text="Speak Translation",
+            text="Speak",
             style="SegmentInactive.TButton",
             command=lambda: self.set_mode("speak"),
         )
         self.speak_mode_button.pack(side="left")
+        subtitle_controls = tk.Frame(self.mode_bar, bg=COLORS["bg"])
+        subtitle_controls.grid(row=0, column=1, sticky="e", pady=(10, 4))
+        tk.Label(subtitle_controls, text="Subtitles on screen", bg=COLORS["bg"], fg=COLORS["secondary"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(0, 8))
+        from ui_widgets import Switch
+        self.subtitle_switch = Switch(subtitle_controls, self.subtitles_enabled_var, COLORS)
+        self.subtitle_switch.pack(side="left")
+        self.settings_image = tk.PhotoImage(file=str(app_resource_path("engines/data/ui/settings.png")))
         self.settings_button = ttk.Button(
             self.mode_bar,
-            text="⚙",
+            image=self.settings_image,
             width=2,
             style="Icon.TButton",
             command=self.open_settings,
         )
-        self.settings_button.grid(row=0, column=1, sticky="e", padx=12, pady=(10, 4))
+        self.settings_button.grid(row=0, column=2, sticky="e", padx=12, pady=(10, 4))
 
         self._separator(1)
 
@@ -900,11 +912,15 @@ class TranslatorGUI:
         ).pack(side="left", padx=(6, 0))
         self.level_frame.grid(row=0, column=5, sticky="e")
         self.level_frame.grid_remove()
-        self.engine_label = tk.Label(self.status_bar, textvariable=self.engine_var, bg=COLORS["bg"],
-                                     fg=COLORS["secondary"], font=("Segoe UI", 8), anchor="w")
-        self.engine_label.grid(row=1, column=1, columnspan=4, sticky="w", pady=(5, 0))
+        for column, variable in ((2, self.delay_var), (3, self.engine_var), (4, self.session_cost_var), (5, self.month_cost_var)):
+            label = tk.Label(self.status_bar, textvariable=variable, bg=COLORS["bg"], fg=COLORS["secondary"],
+                             font=("Segoe UI", 8), anchor="w")
+            label.grid(row=0, column=column, padx=(14, 0), sticky="w")
+            if column == 3:
+                self.engine_label = label
         tk.Label(self.status_bar, textvariable=self.lag_var, bg=COLORS["bg"], fg=COLORS["orange"],
-                 font=("Segoe UI", 8)).grid(row=1, column=5, sticky="e", pady=(5, 0))
+                 font=("Segoe UI", 8)).grid(row=1, column=5, sticky="e")
+
 
     def _build_banners(self):
         self.banner_host = tk.Frame(self.root, bg=COLORS["bg"])
@@ -2132,7 +2148,7 @@ class TranslatorGUI:
                 for key in ("asr", "mt"):
                     if (payload or {}).get(key):
                         self.active_engines[key] = payload[key]
-                self.engine_var.set(f"ASR: {self.active_engines['asr']} · MT: {self.active_engines['mt']}")
+                self.engine_var.set(f"Engine  {self.active_engines['asr']} / {self.active_engines['mt']}")
                 if "fallback" in (payload or {}):
                     stages = [payload["stage"]] if payload.get("stage") in {"asr", "mt"} else [
                         key for key in ("asr", "mt") if payload.get(key)]
@@ -2208,16 +2224,17 @@ class TranslatorGUI:
             self.update_transcript_card(entry)
             return
         self.transcript_entries.append(entry)
-        card_bg = COLORS["surface_2"]
+        card_bg = COLORS["bg"]
         card = tk.Frame(
             self.transcript_scroll.content,
             bg=card_bg,
             highlightbackground=COLORS["separator"],
-            highlightthickness=1,
-            padx=10,
-            pady=10,
+            highlightthickness=0,
+            padx=16,
+            pady=12,
         )
-        card.pack(fill="x", padx=12, pady=(10 if len(self.transcript_entries) == 1 else 0, 10))
+        card.pack(fill="x")
+        tk.Frame(self.transcript_scroll.content, bg=COLORS["separator"], height=1).pack(fill="x", padx=16)
 
         header = tk.Frame(card, bg=card_bg)
         header.pack(fill="x", pady=(0, 4))
@@ -2252,13 +2269,13 @@ class TranslatorGUI:
         target_language = entry.get("target_language", "")
         tag = entry.get("language_tag", source_language)
         source_rtl = dominant_rtl(source_text) or (source_language in RTL_LANGUAGES and tag != "en")
-        source_anchor = "e" if source_rtl else "w"
+        source_anchor = "w" if entry.get("pass_through") else "e"
         target_anchor = "e" if dominant_rtl(translated_text) else "w"
         source_label = tk.Label(
             card,
             text=display_text(source_text),
             bg=card_bg,
-            fg=COLORS["text"],
+            fg=COLORS["text"] if entry.get("pass_through") else COLORS["secondary"],
             anchor=source_anchor,
             justify="right" if source_anchor == "e" else "left",
             wraplength=800,
@@ -2271,13 +2288,13 @@ class TranslatorGUI:
                 card,
                 text=self.transcript_target_text(entry),
                 bg=card_bg,
-                fg=COLORS["secondary"],
+                fg=COLORS["tertiary"] if entry.get("translation_pending") else COLORS["text"],
                 anchor=target_anchor,
                 justify="right" if target_anchor == "e" else "left",
                 wraplength=800,
                 font=("Segoe UI", 10),
             )
-            translated_label.pack(fill="x", pady=(5, 0))
+            translated_label.pack(fill="x", before=source_label, pady=(0, 5))
             if not self.transcript_target_text(entry):
                 translated_label.pack_forget()
             self.transcript_text_labels.append(translated_label)
@@ -2315,7 +2332,7 @@ class TranslatorGUI:
         label.configure(anchor="e" if dominant_rtl(translated) else "w",
                          justify="right" if dominant_rtl(translated) else "left")
         if self.transcript_target_text(stored_entry):
-            label.pack(fill="x", pady=(5, 0))
+            label.pack(fill="x", before=source_label, pady=(0, 5))
         else:
             label.pack_forget()
         self.latest_translation = stored_entry.get("translated_text") or stored_entry.get("source_text", "")

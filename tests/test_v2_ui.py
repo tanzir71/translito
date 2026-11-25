@@ -52,3 +52,19 @@ def test_windows_titlebar_requests_dark_caption():
     dwm = Mock()
     dark_titlebar(SimpleNamespace(winfo_id=lambda: 123), dwm=dwm, user32=SimpleNamespace(GetParent=lambda h: h))
     assert [call.args[1] for call in dwm.DwmSetWindowAttribute.call_args_list] == [20, 35, 36]
+
+
+def test_main_dimensions_app_bar_and_translation_order(app):
+    assert app.root.wm_geometry().split("+")[0] == "800x640"
+    assert app.listen_mode_button.cget("text") == "Listen"
+    assert app.speak_mode_button.cget("text") == "Speak"
+    assert app.settings_image.width() == app.settings_image.height() == 15
+    app.subtitle_switch.toggle()
+    assert app.subtitles_enabled_var.get()
+    app.append_transcript_card({"id": "layout", "source_text": "Hola.", "translated_text": "Hello.",
+        "source_language": "es", "target_language": "en", "translation_pending": False})
+    _, translation, original = app.transcript_targets["layout"]
+    children = translation.master.pack_slaves()
+    assert children.index(translation) < children.index(original)
+    assert translation.cget("fg") == gui.COLORS["text"]
+    assert original.cget("fg") == gui.COLORS["secondary"]
