@@ -74,7 +74,11 @@ def build_macos(root=ROOT):
     for size in (16, 32, 128, 256, 512):
         for multiple in (1, 2):
             name = f"icon_{size}x{size}" + ("@2x" if multiple == 2 else "") + ".png"
-            tile.resize((size * multiple,) * 2, Image.Resampling.LANCZOS).save(assets / name)
+            resized = tile.resize((size * multiple,) * 2, Image.Resampling.LANCZOS)
+            # Lanczos rings at very small sizes; keep the outer margin truly clear.
+            d = ImageDraw.Draw(resized)
+            d.rectangle((0, 0, resized.width - 1, resized.height - 1), outline=(0, 0, 0, 0))
+            resized.save(assets / name)
 
 
 if __name__ == "__main__":

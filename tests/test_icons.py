@@ -45,3 +45,14 @@ def test_tray_image_changes_with_session_and_budget_state():
         app.current_status, app.transcriber = status, session
         TranslatorGUI.refresh_tray_menu(app)
         assert tray.icon is app.tray_images[state]
+
+
+def test_macos_assets_have_transparent_margins():
+    assets = ROOT / "native_macos/DesktopAudioTranslator/DesktopAudioTranslator/Assets.xcassets/AppIcon.appiconset"
+    for path in [ROOT / "native_macos/branding/Translito-AppIcon-1024.png", *assets.glob("*.png")]:
+        icon = Image.open(path)
+        assert_transparent(icon)
+        assert icon.getpixel((icon.width // 2, 0))[3] == 0
+    icon = Image.open(ROOT / "native_macos/branding/Translito.icns")
+    for size in icon.info["sizes"]:
+        assert_transparent(icon.icns.getimage(size))

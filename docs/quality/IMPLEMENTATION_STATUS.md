@@ -270,3 +270,11 @@ The preview Test action performs no key access, requests or settings writes.
 The full test suite passed 224 tests. Real config remains 427 bytes with its
 original 2026-10-28 timestamp; no real usage.json was created. Cloud quality and
 latency acceptance requires a live configured account and remains unverified.
+# Translito v2 progress (2026-11-25)
+
+M0 and M1.1–M1.3: supplied handoff preserved, reproducible transparent Windows,
+tray, website and macOS icons generated; window/tray wiring has fake-state tests.
+Verification is automated only; no device, installer or live cloud checks.
+The owner requested direct commits to main instead of a PR. Milestone commits
+use `[skip ci]` to keep push-triggered Actions from running.
+
