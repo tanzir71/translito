@@ -79,3 +79,16 @@ def test_main_dimensions_app_bar_and_translation_order(app):
     assert children.index(translation) < children.index(original)
     assert translation.cget("fg") == gui.COLORS["text"]
     assert original.cget("fg") == gui.COLORS["secondary"]
+
+
+def test_budget_pages_share_one_value_and_connect_has_one_provider_picker(app):
+    assert str(app.engine_budget_entry.cget("textvariable")) == str(app.cost_budget_entry.cget("textvariable"))
+    app.monthly_budget_var.set("5.00")
+    assert app.engine_budget_entry.get() == app.cost_budget_entry.get() == "5.00"
+    from provider_settings import open_provider_settings
+    window = open_provider_settings(app, gui.COLORS, gui.center_window)
+    window.update_idletasks()
+    window.provider_var.set("soniox")
+    assert window.key_var.get() == ""
+    assert not window.winfo_children()[0].winfo_class() == "TNotebook"
+    window.destroy()

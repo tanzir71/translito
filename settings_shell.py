@@ -6,7 +6,7 @@ PAGE_GROUPS = (("Translation", ("Languages", "Engine", "Cost & usage")),
                ("System", ("Audio", "Models", "General")))
 SECTION_PAGES = {"General": "General", "Hotkeys": "General", "Transcripts": "General",
     "Bilingual conversation": "Languages", "Advanced one-way pair": "Languages",
-    "Speech Recognition": "Engine", "Translation engine": "Engine", "Local translation": "Models",
+    "Speech Recognition": "Models", "Translation engine": "Engine", "Local translation": "Models",
     "Capture": "Audio", "Speak Mode": "Audio"}
 
 

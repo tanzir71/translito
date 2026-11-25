@@ -478,6 +478,8 @@ class TranslatorGUI:
         self.delay_var = tk.StringVar(value="Delay —")
         self.session_cost_var = tk.StringVar(value="Session $0.00")
         self.month_cost_var = tk.StringVar(value="This month $0.00")
+        from engine_ui import initialize as initialize_engine_controls
+        initialize_engine_controls(self)
         self.apply_styles()
         self.build_ui()
         self.bind_events()
@@ -510,6 +512,7 @@ class TranslatorGUI:
             else:
                 self.root.after(350, lambda: self.open_speed_check(first_run=True))
             self.root.after(3000, self.auto_refresh_devices)
+            self.root.after(1000, self.refresh_cost_status)
 
     # ------------------------------------------------------------------
     # Window construction
@@ -1045,6 +1048,12 @@ class TranslatorGUI:
     # ------------------------------------------------------------------
     # Settings window
 
+    def refresh_cost_status(self):
+        from engine_ui import refresh_usage
+        refresh_usage(self)
+        if not self.is_quitting:
+            self.root.after(1000, self.refresh_cost_status)
+
     def open_settings(self):
         if self.settings_window and self.settings_window.winfo_exists():
             self.settings_window.deiconify()
@@ -1155,8 +1164,8 @@ class TranslatorGUI:
         ttk.Button(languages, text="Edit terms", style="Mac.TButton", command=self.open_terms).pack(anchor="w", pady=10)
 
         recognition = self._settings_section(content, "Speech Recognition")
-        cohere_button = ttk.Button(recognition, text="Set up Saudi Arabic recognition", style="Mac.TButton",
-                                    command=self.open_arabic_model_setup)
+        cohere_button = ttk.Button(recognition, text="Recommended local model", style="Mac.TButton",
+                                    command=self.download_models)
         cohere_button.pack(anchor="w", pady=(3, 8))
         self.settings_controls.append(cohere_button)
         speed_button = ttk.Button(recognition, text="Check this PC's speed", style="Mac.TButton",
@@ -1237,16 +1246,8 @@ class TranslatorGUI:
         )
         self.settings_controls.extend((whisper_settings, chunk_scale, offline))
 
-        engines_section = self._settings_section(content, "Translation engine")
-        profile_combo = self._settings_combo(engines_section, "Profile", self.engine_profile_var, list(ENGINE_PROFILES))
-        profile_combo.bind("<<ComboboxSelected>>", lambda _event: self.change_engine_profile())
-        self.settings_controls.append(profile_combo)
-        providers_button = ttk.Button(engines_section, text="Cloud providers and usage", style="Mac.TButton",
-                                       command=self.open_provider_settings)
-        providers_button.pack(anchor="w", pady=5)
-        self.settings_controls.append(providers_button)
-        self._settings_help(engines_section, "Free works with local models and optional tested free-tier keys. "
-                            "Offline makes no cloud requests. Cloud services start disabled and paid caps start at $0.")
+        from engine_ui import pages as build_engine_pages
+        build_engine_pages(self, COLORS)
         translation = self._settings_section(content, "Local translation")
         gemma_button = ttk.Button(translation, text="Set up TranslateGemma", style="Mac.TButton",
                                    command=self.open_translation_model_setup)
@@ -2321,7 +2322,7 @@ class TranslatorGUI:
     @staticmethod
     def transcript_target_text(entry):
         if entry.get("translation_pending"):
-            return "Translating…"
+            return display_text(entry.get("translated_text") or "Hearing…")
         if entry.get("translation_cancelled"):
             return "Translation stopped."
         if entry.get("translation_error"):
@@ -2340,12 +2341,12 @@ class TranslatorGUI:
         if meta is not None and entry.get("delay_s") is not None:
             meta.configure(text=self.current_source_info(stored_entry) + f" · {entry['delay_s']:.1f} s")
 
-        label.configure(text=self.transcript_target_text(stored_entry))
+        label.configure(text=self.transcript_target_text(stored_entry), fg=COLORS["tertiary"] if stored_entry.get("translation_pending") else COLORS["text"])
         source = stored_entry.get("source_text", "")
         source_rtl = dominant_rtl(source) or (stored_entry.get("source_language") in RTL_LANGUAGES
                      and stored_entry.get("language_tag") != "en")
-        source_label.configure(text=display_text(source), anchor="e" if source_rtl else "w",
-                               justify="right" if source_rtl else "left")
+        source_label.configure(text=display_text(source), anchor="w" if stored_entry.get("pass_through") else "e",
+                               justify="left" if stored_entry.get("pass_through") else "right")
         translated = stored_entry.get("translated_text", "")
         label.configure(anchor="e" if dominant_rtl(translated) else "w",
                          justify="right" if dominant_rtl(translated) else "left")

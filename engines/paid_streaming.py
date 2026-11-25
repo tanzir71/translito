@@ -92,10 +92,15 @@ class PaidStreamingInterpreter:
             self.protocol_context_variety = self.variety
         self.worker = self.worker_factory(self.protocol, self.credentials, self._update,
             lambda message: self.emit("fallback", message), authorize=self.authorized_key)
+        from app_config import read_config
+        config = read_config()
         self.guard = CostGuard(self.worker, ledger=self.ledger, rate=self.rate,
             monthly_cap=self.preference.monthly_cap, total_monthly_cap=self.settings.monthly_cap,
             billing_mode=self.billing_mode, languages=conversation, inspect_audio=self.inspect_audio or self._inspect,
-            fallback_on_budget=self.settings.fallback_on_budget, emit=on_event)
+            fallback_on_budget=self.settings.fallback_on_budget, emit=on_event,
+            skip_non_speech=config.getboolean("COSTGUARD", "skip_non_speech", fallback=True),
+            skip_other_languages=config.getboolean("COSTGUARD", "skip_other_languages", fallback=True),
+            close_idle_seconds=config.getfloat("COSTGUARD", "close_idle_seconds", fallback=8))
 
     def _update(self, update, generation):
         if self.name != "soniox":
