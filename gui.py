@@ -453,6 +453,18 @@ class TranslatorGUI:
             for action, default in DEFAULT_HOTKEYS.items()
         }
 
+        from settings_state import SettingsState, CONTROL_VARIABLES
+        self.preferences = SettingsState(CONFIG_FILE, writable=lambda: not self.preview_mode and not self._initializing)
+        for name in CONTROL_VARIABLES:
+            var = getattr(self, name + "_var")
+            self.preferences.bind(var, "UI", name, var.get())
+        for action, var in self.hotkey_vars.items():
+            self.preferences.bind(var, "HOTKEYS", action, var.get())
+        geometry = self.preferences.get("UI", "window_geometry", "760x560")
+        import re
+        if re.fullmatch(r"\d{3,4}x\d{3,4}(?:[+-]\d+[+-]\d+)?", geometry):
+            self.root.geometry(geometry)
+
         self.apply_styles()
         self.build_ui()
         self.bind_events()
@@ -1423,6 +1435,8 @@ class TranslatorGUI:
     def on_root_configure(self, event):
         if event.widget is not self.root:
             return
+        if not self._initializing:
+            self.preferences.set("UI", "window_geometry", self.root.geometry())
         content_wrap = max(320, event.width - 56)
         self.routing_label.configure(wraplength=content_wrap)
         self.hint_label.configure(wraplength=content_wrap)
