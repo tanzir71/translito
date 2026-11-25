@@ -27,6 +27,10 @@ DEFAULT_HOTKEYS = {
     "speak": "ctrl+alt+s",
     "stop": "ctrl+alt+x",
     "subtitles": "ctrl+alt+u",
+    "replies": "ctrl+alt+r",
+    "reply_1": "ctrl+alt+1",
+    "reply_2": "ctrl+alt+2",
+    "reply_3": "ctrl+alt+3",
 }
 
 

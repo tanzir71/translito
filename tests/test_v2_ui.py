@@ -104,3 +104,16 @@ def test_four_subtitle_entry_points_share_one_state_and_any_pair_text(app):
     for source, target in (("Hola", "Hello"), ("Hello", "مرحبا")):
         controller.accept({"id":target,"source_text":source,"translated_text":target,"translation_pending":False})
         assert controller.overlay.entries[-1]["translated_text"] == target
+
+
+def test_overlay_reply_tray_shares_current_set_and_shortcuts(app):
+    from engines.replies import phrasebook
+    app.subtitles_enabled_var.set(True)
+    app.reply_controller.replies = phrasebook("es","en")
+    app.reply_controller.render()
+    tray = app.subtitle_controller.overlay.reply_tray
+    assert tray.winfo_manager() == "pack"
+    assert len(tray.winfo_children()) == 3
+    assert {"replies","reply_1","reply_2","reply_3"} <= set(app.hotkey_vars)
+    app.reply_controller.options["show_on_overlay"].set(False)
+    assert not tray.winfo_manager()

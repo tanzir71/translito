@@ -41,3 +41,31 @@ def test_paid_reply_json_settles_tokens_and_zero_budget_blocks_transport(tmp_pat
     assert result.provider == "gemini" and len(result.replies) == 2
     stats = ledger.snapshot()["providers"]["gemini"]
     assert stats["input_tokens"] == 30 and stats["output_tokens"] == 10
+
+
+def test_reply_shortcut_copies_romanization_without_speak_output():
+    from reply_ui import ReplyController
+    from engines.replies import Reply
+    root = SimpleNamespace(clipboard_clear=Mock(),clipboard_append=Mock())
+    controller = ReplyController.__new__(ReplyController)
+    controller.app = SimpleNamespace(root=root,speak_output_var=SimpleNamespace(get=lambda:""))
+    controller.replies, controller.status = (Reply("شكرا","Shukran","Thank you"),), Mock()
+    controller.somewhere_visible = lambda:True
+    controller.say(0)
+    root.clipboard_append.assert_called_once_with("Shukran")
+
+
+def test_reply_bindings_are_recordable_persisted_and_registered_with_fake_keyboard(tmp_path,monkeypatch):
+    import sys
+    from app_config import DEFAULT_HOTKEYS,save_hotkey_config,load_hotkey_config
+    from hotkeys import GlobalHotkeyManager
+    bindings = dict(DEFAULT_HOTKEYS,reply_1="ctrl+shift+7")
+    path = tmp_path/"config.ini"
+    save_hotkey_config(path,bindings)
+    assert load_hotkey_config(path)["reply_1"] == "ctrl+shift+7"
+    keyboard = SimpleNamespace(add_hotkey=Mock(return_value="registered"),remove_hotkey=Mock())
+    monkeypatch.setitem(sys.modules,"keyboard",keyboard)
+    manager = GlobalHotkeyManager({key:Mock() for key in bindings})
+    manager.register(bindings)
+    assert keyboard.add_hotkey.call_count == len(bindings)
+    assert any(call.args[0] == "ctrl+shift+7" for call in keyboard.add_hotkey.call_args_list)

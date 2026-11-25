@@ -120,6 +120,10 @@ HOTKEY_LABELS = {
     "speak": "Start Speaking",
     "stop": "Stop",
     "subtitles": "Show or hide subtitles",
+    "replies": "Suggest replies",
+    "reply_1": "Say reply 1",
+    "reply_2": "Say reply 2",
+    "reply_3": "Say reply 3",
 }
 
 RTL_LANGUAGES = {"ar", "fa", "ur"}
@@ -495,6 +499,8 @@ class TranslatorGUI:
                 "speak": lambda: self.root.after(0, lambda: self.hotkey_start_mode("speak")),
                 "stop": lambda: self.root.after(0, self.stop),
                 "subtitles": lambda: self.root.after(0, self.toggle_subtitles),
+                "replies": lambda: self.root.after(0, self.reply_controller.show_and_request),
+                **{f"reply_{i+1}": lambda i=i: self.root.after(0,lambda:self.reply_controller.say(i)) for i in range(3)},
             },
             on_error=lambda message: self.root.after(0, lambda: self.show_error(message)),
         )
@@ -2059,6 +2065,8 @@ class TranslatorGUI:
         self.update_routing_banner()
 
     def stop(self, after=None):
+        if hasattr(self, "reply_controller"):
+            self.reply_controller.stop_speaking()
         self._waiting_meeting_app = False
         if getattr(self, "_meeting_timer", None) is not None:
             self.root.after_cancel(self._meeting_timer)
@@ -2266,10 +2274,10 @@ class TranslatorGUI:
         self.error_var.set("")
 
     def append_transcript_card(self, entry):
-        if hasattr(self, "reply_controller"):
-            self.reply_controller.accept(entry)
         if hasattr(self, "subtitle_controller"):
             self.subtitle_controller.accept(entry)
+        if hasattr(self, "reply_controller"):
+            self.reply_controller.accept(entry)
         if entry.get("id") in self.transcript_targets:
             self.update_transcript_card(entry)
             return
@@ -2372,10 +2380,10 @@ class TranslatorGUI:
         return display_text(entry.get("translated_text", entry.get("english_text", "")))
 
     def update_transcript_card(self, entry):
-        if hasattr(self, "reply_controller"):
-            self.reply_controller.accept(entry)
         if hasattr(self, "subtitle_controller"):
             self.subtitle_controller.accept(entry)
+        if hasattr(self, "reply_controller"):
+            self.reply_controller.accept(entry)
         target = self.transcript_targets.get(entry.get("id"))
         if target is None:
             return
@@ -2551,6 +2559,8 @@ class TranslatorGUI:
         self.save_hotkeys_from_ui()
 
     def save_hotkeys_from_ui(self):
+        if hasattr(self, "reply_controller"):
+            self.reply_controller.render()
         hotkeys = {action: variable.get() for action, variable in self.hotkey_vars.items()}
         save_hotkey_config(CONFIG_FILE, hotkeys)
         self.register_hotkeys()
@@ -2662,6 +2672,7 @@ class TranslatorGUI:
     def quit_app(self):
         self.is_quitting = True
         self.subtitle_controller.close()
+        self.reply_controller.close()
         self.virtual_mic_setup.poll_stop.set()
         if self.tray_icon is not None:
             try:

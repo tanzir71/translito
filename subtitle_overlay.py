@@ -284,6 +284,8 @@ class SubtitleController:
                     if monitor.name != overlay.monitor.name:
                         overlay.restore_position(monitor)
             overlay.render()
+            if hasattr(app,"reply_controller"):
+                app.reply_controller.render_overlay()
             minimized = app.root.state() == "iconic" or not app.root.winfo_viewable()
             overlay.visible(True, listening=app.transcriber is not None and app.mode_var.get() == "listen", minimized=minimized)
             overlay.hover()

@@ -16,15 +16,18 @@ class ReplyController:
         self.visible_var = app.preferences.bind(tk.BooleanVar(app.root),"UI","reply_strip_visible",True)
         self.replies, self.context, self.language, self.target = (), [], "", "en"
         self.current_id, self.suggested, self.generation = None, None, 0
+        self.reply_player, self.overlay_signature = None, None
         self.frame = tk.Frame(app.root,bg=colors["bg"],padx=16,pady=10)
         self.status = tk.StringVar()
         self.visible_var.trace_add("write",lambda *_:self.render())
         for variable in self.options.values():
             variable.trace_add("write",lambda *_:self.render())
+        app.subtitles_enabled_var.trace_add("write",lambda *_:self.render_overlay())
 
     def somewhere_visible(self):
-        main = self.visible_var.get() and self.app.root.winfo_viewable()
-        overlay = self.app.subtitles_enabled_var.get() and self.options["show_on_overlay"].get()
+        main = self.visible_var.get() and self.app.root.winfo_viewable() and self.app.root.state() != "iconic"
+        window = self.app.subtitle_controller.overlay
+        overlay = self.app.subtitles_enabled_var.get() and self.options["show_on_overlay"].get() and window is not None and window.window.winfo_viewable()
         return main or overlay
 
     def accept(self, entry):
@@ -36,6 +39,8 @@ class ReplyController:
             self.generation += 1
             self.render()
         self.language = entry.get("source_language") or self.app.language_entry_by_name(self.app.listen_source_var.get())[2]
+        if entry.get("language_tag") == "mix":
+            self.language = self.app.current_conversation().other_language
         self.target = entry.get("target_language") or self.app.language_entry_by_name(self.app.listen_target_var.get())[2]
         if not self.context or self.context[-1][0] != identity:
             self.context.append((identity,text))
@@ -104,10 +109,72 @@ class ReplyController:
         self.render_overlay()
 
     def card_actions(self, card, index):
-        pass
+        row = tk.Frame(card,bg=self.colors["surface_2"])
+        row.pack(fill="x",pady=(6,0))
+        binding = self.app.hotkey_vars.get(f"reply_{index+1}")
+        tk.Label(row,text=binding.get() if binding else "",bg=self.colors["surface_2"],fg=self.colors["tertiary"],font=("Segoe UI",8)).pack(side="left")
+        ttk.Button(row,text="Say",command=lambda:self.say(index),style="Mac.TButton").pack(side="right")
 
     def render_overlay(self):
-        pass
+        overlay = self.app.subtitle_controller.overlay
+        if overlay is None:
+            return
+        signature = (self.replies,self.options["enabled"].get(),self.options["show_on_overlay"].get(),
+            self.app.subtitles_enabled_var.get(),overlay.option("text_size",24))
+        if signature == self.overlay_signature:
+            return
+        self.overlay_signature = signature
+        tray = overlay.reply_tray
+        for child in tray.winfo_children():
+            child.destroy()
+        if not self.replies or not all(signature[1:4]):
+            tray.pack_forget()
+            return
+        tray.pack(fill="x",pady=(6,0))
+        for index, reply in enumerate(self.replies):
+            card = tk.Frame(tray,bg=self.colors["black"],padx=8)
+            card.grid(row=0,column=index,sticky="nsew")
+            tray.columnconfigure(index,weight=1,uniform="reply-tray")
+            size = max(9,round(overlay.option("text_size",24)*.4))
+            tk.Button(card,text=f"{index+1}  {reply.spoken}",command=lambda i=index:self.say(i),bg=self.colors["black"],
+                fg=self.colors["text"],activebackground=self.colors["field"],activeforeground=self.colors["text"],relief="flat",bd=0,
+                font=("Segoe UI Semibold",size),wraplength=205,anchor="w",justify="left").pack(fill="x")
+            tk.Label(card,text=reply.meaning,bg=self.colors["black"],fg=self.colors["secondary"],font=("Segoe UI",max(8,size-1)),
+                wraplength=205,anchor="w",justify="left").pack(fill="x")
+        overlay.window.update_idletasks()
+        overlay.window.geometry(f"720x{max(64,overlay.window.winfo_reqheight())}")
+        overlay.apply_styles()
+
+    def show_and_request(self):
+        if self.app.root.winfo_viewable() and self.app.root.state() != "iconic":
+            self.visible_var.set(True)
+        self.request()
+
+    def say(self, index):
+        if not 0 <= index < len(self.replies) or not self.somewhere_visible():
+            return
+        reply = self.replies[index]
+        output = self.app.speak_output_var.get()
+        if not output:
+            self.app.root.clipboard_clear()
+            self.app.root.clipboard_append(reply.spoken)
+            self.status.set("Copied the readable reply. Set a Speak output to say it.")
+        else:
+            from speech_output import SpeechOutputPlayer
+            if self.reply_player is None or self.reply_player.output_device_name != output:
+                self.stop_speaking()
+                self.reply_player = SpeechOutputPlayer(output_device_name=output,monitor=self.app.monitor_var.get(),
+                    synthesizer=self.app.synthesizer,on_event=self.app.on_event)
+            self.reply_player.enqueue(reply.native,self.language,self.app.voice_var.get())
+            self.status.set(f"Saying reply {index+1}")
+
+    def stop_speaking(self):
+        if self.reply_player:
+            self.reply_player.stop(join_timeout=0)
+
+    def close(self):
+        self.generation += 1
+        self.stop_speaking()
 
 
 def page(app, colors):
