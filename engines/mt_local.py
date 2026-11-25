@@ -118,7 +118,10 @@ class OpusTranslator:
     name = "opus-mt"
     requires_network = False
 
-    def __init__(self, *, offline_only=True, device=-1, on_hint=None, loader=LocalOpusPipeline):
+    def __init__(self, *, offline_only=True, device=-1, on_hint=None, loader=LocalOpusPipeline, beam_size=4):
+        if beam_size not in {2, 4}:
+            raise ValueError("Use Fast (2 beams) or Balanced (4 beams) translation")
+        self.beam_size = beam_size
         self.offline_only = offline_only
         self.device = device
         self.on_hint = on_hint
@@ -148,7 +151,7 @@ class OpusTranslator:
         def decode(value):
             tokenizer = getattr(model, "tokenizer", None)
             tokens = len(tokenizer.encode(value)) if tokenizer else max(1, len(value.split()) * 2)
-            return model(value, num_beams=4, max_new_tokens=max(32, min(512, 3 * tokens)),
+            return model(value, num_beams=self.beam_size, max_new_tokens=max(32, min(512, 3 * tokens)),
                          do_sample=False, truncation=True)[0]["translation_text"]
 
         # Arabic/Persian/etc. → English: protect Latin spans. English → Arabic:

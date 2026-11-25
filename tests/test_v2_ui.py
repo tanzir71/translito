@@ -16,7 +16,18 @@ def app(tmp_path_factory):
     monkeypatch.setattr(gui, "query_input_devices", lambda **kw: [])
     monkeypatch.setattr(gui, "query_output_devices", lambda: [])
     monkeypatch.setattr(gui.TranslatorGUI, "refresh_voices", lambda self: None)
-    root = tk.Tk()
+    # Some Windows runners briefly deny reads of Python's shared Tcl scripts.
+    # Retry that environment failure; widget/configuration failures still fail.
+    import time
+    for attempt in range(4):
+        try:
+            root = tk.Tk()
+            break
+        except tk.TclError as error:
+            if "Can't find a usable" not in str(error) or attempt == 3:
+                monkeypatch.undo()
+                raise
+            time.sleep(.1)
     value = gui.TranslatorGUI(root)
     root.update()
     yield value

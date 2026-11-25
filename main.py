@@ -323,6 +323,9 @@ class ArabicAudioTranscriber:
                 on_hint=lambda text: self.emit("hint", text))
             if hasattr(translator_engine, "models") and self.translation_model_name.startswith("Helsinki-NLP/"):
                 translator_engine.models[self.translation_model_name] = self.translator
+            opus = getattr(translator_engine, "opus", None)
+            if opus is not None:
+                opus.beam_size = 2 if self.asr_preset == "fast" else 4
             from engines.registry import build_session_routers
             from engines.settings import load_engine_settings
             conversation_lid = getattr(recognizer, "lid", None)
@@ -356,6 +359,9 @@ class ArabicAudioTranscriber:
                 on_hint=lambda text: self.emit("hint", text))
             if hasattr(translator_engine, "models") and self.translation_model_name.startswith("Helsinki-NLP/"):
                 translator_engine.models[self.translation_model_name] = self.translator
+            opus = getattr(translator_engine, "opus", None)
+            if opus is not None:
+                opus.beam_size = 2 if self.asr_preset == "fast" else 4
             self.recognition_router, self.translation_router = build_session_routers(
                 recognizer, translator_engine, self.engine_settings,
                 offline_only=self.offline_only, on_event=self.emit)

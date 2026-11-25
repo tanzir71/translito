@@ -284,3 +284,8 @@ translation-first transcript rows, compact app bar and persisted subtitle switch
 Dark input states and Windows caption requests have automated checks. No visual
 manual acceptance is claimed; saved user window geometry remains supported.
 
+M3.1–M3.3: per-line monotonic timestamps and delay, rolling median, ledger p50/p95,
+endpoint-aware assembly (0s for provider endpoints, 0.5s for local), merged-row
+retranslation and a two-beam Fast local MT preset. Fake-clock/provider tests
+verify behavior; these changes are not new latency/accuracy measurements.
+

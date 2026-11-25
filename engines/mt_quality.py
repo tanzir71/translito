@@ -9,8 +9,9 @@ class LocalQualityTranslator:
     name = "local"
     requires_network = False
 
-    def __init__(self, *, offline_only=True, device=-1, on_hint=None, opus=None, gemma=None):
-        self.opus = opus or OpusTranslator(offline_only=offline_only, device=device, on_hint=on_hint)
+    def __init__(self, *, offline_only=True, device=-1, on_hint=None, opus=None, gemma=None, preset="balanced"):
+        self.opus = opus or OpusTranslator(offline_only=offline_only, device=device, on_hint=on_hint,
+                                          beam_size=2 if preset == "fast" else 4)
         self.gemma = gemma or cached_translator(str(configured_model_path()))
         self.on_hint = on_hint or (lambda text: None)
         self._fallback_shown = False

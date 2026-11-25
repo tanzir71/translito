@@ -79,3 +79,14 @@ def test_latin_source_language_is_translated_while_english_glossary_terms_are_ke
     result = translator.translate("Vérifiez API maintenant.", "fr", "en", context=[], glossary={"API": ""})
     assert result.text == "Check API now."
     assert seen == ["Vérifiez ⟦1⟧ maintenant."]
+
+
+def test_fast_translation_uses_two_beams_without_reloading_models():
+    pipeline = Mock(tokenizer=None)
+    pipeline.return_value = [{"translation_text": "Hello"}]
+    loader = Mock(return_value=pipeline)
+    translator = OpusTranslator(loader=loader, beam_size=2)
+    for _ in range(2):
+        translator.translate("مرحبا", "ar", "en", context=[], glossary={})
+    assert loader.call_count == 1
+    assert pipeline.call_args.kwargs["num_beams"] == 2
