@@ -331,7 +331,7 @@ class ArabicAudioTranscriber:
             conversation_lid = getattr(recognizer, "lid", None)
             recognizer, translator_engine = build_session_routers(
                 recognizer, translator_engine, self.engine_settings,
-                offline_only=self.offline_only, on_event=self.emit)
+                offline_only=self.offline_only, on_event=self.emit, pair=(self.whisper_language, self.translation_target_language))
             self.conversation_pipeline = ConversationPipeline(
                 recognizer, translator_engine, conversation, mode=self.mode, emit=self.emit,
                 transcripts=self.transcripts, stop_event=self._stop_event,
@@ -364,7 +364,7 @@ class ArabicAudioTranscriber:
                 opus.beam_size = 2 if self.asr_preset == "fast" else 4
             self.recognition_router, self.translation_router = build_session_routers(
                 recognizer, translator_engine, self.engine_settings,
-                offline_only=self.offline_only, on_event=self.emit)
+                offline_only=self.offline_only, on_event=self.emit, pair=(self.whisper_language, self.translation_target_language))
 
         print("Initialization complete.\n")
 

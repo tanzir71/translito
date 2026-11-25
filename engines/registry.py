@@ -19,12 +19,28 @@ class ProviderFactory:
     privacy_note: str = ""
     setup_url: str = ""
     training_required: bool = False
+    source_languages: tuple = ()  # Empty means the adapter determines support.
+    mixed_speech: bool = False
+    translates_to: tuple = ()
+    streaming: bool = False
+    billing_mode: str = "per_request_min"
+    models: tuple = ()
+    rate: object = None
+    rate_checked_on: str = ""
+    min_billed_seconds: float = 0
+
+    def unavailable_reason(self, source, target):
+        if self.source_languages and source not in self.source_languages:
+            return f"Recognition is unavailable for {source}."
+        if self.translates_to and target not in self.translates_to:
+            return f"Translation is unavailable for {target}."
+        return ""
 
 
 def provider_factories():
     # Importing contracts creates no clients, credentials, models or requests.
     from engines import mt_azure, mt_deepl, mt_google, mt_gemini, asr_cohere_api, asr_groq, interp_gemini_live
-    return (
+    factories = (
         ProviderFactory("azure", "mt", mt_azure.build, "Azure Translator F0", quota_label="2 million characters/month",
                         monthly_limit=2_000_000, privacy_note="Recognized text is sent to Microsoft Translator.",
                         setup_url="https://learn.microsoft.com/azure/ai-services/translator/quickstart-translator"),
@@ -48,14 +64,29 @@ def provider_factories():
                         privacy_note="Audio is sent to Google; free-tier inputs/outputs may improve its products. Preview quality can vary on rapid language switching.",
                         setup_url="https://ai.google.dev/gemini-api/docs/live-api/live-translate", training_required=True),
     )
+    from dataclasses import replace
+    from engines.mt_cloud import LANGUAGES
+    metadata = {
+        "azure": dict(models=("standard",), translates_to=tuple(sorted(LANGUAGES))),
+        "deepl": dict(models=("quality_optimized",), translates_to=tuple(sorted(LANGUAGES))),
+        "google": dict(models=("nmt",), translates_to=tuple(sorted(LANGUAGES))),
+        "gemini": dict(models=("gemini-3.1-flash-lite",), translates_to=tuple(sorted(LANGUAGES))),
+        "cohere-api": dict(models=("cohere-transcribe-arabic-07-2026",), source_languages=("ar", "en"), mixed_speech=True),
+        "groq": dict(models=("whisper-large-v3",), min_billed_seconds=10),
+        "gemini-live": dict(streaming=True, mixed_speech=True, billing_mode="audio_sent"),
+    }
+    return tuple(replace(factory, **metadata.get(factory.name, {})) for factory in factories)
+
 
 
 def build_session_routers(recognizer, translator, settings, *, offline_only=False,
-                           credentials=None, ledger=None, on_event=None, factories=None):
+                           credentials=None, ledger=None, on_event=None, factories=None, pair=None):
     emit = on_event or (lambda *args: None)
     private = offline_only or settings.profile == "offline"
     selected = {"asr": [], "mt": []}
     factories = provider_factories() if factories is None else factories
+    defaults = settings.resolve(*(pair or ("", "")))
+    factories = sorted(factories, key=lambda factory: factory.name != defaults.get("default_" + factory.kind + "_provider"))
     if settings.profile == "booster":
         emit("hint", "This interpreter profile is not configured. Continuing with the Free fallback.")
     if not private:
@@ -63,6 +94,8 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
             if factory.kind not in selected:
                 continue
             preference = settings.provider(factory.name)
+            if pair and factory.unavailable_reason(*pair):
+                continue
             if not preference.enabled:
                 continue
             if not preference.tested_signature:
@@ -73,6 +106,15 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
                     from engines.secrets import CredentialStore
                     credentials = CredentialStore()
                 binding = factory.build(preference, credentials)
+                model = defaults.get("default_" + factory.kind + "_model")
+                if factory.name == defaults.get("default_" + factory.kind + "_provider") and model:
+                    if factory.models and model not in factory.models:
+                        raise ValueError("Unsupported provider model")
+                    select = getattr(binding.engine, "select_model", None)
+                    if callable(select):
+                        select(model)
+                    elif model != getattr(binding.engine, "model", None):
+                        raise ValueError("This adapter does not support the chosen model")
             except Exception:
                 emit("hint", f"{factory.name}: Provider setup is unavailable. Continuing locally.")
                 continue
@@ -88,6 +130,10 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
             binding.monthly_cap = 0
             selected[factory.kind].append(binding)
     options = dict(offline_only=private, ledger=ledger, total_monthly_cap=settings.monthly_cap, on_event=emit)
+    for kind in ("asr", "mt"):
+        chosen = defaults.get("default_" + kind + "_provider", "")
+        if chosen and chosen != "local" and not any(binding.name == chosen for binding in selected[kind]):
+            emit("hint", f"{chosen}: The selected default needs a supported model and tested key. Continuing with available engines.")
     from engines.asr_local import (LocalConversationRecognizer, LocalCohereCandidate,
                                     LocalWhisperCandidate, RoutedConversationRecognizer)
     if selected["asr"] and isinstance(recognizer, LocalConversationRecognizer):
@@ -100,9 +146,14 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
             [*candidates, ProviderBinding.local(LocalWhisperCandidate(recognizer))], **options))
     else:
         asr = RecognizerRouter([*selected["asr"], ProviderBinding.local(recognizer)], **options)
+    mt = TranslatorRouter([*selected["mt"], ProviderBinding.local(translator)], **options)
+    for kind, router in (("asr", asr), ("mt", mt)):
+        order = getattr(router, "providers", None)
+        if defaults.get("default_" + kind + "_provider") == "local" and order:
+            order.sort(key=lambda binding: binding.network)
     return (
         asr,
-        TranslatorRouter([*selected["mt"], ProviderBinding.local(translator)], **options),
+        mt,
     )
 
 

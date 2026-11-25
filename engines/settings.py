@@ -35,6 +35,16 @@ class EngineSettings:
     profile: str = "free"
     monthly_cap: Decimal = Decimal("0")
     providers: dict = field(default_factory=dict)
+    default_asr_provider: str = ""
+    default_asr_model: str = ""
+    default_mt_provider: str = ""
+    default_mt_model: str = ""
+    pair_overrides: dict = field(default_factory=dict)
+
+    def resolve(self, source, target):
+        values = {key: getattr(self, key) for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")}
+        values.update({"default_" + key: value for key, value in self.pair_overrides.get(f"{source}_{target}", {}).items() if value})
+        return values
 
     def provider(self, name):
         return self.providers.get(name, ProviderSettings())
@@ -75,13 +85,27 @@ def load_engine_settings(path=None):
             account_kind=account_kind,
             tested_signature=signature if re.fullmatch(r"[a-f0-9]{64}", signature) else "",
             training_consent=str(section.get(prefix + "training_consent", "0")).lower() in {"1", "true", "yes", "on"})
-    return EngineSettings(profile, cap, providers)
+    defaults = {key: section.get(key, "") for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")}
+    overrides = {}
+    for key, value in section.items():
+        match = re.fullmatch(r"pair_([a-z]{2,3}_[a-z]{2,3})_(asr_provider|asr_model|mt_provider|mt_model)", key)
+        if match:
+            overrides.setdefault(match[1], {})[match[2]] = value
+    return EngineSettings(profile, cap, providers, **defaults, pair_overrides=overrides)
 
 
 def _values(settings):
     if settings.profile not in PROFILES:
         raise ValueError("Unknown translation profile")
     values = {"profile": settings.profile, "monthly_cap_usd": str(budget(settings.monthly_cap))}
+    values.update({key: getattr(settings, key) for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")})
+    for pair, overrides in settings.pair_overrides.items():
+        if not re.fullmatch(r"[a-z]{2,3}_[a-z]{2,3}", pair):
+            raise ValueError("Invalid language pair override")
+        for key, value in overrides.items():
+            if key not in {"asr_provider", "asr_model", "mt_provider", "mt_model"}:
+                raise ValueError("Invalid engine override")
+            values[f"pair_{pair}_{key}"] = value
     for name in PROVIDERS:
         provider = settings.provider(name)
         if not re.fullmatch(r"[a-zA-Z0-9_-]{0,80}", provider.region):

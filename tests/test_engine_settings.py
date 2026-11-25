@@ -47,6 +47,22 @@ def test_invalid_stored_budgets_and_profile_fail_closed_without_rewriting(tmp_pa
     assert path.read_text() == original
 
 
+def test_pair_defaults_survive_restart_and_unavailable_default_notices(tmp_path):
+    path = tmp_path / "config.ini"
+    settings = EngineSettings(default_asr_provider="soniox", default_mt_provider="gemini",
+        default_mt_model="gemini-3.1-flash-lite", pair_overrides={"es_en": {"mt_provider": "local"}})
+    save_engine_settings(settings, path)
+    restored = load_engine_settings(path)
+    assert restored.resolve("es", "en")["default_mt_provider"] == "local"
+    assert restored.resolve("en", "ar")["default_mt_provider"] == "gemini"
+    events = []
+    local = SimpleNamespace(name="local", requires_network=False, supports=lambda *a: True)
+    _, router = build_session_routers(local, local, restored, pair=("en", "ar"), factories=[],
+        ledger=UsageLedger(tmp_path / "usage.json"), on_event=lambda k, v: events.append((k, v)))
+    assert router.providers[0].name == "local"
+    assert any("tested key" in message for kind, message in events)
+
+
 def test_registry_skips_disabled_private_and_changed_key_providers(tmp_path):
     credentials = SimpleNamespace(get=Mock(return_value="original key"))
     local_asr = SimpleNamespace(name="local-asr", requires_network=False)
