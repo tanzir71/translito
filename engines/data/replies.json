@@ -13,7 +13,7 @@
       ""
     ],
     "repeat": [
-      "Please repeat that",
+      "Could you repeat the question?",
       ""
     ],
     "thanks": [
@@ -23,7 +23,7 @@
   },
   "es": {
     "yes": [
-      "Si",
+      "Sí",
       ""
     ],
     "no": [
@@ -35,7 +35,7 @@
       ""
     ],
     "repeat": [
-      "Puedes repetirlo, por favor",
+      "¿Puede repetir la pregunta?",
       ""
     ],
     "thanks": [
@@ -57,7 +57,7 @@
       ""
     ],
     "repeat": [
-      "Pouvez-vous repeter, s’il vous plait",
+      "Pouvez-vous répéter la question ?",
       ""
     ],
     "thanks": [
@@ -79,7 +79,7 @@
       ""
     ],
     "repeat": [
-      "Bitte wiederholen Sie das",
+      "Können Sie die Frage wiederholen?",
       ""
     ],
     "thanks": [
@@ -123,7 +123,7 @@
       ""
     ],
     "repeat": [
-      "Pode repetir, por favor",
+      "Pode repetir a pergunta?",
       ""
     ],
     "thanks": [
@@ -145,8 +145,8 @@
       "Lahza min fadlak"
     ],
     "repeat": [
-      "ممكن تعيد من فضلك",
-      "Mumkin tiid min fadlak"
+      "ممكن تعيد السؤال؟",
+      "Mumkin tiid as-sual?"
     ],
     "thanks": [
       "شكرا",
@@ -239,6 +239,118 @@
     "thanks": [
       "Tesekkur ederim",
       ""
+    ]
+  },
+  "nl": {
+    "yes": [
+      "Ja",
+      ""
+    ],
+    "moment": [
+      "Een moment, graag",
+      ""
+    ],
+    "repeat": [
+      "Kunt u de vraag herhalen?",
+      ""
+    ]
+  },
+  "nb": {
+    "yes": [
+      "Ja",
+      ""
+    ],
+    "moment": [
+      "Et øyeblikk, takk",
+      ""
+    ],
+    "repeat": [
+      "Kan du gjenta spørsmålet?",
+      ""
+    ]
+  },
+  "pl": {
+    "yes": [
+      "Tak",
+      ""
+    ],
+    "moment": [
+      "Chwileczkę, proszę",
+      ""
+    ],
+    "repeat": [
+      "Czy można powtórzyć pytanie?",
+      ""
+    ]
+  },
+  "sv": {
+    "yes": [
+      "Ja",
+      ""
+    ],
+    "moment": [
+      "Ett ögonblick, tack",
+      ""
+    ],
+    "repeat": [
+      "Kan du upprepa frågan?",
+      ""
+    ]
+  },
+  "zh-Hans": {
+    "yes": [
+      "好的",
+      "Hao de"
+    ],
+    "moment": [
+      "请稍等",
+      "Qing shao deng"
+    ],
+    "repeat": [
+      "可以请您重复一下问题吗？",
+      "Keyi qing nin chongfu yixia wenti ma?"
+    ]
+  },
+  "zh-Hant": {
+    "yes": [
+      "好的",
+      "Hao de"
+    ],
+    "moment": [
+      "請稍等",
+      "Qing shao deng"
+    ],
+    "repeat": [
+      "可以請您重複一下問題嗎？",
+      "Keyi qing nin chongfu yixia wenti ma?"
+    ]
+  },
+  "ja": {
+    "yes": [
+      "はい",
+      "Hai"
+    ],
+    "moment": [
+      "少々お待ちください",
+      "Shoushou omachi kudasai"
+    ],
+    "repeat": [
+      "質問をもう一度お願いできますか？",
+      "Shitsumon o mou ichido onegai dekimasu ka?"
+    ]
+  },
+  "ko": {
+    "yes": [
+      "네",
+      "Ne"
+    ],
+    "moment": [
+      "잠시만 기다려 주세요",
+      "Jamsiman gidaryeo juseyo"
+    ],
+    "repeat": [
+      "질문을 다시 한번 말씀해 주시겠어요?",
+      "Jilmuneul dasi hanbeon malsseumhae jusigesseoyo?"
     ]
   }
 }

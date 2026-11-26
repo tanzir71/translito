@@ -30,3 +30,9 @@ stays unchanged. Full-width sentence ends flush promptly; glossary terms match
 next to Han/kana without matching inside Latin words.
 Verification: full `python -m pytest -q` — 583 pass; focused typography/UI suite
 — 20 pass, including the added CJK transcript font/preservation integration check.
+
+A4: yes/moment/repeat phrasebooks cover all 19 entries, with Appendix C repeat
+phrases and ASCII Pinyin, Hepburn and Revised Romanization. Cloud reply prompts
+name the catalog romanization system and Chinese target script.
+Verification: `python -m pytest -q` — 607 tests pass, including all phrasebooks
+against every audience language and the eight-word/readability constraints.

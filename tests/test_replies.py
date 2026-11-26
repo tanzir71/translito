@@ -7,6 +7,28 @@ from engines.mt_gemini import GeminiTranslator, PAID_RATE
 from engines.provider import ProviderBinding
 from engines.router import TranslatorRouter
 from engines.usage import UsageLedger
+from engines.languages import CATALOG
+
+
+@pytest.mark.parametrize("entry", CATALOG, ids=lambda entry: entry.code)
+def test_every_catalog_phrasebook_parses_with_short_readable_replies(entry):
+    for meaning in CATALOG:
+        replies = phrasebook(entry.code, meaning.code)
+        assert len(replies) == 3
+        parsed = parse_replies({"replies": [dict(native=r.native, romanized=r.romanized, meaning=r.meaning) for r in replies]})
+        assert parsed == replies
+        assert all(len(r.spoken.split()) <= 8 for r in replies)
+        assert all(r.romanized.isascii() for r in replies)
+    payload = GeminiTranslator(None)._reply_payload([], entry.code, "en", "")
+    instruction = payload["systemInstruction"]["parts"][0]["text"]
+    if entry.romanize_replies:
+        assert entry.romanization_system in instruction
+
+
+@pytest.mark.parametrize("code,system", [("zh-Hans", "pinyin"), ("zh-Hant", "pinyin"), ("ja", "Hepburn"), ("ko", "Revised Romanization")])
+def test_cloud_reply_prompt_names_romanization_system(code, system):
+    prompt = GeminiTranslator(None)._reply_payload([], code, "en", "")["systemInstruction"]["parts"][0]["text"]
+    assert system.casefold() in prompt.casefold() and "Plain ASCII" in prompt
 
 
 def test_romanization_is_readable_ascii_and_latin_scripts_use_native_phrase():
