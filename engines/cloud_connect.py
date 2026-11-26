@@ -21,6 +21,30 @@ class ConnectionError(RuntimeError):
     pass
 
 
+def activate_primary_route(path, provider, credentials, *, pair=None):
+    """Commit a connected basic cloud route, without a partial ASR/MT update."""
+    if provider not in {"soniox", "elevenlabs", "speechmatics"}:
+        raise ConnectionError("Choose a supported cloud speech provider.")
+    settings = load_engine_settings(path)
+    preference = settings.provider(provider)
+    key = credentials.get(provider)
+    if not key or not preference.enabled or preference.tested_signature != credential_signature(provider, key, preference):
+        raise ConnectionError(f"Connect {TITLES[provider]} before using it.")
+    from engines.registry import provider_factories
+    factory = next(f for f in provider_factories() if f.name == provider)
+    route = dict(asr_provider=provider, asr_model=factory.models[0],
+                 mt_provider="soniox" if provider == "soniox" else "local",
+                 mt_model="automatic" if provider == "soniox" else "opus")
+    if pair:
+        overrides = dict(settings.pair_overrides)
+        overrides["_".join(pair)] = route
+        updated = replace(settings, pair_overrides=overrides)
+    else:
+        updated = replace(settings, **{"default_" + name: value for name, value in route.items()})
+    save_engine_settings(updated, path)
+    return route
+
+
 def check_key(provider, key, *, client=None, region=""):
     title = TITLES[provider]
     bearer = {"Authorization": f"Bearer {key}"}

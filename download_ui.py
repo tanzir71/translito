@@ -43,7 +43,7 @@ def initialize(app, colors):
         previous = observed.get(job.id)
         observed[job.id] = identity
         fresh = notify and identity != previous
-        if job.state in {"Queued", "Downloading"} and download_hint[0] and app.hint_var.get() == download_hint[0]:
+        if job.state in {"Queued", "Downloading", "Cancelled"} and download_hint[0] and app.hint_var.get() == download_hint[0]:
             app.hint_var.set("")
             app.hint_frame.pack_forget()
             download_hint[0] = ""
@@ -63,7 +63,7 @@ def initialize(app, colors):
         jobs = sorted(app.download_manager.jobs, key=lambda j: j.priority)
         active = next((j for j in jobs if j.state in {"Downloading", "Verifying", "Stalled · retrying"}), None)
         active = active or next((j for j in jobs if j.state == "Queued"), None)
-        active = active or next((j for j in jobs if j.state in {"Paused", "Cancelled"} and j.pause_reason in {"user", "failure", "blocked"}), None)
+        active = active or next((j for j in jobs if j.state == "Paused" and j.pause_reason in {"user", "failure", "blocked"}), None)
         app.download_current = active
         app.download_status_text = f"{active.title} · {active.fraction:.0%} · {active.state}" if active else ""
         app.download_text.set(app.download_status_text)
@@ -138,8 +138,8 @@ def gemma_dialog(app, colors, center):
             return
         progress.configure(value=job.fraction)
         status.configure(text=job.error or job.progress_text)
-        download.configure(text="Resume download" if job.state == "Paused" else "Continue in background",
-                           command=lambda: app.download_manager.resume(job) if job.state == "Paused" else close())
+        download.configure(text="Resume download" if job.state in {"Paused", "Cancelled"} else "Continue in background",
+                           command=lambda: app.download_manager.resume(job) if job.state in {"Paused", "Cancelled"} else close())
     def start():
         if app.preview_mode:
             status.configure(text="Preview only: no model download starts.")
@@ -209,7 +209,8 @@ def models_page(app, parent, colors):
             text, buttons = rows[spec.key]
             for child in buttons.winfo_children():
                 child.destroy()
-            job = next((j for j in reversed(app.download_manager.jobs) if j.repo == spec.repo), None)
+            from engines.downloads import job_for_repo
+            job = job_for_repo(app.download_manager.jobs, spec.repo)
             def button(title, command):
                 def invoke():
                     try:
@@ -219,7 +220,8 @@ def models_page(app, parent, colors):
                 ttk.Button(buttons, text=title, style="Mac.TButton", command=invoke).pack(side="right", padx=px(3))
             if job and job.state != "Ready":
                 text.set(job.error or job.progress_text)
-                button("Cancel", lambda j=job: app.download_manager.cancel(j))
+                if job.state != "Cancelled":
+                    button("Cancel", lambda j=job: app.download_manager.cancel(j))
                 if job.state in {"Downloading", "Verifying", "Queued", "Stalled · retrying"}:
                     button("Pause", lambda j=job: app.download_manager.pause(j))
                 else:

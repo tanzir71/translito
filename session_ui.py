@@ -228,8 +228,9 @@ class SessionController:
             app.show_virtual_mic_setup()
             return
         if action == "resume":
+            from engines.downloads import job_for_repo
             for spec in self.plan.required_resources:
-                job = next((j for j in reversed(app.download_manager.jobs) if j.repo == spec.repo), None)
+                job = job_for_repo(app.download_manager.jobs, spec.repo)
                 if job:
                     app.download_manager.resume(job)
                 else:

@@ -14,8 +14,8 @@ The script creates an isolated CPU-only build environment, runs PyInstaller, che
 
 Outputs:
 
-- Portable ZIP: `output\2.0.2\TranslitoPortable-2.0.2.zip`
-- Installer: `output\2.0.2\TranslitoSetup-2.0.2.exe`
+- Portable ZIP: `output\2.0.6\TranslitoPortable-2.0.6.zip`
+- Installer: `output\2.0.6\TranslitoSetup-2.0.6.exe`
 
 Pass `-BuildRoot <path>` to keep the virtual environment, PyInstaller files, and `output/` on another drive. Use a short path such as `D:\TranslitoBuild`; deeply nested Windows paths can exceed Inno Setup's file path limit.
 
@@ -48,7 +48,7 @@ The absolute report path must not already exist. Exit 0 means the dependency
 probe passed; 1 means a dependency failed, and 2 means the report arguments or
 file could not be used. The JSON includes each import result.
 
-Models are not bundled. Download them explicitly from Settings > Models; incomplete downloads can resume. Sessions and preloading use verified local files. On Windows, downloads validate HTTPS certificates against the Windows certificate store.
+Models are not bundled. Basic models for the current languages prepare automatically; cloud translation prepares local translation as a lower priority backup. Settings > Models provides optional models and Pause/Resume/Cancel controls. Sessions and preloading use verified local files. On Windows, downloads validate HTTPS certificates against the Windows certificate store.
 
 The quality branch bundles the official unchanged VB-CABLE Pack45 ZIP. Its
 optional installer task starts unchecked, requires explicit consent and verifies

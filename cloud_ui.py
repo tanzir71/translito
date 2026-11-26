@@ -13,7 +13,7 @@ from engines.settings import load_engine_settings
 
 
 def provider_page(app, parent, colors):
-    from engine_ui import field, heading, safe_budget
+    from engine_ui import field, heading, safe_budget, pair
     heading(parent, "Cloud provider", "Choose a provider, connect its key and set a monthly budget.", colors)
     factories = {f.name: f for f in provider_factories()}
     primary = ("soniox", "elevenlabs", "speechmatics")
@@ -23,7 +23,7 @@ def provider_page(app, parent, colors):
     provider = tk.StringVar(parent, value=labels.get(selected, labels["soniox"]))
     chooser = field(parent, "Provider", provider, colors, tuple(labels.values()))
     state = {"provider": selected if selected in primary else "soniox", "connector": None,
-             "has_key": False, "busy": False}
+             "has_key": False, "connected": False, "busy": False, "activate_after_connect": False}
     key = tk.StringVar(parent)
     key_row = tk.Frame(parent, bg=colors["bg"])
     key_row.pack(fill="x", pady=px((8, 0)))
@@ -68,13 +68,19 @@ def provider_page(app, parent, colors):
             app.cloud_remove_button.pack(side="right")
         else:
             app.cloud_remove_button.pack_forget()
-    def refresh(*_):
+    def refresh(*_, active=False):
+        if active:
+            selected = load_engine_settings(app.preferences.path).resolve(*pair(app))["default_asr_provider"]
+            if selected in labels:
+                state["provider"] = selected
+                provider.set(labels[selected])
         name = state["provider"]
         key_label.configure(text=f"{TITLES[name]} API key")
         notice.set(f"Translito checks the key with {TITLES[name]} without sending any audio, then keeps it in Windows Credential Manager." if name != "azure" else
                    "Azure has no metadata key check. Connect sends one character of public text; it may count toward your translation allowance.")
         status.set("")
         state["has_key"] = False
+        state["connected"] = False
         if app.preview_mode:
             update_actions()
             return
@@ -82,6 +88,7 @@ def provider_page(app, parent, colors):
             ending, checked, valid = connector().status(name)
             if ending:
                 state["has_key"] = True
+                state["connected"] = valid
                 checked_text = ""
                 if checked:
                     local = datetime.fromisoformat(checked).astimezone()
@@ -89,15 +96,24 @@ def provider_page(app, parent, colors):
                 status.set(f"Connected to {TITLES[name]}\nKey ending {ending} · {checked_text}" if valid else "Saved key found · Check again")
         except Exception:
             status.set("Couldn't read the saved key. Try Connect again.")
+        if not state["has_key"] and not status.get():
+            settings = load_engine_settings(app.preferences.path)
+            active = settings.resolve(*pair(app))["default_asr_provider"]
+            if active != name and settings.provider(active).enabled and settings.provider(active).tested_signature:
+                status.set(f"Sessions still use {TITLES.get(active, active)}. Connect {TITLES[name]} to switch.")
         update_actions()
+    def activate(name):
+        from engine_ui import activate_cloud_route
+        activate_cloud_route(app, name, connector().credentials)
     def changed(*_):
         state["provider"] = next((name for name, label in labels.items() if label == provider.get()), state["provider"])
-        app.engine_default_vars["default_asr_provider"].set(state["provider"])
-        models = factories[state["provider"]].models
-        if models and app.engine_default_vars["default_asr_model"].get() not in models:
-            app.engine_default_vars["default_asr_model"].set(models[0])
         key.set("")
         refresh()
+        if state["connected"]:
+            try:
+                activate(state["provider"])
+            except ConnectionError as error:
+                status.set(str(error))
     chooser.bind("<<ComboboxSelected>>", changed)
     def connect():
         if app.preview_mode:
@@ -106,6 +122,8 @@ def provider_page(app, parent, colors):
         if state["busy"]:
             return
         name, pasted = state["provider"], key.get()
+        state["activate_after_connect"] = (not state["connected"] or
+            load_engine_settings(app.preferences.path).resolve(*pair(app))["default_asr_provider"] != name)
         account_kind = "paid" if app.engine_choice_var.get() == "cloud" else "free"
         state["busy"] = True
         update_actions()
@@ -178,9 +196,12 @@ def provider_page(app, parent, colors):
                 key.set("")
                 if getattr(app, "session_controller", None):
                     app.session_controller.reset_connection()
-                app.engine_default_vars["default_asr_provider"].set(name)
-                if factories[name].models and app.engine_default_vars["default_asr_model"].get() not in factories[name].models:
-                    app.engine_default_vars["default_asr_model"].set(factories[name].models[0])
+                if state["activate_after_connect"]:
+                    try:
+                        activate(name)
+                    except ConnectionError as activation_error:
+                        status.set(str(activation_error))
+                        continue
                 refresh()
             from engine_ui import refresh_engine_status
             refresh_engine_status(app)

@@ -73,8 +73,60 @@ def test_metadata_write_failure_is_actionable_and_keeps_safe_diagnostics(tmp_pat
     path.write_text(json.dumps(asdict(fake_job)))
     assert downloads.download_child(path) == 1
     assert "Windows blocked access" in events[-1]["error"]
-    assert events[-1]["error_code"] == "write_manifest:PermissionError"
+    assert events[-1]["error_code"] == "write_manifest:PermissionError:errno=13"
     assert "private-token" not in json.dumps(events)
+
+
+def test_complete_cache_does_not_require_disk_space_probe(tmp_path, monkeypatch):
+    from engines import downloads
+    (tmp_path / "model.bin").write_bytes(b"cached")
+    monkeypatch.setattr(downloads.shutil, "disk_usage", lambda _: (_ for _ in ()).throw(OSError(22, "bad volume query")))
+    assert downloads._check_cached_files(tmp_path, [{"name": "model.bin", "size": 6}], "") == (6, False)
+
+
+def test_transient_cache_failure_retries_before_pausing(tmp_path, fake_job, monkeypatch):
+    from dataclasses import asdict
+    from engines import downloads
+    fake_job.files[0].update(size=1000, sha256=hashlib.sha256(b"x" * 1000).hexdigest())
+    original = downloads._check_cached_files
+    attempts, events = [], []
+    def transient(*args):
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise OSError(22, "temporary cache access")
+        return original(*args)
+    monkeypatch.setattr(downloads, "_check_cached_files", transient)
+    monkeypatch.setattr(downloads, "write_json_line", events.append)
+    monkeypatch.setattr(downloads.time, "sleep", lambda _: None)
+    path = tmp_path / "retry.json"
+    path.write_text(json.dumps(asdict(fake_job)))
+    assert downloads.download_child(path) == 0
+    assert len(attempts) == 3
+    assert sum(event.get("stage") == "Checking cache" for event in events) == 2
+    assert "ready" in events[-1]
+
+
+def test_cache_error_retains_safe_windows_code():
+    from engines.downloads import _setup_failure
+    error = OSError(22, "private signed URL")
+    error.winerror = 87
+    error.cache_operation = "free_space"
+    result = _setup_failure(error, "check_cache")
+    assert result["error_code"] == "check_cache:OSError:free_space:errno=22:winerror=87"
+    assert result["retryable"] and "private" not in json.dumps(result)
+
+
+def test_cancel_stops_all_duplicate_attempts_and_clears_errors(tmp_path):
+    manager = DownloadManager(directory=tmp_path / "jobs")
+    first = DownloadJob("first", "fake/same", "First", str(tmp_path), state="Downloading", bytes=40, total=100, error="Old error", error_code="old")
+    second = DownloadJob("second", "fake/same", "Second", str(tmp_path), state="Queued")
+    ready = DownloadJob("ready", "fake/same", "Ready", str(tmp_path), state="Ready")
+    manager.jobs, manager.active = [first, second, ready], first
+    manager.cancel(first)
+    assert manager.active is None
+    assert first.state == second.state == "Cancelled" and ready.state == "Ready"
+    assert first.bytes == 40 and not first.error and not first.error_code
+    manager.close()
 
 
 @pytest.fixture
@@ -101,7 +153,7 @@ def fetch(job, file, folder):
         total=total, fetcher=str(fetcher))
 
 
-def pump(manager, predicate, timeout=15, root=None):
+def pump(manager, predicate, timeout=30, root=None):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         if root:

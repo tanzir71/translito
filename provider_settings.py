@@ -9,7 +9,7 @@ import webbrowser
 from engines.cloud_connect import CloudConnector, ConnectionError, TITLES
 from engines.registry import provider_factories
 from engines.settings import load_engine_settings
-from engine_ui import field, heading
+from engine_ui import field, heading, pair, activate_cloud_route, refresh_engine_status
 from quality_settings import _window
 
 
@@ -22,7 +22,7 @@ def open_provider_settings(app, colors, center):
     provider = tk.StringVar(window, value=app.engine_default_vars["default_asr_provider"].get() or "soniox")
     if provider.get() not in factories:
         provider.set("soniox")
-    field(body, "Cloud provider", provider, colors, tuple(factories))
+    chooser = field(body, "Cloud provider", provider, colors, tuple(factories))
     key, limit, region = tk.StringVar(window), tk.StringVar(window), tk.StringVar(window)
     field(body, "API key (blank uses its saved copy)", key, colors).configure(show="•")
     field(body, "Provider limit (blank: Use the monthly budget)", limit, colors)
@@ -71,15 +71,22 @@ def open_provider_settings(app, colors, center):
         factory = factories[name]
         kind = "paid" if name in {"soniox", "elevenlabs", "speechmatics"} or (name == "gemini" and app.engine_choice_var.get() == "cloud") else factory.account_kind
         action.configure(state="disabled")
+        chooser.configure(state="disabled")
         connection = controller()
+        try:
+            connected = connection.status(name)[2]
+        except Exception:
+            connected = False
+        activate_primary = (name in {"soniox", "elevenlabs", "speechmatics"} and
+            (not connected or load_engine_settings(app.preferences.path).resolve(*pair(app))["default_asr_provider"] != name))
         def work():
             try:
                 connection.connect(name, entered, account_kind=kind)
-                events.put((name, ""))
+                events.put((name, "", activate_primary, connection))
             except ConnectionError as error:
-                events.put((name, str(error)))
+                events.put((name, str(error), False, connection))
             except Exception:
-                events.put((name, "Couldn't save the key. Check Credential Manager and retry."))
+                events.put((name, "Couldn't save the key. Check Credential Manager and retry.", False, connection))
         threading.Thread(target=work, daemon=True).start()
     action = ttk.Button(body, text="Connect", style="Primary.TButton", command=connect)
     action.pack(anchor="e", pady=px(10))
@@ -89,18 +96,30 @@ def open_provider_settings(app, colors, center):
             return
         while True:
             try:
-                name, error = events.get_nowait()
+                name, error, activate_primary, connection = events.get_nowait()
             except queue.Empty:
                 break
             action.configure(state="normal")
+            chooser.configure(state="readonly")
             if error:
                 status.set(error)
             else:
                 key.set("")
-                kind = "mt" if factories[name].kind == "mt" else "asr"
-                app.engine_default_vars[f"default_{kind}_provider"].set(name)
-                if factories[name].models and app.engine_default_vars[f"default_{kind}_model"].get() not in factories[name].models:
-                    app.engine_default_vars[f"default_{kind}_model"].set(factories[name].models[0])
+                if activate_primary:
+                    try:
+                        activate_cloud_route(app, name, connection.credentials)
+                    except ConnectionError as activation_error:
+                        status.set(str(activation_error))
+                        continue
+                elif name not in {"soniox", "elevenlabs", "speechmatics"}:
+                    kind = "mt" if factories[name].kind == "mt" else "asr"
+                    app.engine_default_vars[f"default_{kind}_provider"].set(name)
+                    if factories[name].models and app.engine_default_vars[f"default_{kind}_model"].get() not in factories[name].models:
+                        app.engine_default_vars[f"default_{kind}_model"].set(factories[name].models[0])
+                if getattr(app, "session_controller", None):
+                    app.session_controller.reset_connection()
+                refresh_engine_status(app)
+                app.refresh_cloud_connection()
                 restore()
         window.after(100, poll)
     restore()

@@ -19,6 +19,13 @@ def model_locked(repo):
     return repo in _locks
 
 
+def job_for_repo(jobs, repo):
+    matching = [job for job in jobs if job.repo == repo]
+    return (next((job for job in matching if job.state in {"Downloading", "Verifying", "Stalled · retrying", "Queued"}), None)
+            or next((job for job in reversed(matching) if job.state != "Ready"), None)
+            or next(iter(reversed(matching)), None))
+
+
 def _write(path, value):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -98,7 +105,7 @@ class DownloadManager:
 
     def adopt_cached(self, job):
         """A saved queue failure cannot override an already available model."""
-        if job is self.active or job.state == "Ready" or job.format not in {"ct2", "transformers"} or job.gemma:
+        if job is self.active or job.state in {"Ready", "Cancelled"} or job.format not in {"ct2", "transformers"} or job.gemma:
             return False
         from engines.model_files import Ready, inspect_model
         from engines.model_library import ModelSpec
@@ -215,7 +222,19 @@ class DownloadManager:
         self.on_change(job)
 
     def cancel(self, job):
-        self.pause(job, state="Cancelled")
+        # Cancel the logical model request, including duplicate stale attempts.
+        affected = [j for j in self.jobs if j.repo == job.repo and j.state != "Ready"]
+        if not affected:
+            return
+        if self.active in affected:
+            self._stop()
+        for current in affected:
+            current.state, current.pause_reason = "Cancelled", "user"
+            current.error = current.error_code = ""
+            current.bytes_per_s = 0
+            self.save(current)
+        for current in affected:
+            self.on_change(current)
 
     def resume(self, job, *, automatic=False):
         if self.blocked():
@@ -235,7 +254,7 @@ class DownloadManager:
         self._stop()
         job.bytes_per_s = 0
         if job.retries >= 3:
-            job.state, job.error, job.pause_reason = "Paused", "Paused · check your connection", "failure"
+            job.state, job.error, job.pause_reason = "Paused", job.error or "Paused · check your connection", "failure"
         else:
             self.retry_at = self.clock() + (10, 30, 60)[job.retries]
             job.retries += 1
@@ -267,6 +286,8 @@ class DownloadManager:
             if data.get("stage") == "Verifying":
                 self.last_progress = self.clock()
                 job.state = "Verifying"
+            elif data.get("stage") == "Checking cache":
+                self.last_progress = self.clock()
             if "ready" in data:
                 job.ready_path, job.state = data["ready"], "Ready"
                 job.bytes = job.total
@@ -325,8 +346,8 @@ class DownloadManager:
             for spec, priority in sorted(desired.values(), key=lambda item: item[1]):
                 if isinstance(inspect_model(spec), Ready):
                     continue
-                previous = next((j for j in reversed(self.jobs) if j.repo == spec.repo), None)
-                if previous is None or previous.state == "Ready":
+                current = job_for_repo(self.jobs, spec.repo)
+                if current is None or current.state == "Ready":
                     self.enqueue_model(spec, origin="auto_setup", priority=priority, context=context)
         active = self.active
         urgent = next((j for j in sorted(self.jobs, key=lambda j: j.priority) if j.state == "Queued"), None)
@@ -446,6 +467,13 @@ def _remote_failure(error):
     return {"error": "Download failed. Check your connection or model access. Partial files are kept for Resume."}
 
 
+def _retryable_cache_error(error):
+    if getattr(error, "winerror", None) in {32, 33, 121, 995, 1460}:
+        return True
+    return (isinstance(error, OSError) and not isinstance(error, (PermissionError, FileNotFoundError))
+            and error.errno != 28 and getattr(error, "winerror", None) != 112)
+
+
 def _setup_failure(error, phase):
     """Keep useful failure diagnostics without SDK URLs, tokens or raw paths."""
     if isinstance(error, PermissionError):
@@ -465,7 +493,42 @@ def _setup_failure(error, phase):
                  "check_cache": "checking cached files", "write_manifest": "saving model metadata",
                  "verify_files": "verifying model files", "register_model": "saving model setup"}.get(phase, "preparing model files")
         message = f"Model setup could not finish while {stage}. Retry in Models."
-    return {"error": message, "error_code": f"{phase}:{type(error).__name__}"}
+    operation = getattr(error, "cache_operation", "")
+    code = f"{phase}:{type(error).__name__}" + (f":{operation}" if operation else "")
+    for name in ("errno", "winerror"):
+        value = getattr(error, name, None)
+        if isinstance(value, int):
+            code += f":{name}={value}"
+    result = {"error": message, "error_code": code}
+    if phase == "check_cache" and _retryable_cache_error(error):
+        result["retryable"] = True
+    return result
+
+
+def _check_cached_files(folder, files, cache_dir):
+    operation = "file_sizes"
+    try:
+        total = sum(file["size"] for file in files)
+        have = sum(min(_file_size(folder / file["name"]), file["size"]) for file in files)
+        if have < total:
+            operation = "partial_files"
+            partial_root = folder.parent.parent / "blobs" if cache_dir else folder
+            partial = sum(_file_size(path) for path in partial_root.rglob("*.incomplete"))
+            operation = "free_space"
+            required = max(0, total - have - partial) + 500000000
+            if shutil.disk_usage(folder).free < required:
+                raise ValueError(f"Not enough disk space. Free at least {required / 1e9:.2f} GB in the selected folder.")
+        operation = "manifest"
+        repair = False
+        if (folder / "manifest.json").is_file():
+            try:
+                repair = json.loads((folder / "manifest.json").read_text(encoding="utf-8")).get("corrupt", False)
+            except ValueError:
+                repair = True
+        return total, repair
+    except OSError as error:
+        error.cache_operation = operation
+        raise
 
 
 def download_child(path):
@@ -506,19 +569,17 @@ def download_child(path):
         if not files:
             raise ValueError("No inference files were found for this model.")
         phase = "check_cache"
-        total = sum(f["size"] for f in files)
-        have = sum(min((folder / f["name"]).stat().st_size, f["size"]) for f in files if (folder / f["name"]).is_file())
-        partial_root = folder.parent.parent / "blobs" if job.cache_dir else folder
-        partial = sum(_file_size(p) for p in partial_root.rglob("*.incomplete"))
-        if shutil.disk_usage(folder).free < max(0, total-have-partial) + 500000000:
-            raise ValueError(f"Not enough disk space. Free at least {(max(0,total-have-partial)+500000000)/1e9:.2f} GB in the selected folder.")
-        manifest = {"repo": job.repo, "revision": revision, "files": files, "verified": False}
-        repair = False
-        if (folder / "manifest.json").is_file():
+        for attempt in range(4):
             try:
-                repair = json.loads((folder / "manifest.json").read_text()).get("corrupt", False)
-            except ValueError:
-                repair = True
+                total, repair = _check_cached_files(folder, files, job.cache_dir)
+                break
+            except OSError as error:
+                if attempt == 3 or not _retryable_cache_error(error):
+                    raise
+                emit({"stage": "Checking cache"})
+                time.sleep((.25, .75, 1.5)[attempt])
+        partial_root = folder.parent.parent / "blobs" if job.cache_dir else folder
+        manifest = {"repo": job.repo, "revision": revision, "files": files, "verified": False}
         phase = "write_manifest"
         _write(folder / "manifest.json", manifest)
         completed = 0

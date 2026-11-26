@@ -43,12 +43,28 @@ model preparation and temporary recovery are presented as setup progress.
 - Restore saved progress silently. Only a new failure or completion produces a
   notification; Resume clears the download's own old warning. Unexpected errors
   retain a safe phase/class code and actionable local setup guidance.
+- Cancel every unfinished attempt for the same repository, clear the download's
+  warning and dismiss its main-window progress controls. Historical Ready jobs
+  cannot create another request after cancellation. Models retains Resume for
+  partial files, without offering Cancel again for an already cancelled job.
+- Retry transient cache filesystem errors before pausing. Complete cached files
+  need no free-space query. Retain the cache operation and Windows error number
+  in safe diagnostics if bounded retries fail.
 - Language and engine edits during capture apply to the next session. The
   running route retains its original snapshot while the new pair can prepare.
 - Internet blocking stops active/background transfers immediately. Automatic
   setup may resume after unblocking, but manually paused/cancelled work does not.
 
 ## Other acceptance criteria
+
+Browsing an unconnected basic provider never changes the active route. A newly
+connected primary provider activates its complete advertised route atomically:
+Soniox recognition and native translation, or ElevenLabs/Speechmatics recognition
+with local translation. The inline and advanced connection windows share this
+activation. Selecting an already connected basic provider also activates its
+route. Rechecking or replacing an active provider's key preserves intentional
+advanced translation choices. Pair scope updates only that pair; all scope
+updates defaults while retaining explicit pair overrides.
 
 The app opens on Listen even if the previous session used Speak. Saved Speak
 languages, microphone and output choices remain available when switching tabs.

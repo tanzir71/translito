@@ -70,6 +70,26 @@ def restore_scope(app):
     refresh_provider_choices(app)
 
 
+def activate_cloud_route(app, name, credentials):
+    from engines.cloud_connect import activate_primary_route
+    scope = pair(app) if app.engine_scope_var.get() == "pair" else None
+    route = activate_primary_route(app.preferences.path, name, credentials, pair=scope)
+    app._loading_engine_scope = True
+    try:
+        for field_name, value in route.items():
+            stored = "pair_" + "_".join(scope) + "_" + field_name if scope else "default_" + field_name
+            app.preferences.transient.pop(("ENGINES", stored), None)
+            app.engine_default_vars["default_" + field_name].set(value)
+    finally:
+        app._loading_engine_scope = False
+    refresh_provider_choices(app)
+    if hasattr(app, "refresh_cloud_connection"):
+        app.refresh_cloud_connection(active=True)
+    if getattr(app, "session_controller", None):
+        app.session_controller.reset_connection()
+    refresh_engine_status(app)
+
+
 def standard_pair_reason(source, target, model=""):
     if model == "translategemma":
         return ""
@@ -201,6 +221,8 @@ def pages(app, colors):
                 factory = next((f for f in factories if f.name == v.get()), None)
                 from gui import WHISPER_MODELS
                 choices = factory.models if factory else tuple(WHISPER_MODELS) if k == "asr" else ("automatic", "opus", "translategemma")
+                if k == "mt" and v.get() == "soniox":
+                    choices = ("automatic",)
                 m.configure(values=choices)
         variable.trace_add("write", refresh)
         variable.trace_add("write", lambda *_: refresh_provider_choices(app))

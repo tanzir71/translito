@@ -175,11 +175,13 @@ def resolve_plan(settings, pair, *, mode="listen", preferred_whisper="openai/whi
 
 
 def readiness(plan, *, jobs=(), blocked=False):
+    from engines.downloads import job_for_repo
+    jobs = tuple(jobs)
     if plan.blockers:
         first = plan.blockers[0]
         return ReadinessState("setup_required", first.message, first.action)
     for spec in plan.required_resources:
-        job = next((job for job in reversed(tuple(jobs)) if job.repo == spec.repo), None)
+        job = job_for_repo(jobs, spec.repo)
         if blocked:
             return ReadinessState("setup_required", "Allow internet access to finish model setup.", "privacy")
         if job is not None and job.state in {"Paused", "Cancelled"}:

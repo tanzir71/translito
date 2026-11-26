@@ -13,6 +13,45 @@ from engines.settings import EngineSettings, ProviderSettings, load_engine_setti
 from engines.registry import configured_live_interpreter
 
 
+def test_activating_soniox_replaces_unconnected_basic_stages_atomically(connection):
+    from engines.cloud_connect import activate_primary_route
+    controller, keys, _ = connection
+    controller.connect("soniox", "fake-key")
+    settings = load_engine_settings(controller.path)
+    save_engine_settings(replace(settings, default_asr_provider="elevenlabs", default_asr_model="scribe_v3_live",
+        default_mt_provider="deepl", default_mt_model="stale"), controller.path)
+    activate_primary_route(controller.path, "soniox", controller.credentials)
+    settings = load_engine_settings(controller.path)
+    assert settings.default_asr_provider == settings.default_mt_provider == "soniox"
+    assert settings.default_mt_model == "automatic"
+    assert keys == {"soniox": "fake-key"}
+
+
+def test_unconnected_provider_cannot_replace_active_route(connection):
+    from engines.cloud_connect import activate_primary_route
+    controller, _, _ = connection
+    controller.connect("soniox", "fake-key")
+    activate_primary_route(controller.path, "soniox", controller.credentials)
+    with pytest.raises(ConnectionError):
+        activate_primary_route(controller.path, "elevenlabs", controller.credentials)
+    assert load_engine_settings(controller.path).default_asr_provider == "soniox"
+
+
+def test_pair_cloud_activation_preserves_other_pairs_and_overrides_stale_global_translation(connection):
+    from engines.cloud_connect import activate_primary_route
+    controller, _, _ = connection
+    controller.connect("soniox", "fake-key")
+    settings = load_engine_settings(controller.path)
+    save_engine_settings(replace(settings, default_asr_provider="local", default_mt_provider="deepl",
+        pair_overrides={"es_en": {"asr_provider": "groq"}}), controller.path)
+    activate_primary_route(controller.path, "soniox", controller.credentials, pair=("ar", "en"))
+    settings = load_engine_settings(controller.path)
+    assert settings.resolve("ar", "en")["default_mt_provider"] == "soniox"
+    assert settings.resolve("ar", "en")["default_asr_provider"] == "soniox"
+    assert settings.default_asr_provider == "local"
+    assert settings.pair_overrides["es_en"]["asr_provider"] == "groq"
+
+
 @pytest.fixture
 def connection(tmp_path):
     keys = {}

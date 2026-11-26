@@ -156,6 +156,22 @@ def test_user_pause_or_cancel_survives_switch_and_restart(manager, tmp_path, act
     assert same.state == "Queued"
 
 
+def test_old_ready_history_cannot_restart_cancelled_model(manager, tmp_path):
+    target = spec(tmp_path, "cancelled")
+    manager.reconcile_setup((target,))
+    cancelled = manager.jobs[0]
+    manager.cancel(cancelled)
+    manager.jobs.append(DownloadJob("old-ready", target.repo, "Old history", str(tmp_path), state="Ready"))
+    for _ in range(3):
+        manager.reconcile_setup((target,))
+    assert len(manager.jobs) == 2 and cancelled.state == "Cancelled"
+    plan = resolve_plan(EngineSettings(engine_choice="local"), ("ar", "en"), inspect=lambda _: Missing())
+    needed = plan.required_resources[0]
+    history = [DownloadJob("cancel", needed.repo, "Cancelled", str(tmp_path), state="Cancelled"),
+               DownloadJob("ready", needed.repo, "Old ready", str(tmp_path), state="Ready")]
+    assert readiness(plan, jobs=history).action == "resume"
+
+
 def test_new_required_resource_preempts_automatic_backup_not_manual_work(manager, tmp_path):
     backup, required = spec(tmp_path, "backup"), spec(tmp_path, "required")
     manager.reconcile_setup((), (backup,))

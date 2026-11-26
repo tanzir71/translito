@@ -196,10 +196,61 @@ def test_inline_connect_status_and_remove_during_background_download(desktop, mo
         assert not app.model_setup_busy
         assert str(app.listen_action_button.cget("state")) == "normal"
         assert app.engine_var.get() == "On this PC · needs a monthly budget"
+        from engines.settings import load_engine_settings
+        settings = load_engine_settings(path)
+        assert settings.default_asr_provider == settings.default_mt_provider == "soniox"
+        # Rechecking an existing key must preserve an intentional advanced route.
+        app.engine_default_vars["default_mt_provider"].set("deepl")
+        app.engine_default_vars["default_mt_model"].set("custom-translation")
+        app.cloud_connect_button.invoke()
+        end = time.monotonic() + 3
+        while (len(requests) < 2 or "Connecting" in app.cloud_connection_status.get()) and time.monotonic() < end:
+            app.root.update()
+            time.sleep(.01)
+        assert len(requests) == 2
+        settings = load_engine_settings(path)
+        assert settings.default_mt_provider == "deepl" and settings.default_mt_model == "custom-translation"
         app.cloud_remove()
         assert not keys
         assert app.cloud_connect_button.cget("text") == "Connect"
         assert not app.cloud_remove_button.winfo_manager()
+
+
+def test_advanced_connection_activates_complete_soniox_route(desktop, monkeypatch):
+    from types import SimpleNamespace
+    from engines.cloud_connect import CloudConnector
+    from engines.settings import load_engine_settings
+    import httpx
+    import provider_settings
+    create, path = desktop
+    app = create()
+    keys = {}
+    store = SimpleNamespace(get=keys.get, save=lambda p, k: keys.update({p: k}), delete=lambda p: keys.pop(p, None))
+    app.credential_store = store
+    app.engine_default_vars["default_asr_provider"].set("elevenlabs")
+    app.engine_default_vars["default_mt_provider"].set("deepl")
+    chooser = next(w for w in widgets(app.settings_window) if w.winfo_class() == "TCombobox"
+                   and str(w.cget("textvariable")) == str(app.cloud_provider_var))
+    app.cloud_provider_var.set(next(v for v in chooser.cget("values") if v.startswith("ElevenLabs")))
+    chooser.event_generate("<<ComboboxSelected>>")
+    with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, json={}))) as client:
+        connection = CloudConnector(path, store, client=client)
+        monkeypatch.setattr(provider_settings, "CloudConnector", lambda *a, **kw: connection)
+        window = app.open_provider_settings()
+        window.provider_var.set("soniox")
+        window.key_var.set("mock-advanced-soniox")
+        button = next(w for w in widgets(window) if w.winfo_class() == "TButton" and w.cget("text") == "Connect")
+        button.invoke()
+        end = time.monotonic() + 3
+        while load_engine_settings(path).default_mt_provider != "soniox" and time.monotonic() < end:
+            app.root.update()
+            time.sleep(.01)
+        settings = load_engine_settings(path)
+        assert settings.default_asr_provider == settings.default_mt_provider == "soniox"
+        assert app.engine_default_vars["default_asr_provider"].get() == "soniox"
+        assert app.engine_default_vars["default_mt_model"].get() == "automatic"
+        assert app.cloud_provider_var.get().startswith("Soniox")
+        window.destroy()
 
 
 def test_empty_state_actions_share_one_row_and_equal_size(desktop):
@@ -357,6 +408,69 @@ def test_main_download_progress_and_controls_share_current_job(desktop):
     assert job.state == "Queued" and job.bytes == 50
     app.download_cancel.invoke()
     assert job.state == "Cancelled" and job.bytes == 50
+    assert app.download_current is None and not app.download_panel.winfo_manager()
+
+
+def test_cancel_dismisses_failed_download_and_its_warning(desktop):
+    from engines.downloads import DownloadJob
+    create, path = desktop
+    app = create()
+    app.download_manager.closed = True
+    job = DownloadJob("cancel-error", "fake/cancel", "Failed", str(path.parent / "missing"),
+                      state="Paused", pause_reason="failure", error="Cache check failed", error_code="check_cache:OSError")
+    app.download_manager.enqueue(job)
+    assert app.hint_var.get() == "Cache check failed"
+    app.download_cancel.invoke()
+    assert job.state == "Cancelled" and not job.error and not job.error_code
+    assert app.download_current is None and not app.download_panel.winfo_manager()
+    assert not app.hint_var.get() and not app.hint_frame.winfo_manager()
+
+
+def test_browsing_unconnected_provider_keeps_soniox_start_ready(desktop, monkeypatch):
+    from dataclasses import replace
+    from decimal import Decimal
+    from types import SimpleNamespace
+    import cloud_ui, session_ui
+    from engines.cloud_connect import CloudConnector
+    from engines.model_files import Ready
+    from engines.session_state import resolve_plan
+    from engines.settings import EngineSettings, ProviderSettings, credential_signature, save_engine_settings, load_engine_settings
+    create, path = desktop
+    app = create()
+    key = "fake-soniox-only"
+    pref = ProviderSettings(enabled=True, monthly_cap=Decimal(2), account_kind="paid")
+    pref = replace(pref, tested_signature=credential_signature("soniox", key, pref))
+    save_engine_settings(EngineSettings(profile="custom", engine_choice="cloud", monthly_cap=Decimal(2),
+        providers={"soniox": pref}, default_asr_provider="soniox", default_mt_provider="soniox"), path)
+    store = SimpleNamespace(get=lambda name: key if name == "soniox" else None)
+    app.credential_store = store
+    controller = CloudConnector(path, store)
+    monkeypatch.setattr(cloud_ui, "CloudConnector", lambda *a, **kw: controller)
+    monkeypatch.setattr(session_ui, "resolve_plan", lambda *a, **kw: resolve_plan(*a, **kw, inspect=lambda _: Ready(path.parent)))
+    app.selected_listen_choice = lambda: SimpleNamespace(name="Saved source")
+    app.engine_choice_var.set("cloud")
+    app.monthly_budget_var.set("2")
+    app.preferences.commit_pending()
+    app.refresh_cloud_connection()
+    end = time.monotonic() + 2
+    while app.session_controller.checking and time.monotonic() < end:
+        app.root.update(); time.sleep(.01)
+    app.session_controller.reset_connection()
+    end = time.monotonic() + 2
+    while app.session_controller.checking and time.monotonic() < end:
+        app.root.update(); time.sleep(.01)
+    chooser = next(widget for widget in widgets(app.settings_window) if widget.winfo_class() == "TCombobox"
+                   and str(widget.cget("textvariable")) == str(app.cloud_provider_var))
+    for name in ("ElevenLabs", "Speechmatics"):
+        label = next(value for value in chooser.cget("values") if value.startswith(name))
+        app.cloud_provider_var.set(label)
+        chooser.event_generate("<<ComboboxSelected>>")
+        app.root.update()
+        settings = load_engine_settings(path)
+        assert settings.default_asr_provider == settings.default_mt_provider == "soniox"
+        assert app.session_controller.plan.asr == app.session_controller.plan.mt == "soniox"
+        assert app.listen_action_button.cget("text") == "Start"
+        assert app.session_controller.state.can_start
 
 
 def test_startup_does_not_replay_failed_download_warning_and_resume_clears_fresh_warning(desktop, monkeypatch):
