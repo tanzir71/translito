@@ -36,14 +36,27 @@ def initialize(app, colors):
     app.download_cancel.grid(row=0, column=2)
     app.download_progress = ttk.Progressbar(app.download_panel, maximum=1, style="Dark.Horizontal.TProgressbar")
     app.download_progress.grid(row=1, column=0, columnspan=3, sticky="ew", pady=px((5, 0)))
-    def changed(job):
-        if job.state == "Paused" and job.pause_reason == "failure" and job.error:
+    observed = {}
+    download_hint = [""]
+    def changed(job, *, notify=True):
+        identity = (job.state, job.error, job.ready_path)
+        previous = observed.get(job.id)
+        observed[job.id] = identity
+        fresh = notify and identity != previous
+        if job.state in {"Queued", "Downloading"} and download_hint[0] and app.hint_var.get() == download_hint[0]:
+            app.hint_var.set("")
+            app.hint_frame.pack_forget()
+            download_hint[0] = ""
+        if fresh and job.state == "Paused" and job.pause_reason == "failure" and job.error:
             app.show_hint(job.error)
+            download_hint[0] = job.error
         if job.state == "Ready":
-            message = f"{job.title} is ready. It will be used from your next session."
-            app.show_hint(message)
-            from types import SimpleNamespace
-            app.schedule_controller.toast(SimpleNamespace(title=message, download=True))
+            if fresh:
+                message = f"{job.title} is ready. It will be used from your next session."
+                app.show_hint(message)
+                download_hint[0] = message
+                from types import SimpleNamespace
+                app.schedule_controller.toast(SimpleNamespace(title=message, download=True))
             if job.gemma:
                 from engines.mt_translategemma import MANIFEST
                 app.preferences.set("ENGINES", "translategemma_path", str(Path(job.ready_path) / MANIFEST["filename"]))
@@ -67,8 +80,9 @@ def initialize(app, colors):
     app.download_views = []
     app.download_manager = DownloadManager(app.root, directory=app.preferences.path.parent / "downloads",
         on_change=changed, blocked=lambda: app.offline_only_var.get())
+    observed.update({job.id: (job.state, job.error, job.ready_path) for job in app.download_manager.jobs})
     if app.download_manager.jobs:
-        changed(app.download_manager.jobs[-1])
+        changed(app.download_manager.jobs[-1], notify=False)
 
 
 def show_models(app):

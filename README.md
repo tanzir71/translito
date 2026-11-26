@@ -21,6 +21,9 @@ Saved cloud preferences remain selected during local fallback and recovery.
 Windows 2.0.4 opens on Listen, centers single setup actions, and keeps explicitly
 resumed downloads running across setup refreshes. Buffered transfer progress and
 bounded connection retries keep model setup responsive.
+Windows 2.0.5 reconciles saved download failures with the actual cache at startup,
+so already available models stop showing Paused at 0%. Historical errors are
+restored without replaying a warning banner.
 
 - Dark 800×640 main window and 820×680 Settings with Languages, Engine, Cost & usage,
   Subtitles, Schedule, Audio, Models and General. Controls save automatically;

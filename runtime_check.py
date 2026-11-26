@@ -11,7 +11,8 @@ def check_runtime():
     for name in ("numpy", "torch", "transformers", "faster_whisper",
                  "sentencepiece", "google.protobuf", "soundcard", "sounddevice",
                  "google.genai", "websockets", "httpx2", "icalendar", "recurring_ical_events",
-                 "tzdata", "tzlocal", "arabic_reshaper", "bidi", "PIL", "tkinter"):
+                 "tzdata", "tzlocal", "arabic_reshaper", "bidi", "PIL", "tkinter",
+                 "huggingface_hub", "native_tls"):
         try:
             module = importlib.import_module(name)
             if name == "torch":
@@ -24,6 +25,8 @@ def check_runtime():
             elif name == "transformers":
                 # Resolve the lazy pipeline import checked at GUI startup.
                 getattr(module, "pipeline")
+            elif name == "native_tls":
+                module.configure_native_tls()
             results[name] = {"ok": True, "version": getattr(module, "__version__", None)}
         except Exception as exc:
             results[name] = {"ok": False, "error": str(exc)}

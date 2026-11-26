@@ -1,7 +1,7 @@
 #include "app_identity.iss"
 #define MyAppName "Translito"
 #define MyAppExeName "Translito.exe"
-#define MyAppVersion "2.0.4"
+#define MyAppVersion "2.0.5"
 #ifndef RuntimeBytes
   #error "Build with build_windows.ps1 so the runtime disk requirement is measured."
 #endif

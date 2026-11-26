@@ -1,3 +1,14 @@
+# Windows 2.0.5 cached-setup recovery · 2026-11-26
+
+The download queue now reconciles saved failures with the model inventory at
+startup and during setup refreshes. Already available models retire stale
+paused jobs; saved warnings and completion notices are not replayed at launch.
+Unexpected failures retain safe phase/class diagnostics. Verification against a
+copy of the reported queue in the frozen GUI restored all four models to Ready
+with internet blocked, no download panel, no warning and no callback errors.
+All 21 frozen runtime checks passed, including download dependencies and TLS
+initialization. See [Windows 2.0.5 notes](RELEASE_2_0_5.md).
+
 # Windows 2.0.4 download and layout follow-up · 2026-11-26
 
 Explicit Resume now keeps a download user-controlled across automatic setup

@@ -36,6 +36,13 @@ model preparation and temporary recovery are presented as setup progress.
   so receiving model data does not look like an idle/stalled download.
   After Resume, fresh worker byte growth resets stall detection even while its
   counters catch up to saved progress; repeated idle heartbeats do not.
+- Reconcile saved queue state with the local model inventory at startup and on
+  subsequent setup refreshes. Available cached models retire stale failed jobs
+  without contacting the model server. Incomplete/unverified files retain their
+  Pause/Cancel intent; gated model verification is required before availability.
+- Restore saved progress silently. Only a new failure or completion produces a
+  notification; Resume clears the download's own old warning. Unexpected errors
+  retain a safe phase/class code and actionable local setup guidance.
 - Language and engine edits during capture apply to the next session. The
   running route retains its original snapshot while the new pair can prepare.
 - Internet blocking stops active/background transfers immediately. Automatic

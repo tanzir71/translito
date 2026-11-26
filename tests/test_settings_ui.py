@@ -359,6 +359,32 @@ def test_main_download_progress_and_controls_share_current_job(desktop):
     assert job.state == "Cancelled" and job.bytes == 50
 
 
+def test_startup_does_not_replay_failed_download_warning_and_resume_clears_fresh_warning(desktop, monkeypatch):
+    from dataclasses import asdict
+    import json
+    from engines.downloads import DownloadJob
+    create, path = desktop
+    directory = path.parent / "downloads"
+    directory.mkdir()
+    job = DownloadJob("saved-failure", "fake/missing", "Missing", str(path.parent / "missing"),
+                      state="Paused", pause_reason="failure", error="Old download failure")
+    (directory / "saved-failure.json").write_text(json.dumps(asdict(job)))
+    app = create()
+    app.download_manager.closed = True
+    restored = app.download_manager.jobs[0]
+    assert "Old download failure" not in app.hint_var.get()
+    calls = []
+    show_hint = app.show_hint
+    monkeypatch.setattr(app, "show_hint", lambda message: (calls.append(message), show_hint(message)))
+    app.download_manager.resume(restored)
+    restored.state, restored.pause_reason, restored.error = "Paused", "failure", "New download failure"
+    app.download_manager.on_change(restored)
+    app.download_manager.on_change(restored)
+    assert calls.count("New download failure") == 1
+    app.download_manager.resume(restored)
+    assert app.hint_var.get() == "" and not app.hint_frame.winfo_manager()
+
+
 def test_stop_during_startup_discards_late_transcriber(desktop, monkeypatch):
     import threading
     from types import SimpleNamespace

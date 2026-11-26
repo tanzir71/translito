@@ -9,6 +9,74 @@ import pytest
 from engines.downloads import DownloadManager, DownloadJob
 
 
+@pytest.mark.parametrize("format", ["ct2", "transformers"])
+def test_startup_adopts_complete_cache_instead_of_restoring_old_failure(tmp_path, format):
+    from dataclasses import asdict
+    folder = tmp_path / "cached"
+    folder.mkdir()
+    names = ("config.json", "model.bin", "tokenizer.json") if format == "ct2" else ("config.json", "pytorch_model.bin", "source.spm")
+    for name in names:
+        (folder / name).write_text("cached")
+    queue = tmp_path / "queue"
+    queue.mkdir()
+    job = DownloadJob("old", "fake/cached", "Cached", str(folder), format=format,
+                      state="Paused", pause_reason="failure", error="Old failed download", total=100)
+    (queue / "old.json").write_text(json.dumps(asdict(job)))
+    manager = DownloadManager(directory=queue, blocked=lambda: True)
+    restored = manager.jobs[0]
+    assert restored.state == "Ready" and restored.fraction == 1
+    assert not restored.error and not restored.pause_reason
+    assert restored.ready_path == str(folder) and manager.process is None
+    assert json.loads((queue / "old.json").read_text())["state"] == "Ready"
+    manager.close()
+
+
+def test_unverified_complete_files_keep_explicit_pause(tmp_path):
+    from dataclasses import asdict
+    folder = tmp_path / "cached"
+    folder.mkdir()
+    for name in ("config.json", "model.bin", "tokenizer.json"):
+        (folder / name).write_text("cached")
+    (folder / "manifest.json").write_text(json.dumps({"files": [], "verified": False}))
+    queue = tmp_path / "queue"
+    queue.mkdir()
+    job = DownloadJob("partial", "fake/partial", "Partial", str(folder), state="Paused", pause_reason="user")
+    (queue / "partial.json").write_text(json.dumps(asdict(job)))
+    manager = DownloadManager(directory=queue)
+    assert manager.jobs[0].state == "Paused"
+    manager.close()
+
+
+def test_external_cache_completion_reconciles_without_queuing_another_download(tmp_path):
+    manager = DownloadManager(directory=tmp_path / "queue")
+    folder = tmp_path / "cached"
+    job = DownloadJob("external", "fake/external", "External", str(folder), state="Paused", pause_reason="failure", error="Old failure")
+    manager.enqueue(job)
+    folder.mkdir()
+    for name in ("config.json", "model.bin", "tokenizer.json"):
+        (folder / name).write_text("cached")
+    manager.reconcile_setup((), enabled=False)
+    assert job.state == "Ready" and not job.error
+    assert len(manager.jobs) == 1 and manager.process is None
+    manager.close()
+
+
+def test_metadata_write_failure_is_actionable_and_keeps_safe_diagnostics(tmp_path, fake_job, monkeypatch):
+    from dataclasses import asdict
+    from engines import downloads
+    events = []
+    monkeypatch.setattr(downloads, "write_json_line", events.append)
+    def denied(*_):
+        raise PermissionError(13, "signed-url-with-private-token")
+    monkeypatch.setattr(downloads, "_write", denied)
+    path = tmp_path / "job.json"
+    path.write_text(json.dumps(asdict(fake_job)))
+    assert downloads.download_child(path) == 1
+    assert "Windows blocked access" in events[-1]["error"]
+    assert events[-1]["error_code"] == "write_manifest:PermissionError"
+    assert "private-token" not in json.dumps(events)
+
+
 @pytest.fixture
 def fake_job(tmp_path):
     fetcher = tmp_path / "fetcher.py"

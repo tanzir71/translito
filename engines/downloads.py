@@ -52,10 +52,11 @@ class DownloadJob:
     pause_reason: str = ""
     priority: int = 50
     context: str = ""
+    error_code: str = ""
 
     @property
     def fraction(self):
-        return min(1, self.bytes / self.total) if self.total else 0
+        return 1 if self.state == "Ready" else min(1, self.bytes / self.total) if self.total else 0
 
     @property
     def progress_text(self):
@@ -86,6 +87,7 @@ class DownloadManager:
                 if job.state not in {"Ready", "Cancelled", "Paused"}:
                     job.state = "Queued"
                 self.jobs.append(job)
+                self.adopt_cached(job)
             except (OSError, ValueError, TypeError):
                 continue
         if root is not None:
@@ -93,6 +95,30 @@ class DownloadManager:
 
     def save(self, job):
         _write(self.directory / f"{job.id}.json", asdict(job))
+
+    def adopt_cached(self, job):
+        """A saved queue failure cannot override an already available model."""
+        if job is self.active or job.state == "Ready" or job.format not in {"ct2", "transformers"} or job.gemma:
+            return False
+        from engines.model_files import Ready, inspect_model
+        from engines.model_library import ModelSpec
+        spec = ModelSpec(job.repo, job.title, "Cached model", job.repo, job.format,
+                         Path(job.ready_path or job.folder), expected_size=job.total)
+        status = inspect_model(spec)
+        if not isinstance(status, Ready):
+            return False
+        job.ready_path, job.state = str(status.path), "Ready"
+        job.error = job.error_code = job.pause_reason = ""
+        job.bytes_per_s = 0
+        manifest = status.path / "manifest.json"
+        if manifest.is_file():
+            try:
+                job.total = sum(file["size"] for file in json.loads(manifest.read_text(encoding="utf-8"))["files"])
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+        job.bytes = job.total
+        self.save(job)
+        return True
 
     def enqueue_model(self, spec, *, folder=None, **options):
         if self.blocked():
@@ -142,7 +168,7 @@ class DownloadManager:
             self.save(job)
             self.on_change(job)
             return
-        job.state, job.error = "Downloading", ""
+        job.state, job.error, job.error_code = "Downloading", "", ""
         self.save(job)
         command = ([sys.executable] if getattr(sys, "frozen", False) else
                    [sys.executable, str(Path(__file__).resolve().parents[1] / "gui.py")])
@@ -201,7 +227,7 @@ class DownloadManager:
             self.save(job)
         if job.state in {"Downloading", "Queued", "Stalled · retrying"}:
             return
-        job.state, job.retries, job.error, job.pause_reason = "Queued", 0, "", ""
+        job.state, job.retries, job.error, job.error_code, job.pause_reason = "Queued", 0, "", "", ""
         self.save(job)
         self.on_change(job)
 
@@ -247,6 +273,7 @@ class DownloadManager:
                 self._stop()
             elif "error" in data:
                 job.error = data["error"]
+                job.error_code = data.get("error_code", "")
                 if data.get("retryable"):
                     self._retry(job)
                 else:
@@ -271,6 +298,8 @@ class DownloadManager:
         from engines.model_files import Ready, inspect_model
         desired = {spec.repo: (spec, priority) for priority, specs in ((20, backup), (0, required)) for spec in specs}
         for job in tuple(self.jobs):
+            if self.adopt_cached(job):
+                self.on_change(job)
             if job.state == "Ready":
                 continue
             if job.origin != "auto_setup":
@@ -417,15 +446,40 @@ def _remote_failure(error):
     return {"error": "Download failed. Check your connection or model access. Partial files are kept for Resume."}
 
 
+def _setup_failure(error, phase):
+    """Keep useful failure diagnostics without SDK URLs, tokens or raw paths."""
+    if isinstance(error, PermissionError):
+        message = ("Windows blocked saving model setup. Check access to Translito's app data folder."
+                   if phase == "register_model" else
+                   "Windows blocked access to the model folder. Choose another folder in Models.")
+    elif isinstance(error, OSError) and (error.errno == 28 or getattr(error, "winerror", None) == 112):
+        message = "The disk is full. Free space, then Resume model setup."
+    elif isinstance(error, ImportError):
+        message = "A model setup component is missing. Reinstall the latest Translito installer."
+    elif isinstance(error, FileNotFoundError):
+        message = "The saved model folder or setup request is unavailable. Choose the model again in Models."
+    elif type(error) is ValueError:
+        message = str(error)
+    else:
+        stage = {"read_request": "reading its saved request", "secure_connection": "preparing the secure connection",
+                 "check_cache": "checking cached files", "write_manifest": "saving model metadata",
+                 "verify_files": "verifying model files", "register_model": "saving model setup"}.get(phase, "preparing model files")
+        message = f"Model setup could not finish while {stage}. Retry in Models."
+    return {"error": message, "error_code": f"{phase}:{type(error).__name__}"}
+
+
 def download_child(path):
     """Early GUI dispatch target; never imports Tk, tray, hotkeys or audio."""
     def emit(value):
         write_json_line(value)
+    phase = "read_request"
     try:
         job = DownloadJob(**json.loads(Path(path).read_text(encoding="utf-8")))
+        phase = "prepare_folder"
         folder = Path(job.folder).resolve()
         if not job.cache_dir:
             folder.mkdir(parents=True, exist_ok=True)
+        phase = "secure_connection"
         from native_tls import configure_native_tls
         configure_native_tls()
         token = False
@@ -445,11 +499,13 @@ def download_child(path):
                 emit(_remote_failure(error))
                 return 1
             fetcher = None
+        phase = "prepare_folder"
         if job.cache_dir:
             folder = Path(job.cache_dir) / ("models--" + job.repo.replace("/", "--")) / "snapshots" / revision
             folder.mkdir(parents=True, exist_ok=True)
         if not files:
             raise ValueError("No inference files were found for this model.")
+        phase = "check_cache"
         total = sum(f["size"] for f in files)
         have = sum(min((folder / f["name"]).stat().st_size, f["size"]) for f in files if (folder / f["name"]).is_file())
         partial_root = folder.parent.parent / "blobs" if job.cache_dir else folder
@@ -463,9 +519,11 @@ def download_child(path):
                 repair = json.loads((folder / "manifest.json").read_text()).get("corrupt", False)
             except ValueError:
                 repair = True
+        phase = "write_manifest"
         _write(folder / "manifest.json", manifest)
         completed = 0
         for file in files:
+            phase = "download_file"
             name = file["name"]
             if Path(name).name != name or name in {".", ".."}:
                 raise ValueError("The model contains an unsafe file name.")
@@ -509,6 +567,7 @@ def download_child(path):
             if errors:
                 emit(_remote_failure(errors[0]))
                 return 1
+            phase = "verify_files"
             final = Path(result[0])
             if final.stat().st_size != file["size"]:
                 raise ValueError("The downloaded file has the wrong size. Use Repair to download it again.")
@@ -523,6 +582,7 @@ def download_child(path):
                 raise ValueError("Checksum mismatch. Use Repair to download this file again.")
             completed += file["size"]
         if job.gemma:
+            phase = "verify_model"
             from engines.mt_translategemma import TranslateGemma, MANIFEST
             from llama_cpp import Llama
             # The bytes above have passed SHA-256. The manifest stays unavailable
@@ -536,17 +596,17 @@ def download_child(path):
             hf_hub_download(TOKENIZER_REPO, "tokenizer.json", local_dir=folder, token=False)
             validate_tokenizer(folder)
         if job.registry_path:
+            phase = "register_model"
             registry_path = Path(job.registry_path)
             registry = json.loads(registry_path.read_text()) if registry_path.is_file() else {}
             registry[job.repo] = {"path": str(folder), **manifest}
             registry[job.repo]["verified"] = True
             _write(registry_path, registry)
+        phase = "write_manifest"
         manifest["verified"] = True
         _write(folder / "manifest.json", manifest)
         emit({"ready": str(folder), "bytes": total, "total": total})
         return 0
     except Exception as error:
-        # SDK exceptions can include a signed URL or token: only our plain errors cross IPC.
-        message = str(error) if type(error) is ValueError else "Model download could not finish. Check connection, model access and free disk space."
-        emit({"error": message})
+        emit(_setup_failure(error, phase))
         return 1

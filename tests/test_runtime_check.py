@@ -15,6 +15,8 @@ def fake_import(name):
     if name == "torch":
         return SimpleNamespace(tensor=lambda data: SimpleNamespace(
             sum=lambda: SimpleNamespace(item=lambda: sum(data))))
+    if name == "native_tls":
+        return SimpleNamespace(configure_native_tls=lambda: None)
     return SimpleNamespace(pipeline=object())
 
 
@@ -69,3 +71,15 @@ def test_probe_checks_dhaka_zoneinfo_and_tzlocal(monkeypatch):
     report = runtime_check.check_runtime()
     assert report["dependencies"]["tzdata"]["ok"]
     assert report["dependencies"]["tzlocal"]["ok"]
+
+
+def test_probe_exercises_download_tls_initialization(monkeypatch):
+    def broken_tls():
+        raise OSError("[WinError 126] missing TLS component")
+    def importer(name):
+        return SimpleNamespace(configure_native_tls=broken_tls) if name == "native_tls" else fake_import(name)
+    monkeypatch.setattr(runtime_check.importlib, "import_module", importer)
+    report = runtime_check.check_runtime()
+    assert not report["ok"]
+    assert "missing TLS component" in report["dependencies"]["native_tls"]["error"]
+    assert report["dependencies"]["huggingface_hub"]["ok"]
