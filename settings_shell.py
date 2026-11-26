@@ -32,6 +32,8 @@ class SettingsShell:
                     padx=10, pady=7, font=("Segoe UI", 10), cursor="hand2", takefocus=True)
                 button.pack(fill="x", pady=1)
                 self.buttons[page] = button
+                button.bind("<Enter>", lambda event, p=page: self._hover(p, True))
+                button.bind("<Leave>", lambda event, p=page: self._hover(p, False))
                 scroll = scroll_class(self.host, background=colors["bg"])
                 scroll.content.configure(padx=26, pady=22)
                 self.pages[page], self.contents[page] = scroll, scroll.content
@@ -45,6 +47,11 @@ class SettingsShell:
         self.pages[name].pack(fill="both", expand=True)
         self.current = name
         self.on_page(name)
+
+    def _hover(self, page, entered):
+        selected = entered or self.current == page
+        self.buttons[page].configure(bg=self.colors["surface_2" if selected else "surface"],
+                                     fg=self.colors["text" if selected else "secondary"])
 
     def section_parent(self, title):
         return self.contents[SECTION_PAGES.get(title, title if title in self.contents else "General")]

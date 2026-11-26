@@ -32,7 +32,8 @@ def ui(tmp_path, tk_root):
     app = SimpleNamespace(root=root, transcriber=None, model_setup_busy=False, preview_mode=False,
                           offline_only_var=tk.BooleanVar(root, value=False), is_quitting=False,
                           open_arabic_model_setup=Mock(), open_translation_model_setup=Mock())
-    colors = dict(bg="#222222", surface="#252525", surface_2="#303033", text="white", secondary="#aaaaaa", blue="#0a84ff")
+    from gui import COLORS
+    colors = dict(COLORS, bg="#222222", surface="#252525", surface_2="#303033", text="white", secondary="#aaaaaa", blue="#0a84ff")
     manager = ModelManagerWindow(app, colors, lambda *a, **k: None, library=library, auto_refresh=False)
     manager.window.withdraw()
     manager.rows = {row.key: row for row in (downloaded, available)}

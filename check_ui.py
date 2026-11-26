@@ -27,9 +27,8 @@ def open_check(app, colors, center, *, first_run=False):
         tree.heading(column, text=column)
         tree.column(column, width=140 if column == "Engine" else 125, stretch=True)
     tree.pack(fill="both", expand=True, pady=12)
-    app.style.configure("Treeview", background=colors["bg"], fieldbackground=colors["bg"], foreground=colors["text"], rowheight=34)
-    app.style.configure("Treeview.Heading", background=colors["surface"], foreground=colors["secondary"])
-    app.style.map("Treeview", background=[("selected", colors["blue_bg"])], foreground=[("selected", colors["text"])])
+    from ui_theme import apply_theme
+    apply_theme(window, app.style, colors)
     tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"], wraplength=740, justify="left", anchor="w").pack(fill="x", pady=8)
     settings = load_engine_settings(app.preferences.path)
     connected = [f for f in provider_factories() if f.kind == "live" and settings.provider(f.name).enabled and settings.provider(f.name).tested_signature and not f.unavailable_reason(source, target)]

@@ -2,6 +2,66 @@
 import sys
 
 
+def button_style(style, name, colors, normal, hover, pressed, *, foreground="text",
+                 hover_foreground=None, disabled="surface", **options):
+    """Map every clam paint option; disabled wins over pointer states."""
+    c = colors
+    states = [("disabled", c[disabled]), ("pressed", "!disabled", c[pressed]),
+              ("active", "!disabled", c[hover])]
+    style.configure(name, background=c[normal], foreground=c[foreground],
+                    bordercolor=c["border"], lightcolor=c[normal], darkcolor=c[normal],
+                    focuscolor=c["blue"], relief="flat", padding=(12, 6), **options)
+    style.map(name, **{key: states for key in ("background", "lightcolor", "darkcolor")},
+              foreground=[("disabled", c["tertiary"]),
+                          ("active", "!disabled", c[hover_foreground or foreground]),
+                          ("!disabled", c[foreground])],
+              bordercolor=[("focus", "!disabled", c["blue"]),
+                           ("!disabled", c["border"])],
+              focuscolor=[("!disabled", c["blue"])])
+
+
+def apply_theme(root, style, colors):
+    """One shared theme for the application and its Toplevel dialogs."""
+    try:
+        style.theme_use("clam")
+    except Exception:
+        pass
+    c = colors
+    root.option_add("*Font", "{Segoe UI} 10")
+    input_styles(root, style, c)
+    root.after_idle(lambda: dark_titlebar(root))
+    for key, value in (("background", c["field"]), ("foreground", c["text"]),
+                       ("selectBackground", c["blue"]), ("selectForeground", c["on_accent"])):
+        root.option_add(f"*TCombobox*Listbox.{key}", value)
+    for name, background in (("TFrame", "bg"), ("Dark.TFrame", "bg"), ("Surface.TFrame", "surface")):
+        style.configure(name, background=c[background])
+    for name, background, foreground in (("TLabel", "bg", "text"), ("Dark.TLabel", "bg", "text"),
+            ("Secondary.TLabel", "bg", "secondary"), ("Surface.TLabel", "surface", "text"),
+            ("SurfaceSecondary.TLabel", "surface", "secondary")):
+        style.configure(name, background=c[background], foreground=c[foreground])
+    for name in ("TButton", "Mac.TButton", "Icon.TButton"):
+        button_style(style, name, c, "surface_2", "field", "border")
+    for name, normal, hover in (("Primary.TButton", "blue", "blue_hover"), ("Stop.TButton", "red", "red_hover")):
+        button_style(style, name, c, normal, hover, normal, foreground="on_accent", disabled="field")
+    button_style(style, "SegmentActive.TButton", c, "field", "field", "field")
+    button_style(style, "SegmentInactive.TButton", c, "surface", "surface_2", "field",
+                 foreground="secondary", hover_foreground="text")
+    for name in ("TCheckbutton", "TRadiobutton", "Treeview.Heading", "Models.Treeview.Heading", "Terms.Treeview.Heading"):
+        button_style(style, name, c, "surface", "surface_2", "field", foreground="secondary", hover_foreground="text")
+        style.map(name, indicatorbackground=[("disabled", c["surface"]), ("selected", c["blue"]), ("!selected", c["field"])])
+    for name in ("Treeview", "Models.Treeview", "Terms.Treeview"):
+        style.configure(name, background=c["field"], fieldbackground=c["field"], foreground=c["text"], rowheight=34)
+        style.map(name, background=[("selected", c["blue_bg"])], foreground=[("selected", c["text"])])
+    for axis in ("Vertical", "Horizontal"):
+        for name in (f"{axis}.TScrollbar", f"Dark.{axis}.TScrollbar"):
+            button_style(style, name, c, "field", "border", "tertiary")
+            style.configure(name, troughcolor=c["bg"], arrowcolor=c["text"], borderwidth=0, arrowsize=10)
+    for name in ("Horizontal.TProgressbar", "Dark.Horizontal.TProgressbar"):
+        button_style(style, name, c, "blue", "blue", "blue", foreground="on_accent")
+        style.configure(name, troughcolor=c["field"], background=c["blue"], foreground=c["on_accent"],
+                        bordercolor=c["field"], lightcolor=c["blue"], darkcolor=c["blue"])
+
+
 def input_styles(root, style, colors):
     for widget in ("Entry", "Spinbox", "Text", "Listbox"):
         for option, value in (("background", colors["field"]), ("foreground", colors["text"]),
@@ -15,6 +75,8 @@ def input_styles(root, style, colors):
             foreground=colors["text"], insertcolor=colors["text"], arrowcolor=colors["secondary"],
             bordercolor=colors["border"], lightcolor=colors["border"], darkcolor=colors["border"], padding=6)
         style.map(name,
+            background=[("disabled", colors["surface"]), ("!disabled", colors["field"])],
+            bordercolor=[("focus", "!disabled", colors["blue"]), ("active", "!disabled", colors["tertiary"]), ("!disabled", colors["border"])],
             fieldbackground=[("disabled", colors["surface"]), ("readonly", colors["field"]), ("!disabled", colors["field"])],
             foreground=[("disabled", colors["tertiary"]), ("!disabled", colors["text"])],
             selectbackground=[("!disabled", colors["field"])], selectforeground=[("!disabled", colors["text"])])

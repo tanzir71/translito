@@ -78,6 +78,7 @@ COLORS = {
     "blue": "#0a84ff",
     "blue_hover": "#3298ff",
     "red": "#ff453a",
+    "red_hover": "#ff5f56",
     "green": "#30d158",
     "orange": "#ff9f0a",
     "purple": "#bf5af2",
@@ -540,153 +541,9 @@ class TranslatorGUI:
     # Window construction
 
     def apply_styles(self):
-        style = ttk.Style(self.root)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-        self.style = style
-        from ui_theme import input_styles, dark_titlebar
-        input_styles(self.root, style, COLORS)
-        self.root.after_idle(lambda: dark_titlebar(self.root))
-        self.root.option_add("*Font", "{Segoe UI} 10")
-        self.root.option_add("*TCombobox*Listbox.background", COLORS["field"])
-        self.root.option_add("*TCombobox*Listbox.foreground", COLORS["text"])
-        self.root.option_add("*TCombobox*Listbox.selectBackground", COLORS["blue"])
-        self.root.option_add("*TCombobox*Listbox.selectForeground", "white")
-
-        style.configure("Dark.TFrame", background=COLORS["bg"])
-        style.configure("Surface.TFrame", background=COLORS["surface"])
-        style.configure("Dark.TLabel", background=COLORS["bg"], foreground=COLORS["text"])
-        style.configure(
-            "Secondary.TLabel", background=COLORS["bg"], foreground=COLORS["secondary"]
-        )
-        style.configure(
-            "Surface.TLabel", background=COLORS["surface"], foreground=COLORS["text"]
-        )
-        style.configure(
-            "SurfaceSecondary.TLabel",
-            background=COLORS["surface"],
-            foreground=COLORS["secondary"],
-        )
-        style.configure(
-            "Mac.TButton",
-            background=COLORS["surface_2"],
-            foreground=COLORS["text"],
-            bordercolor=COLORS["border"],
-            lightcolor=COLORS["surface_2"],
-            darkcolor=COLORS["surface_2"],
-            padding=(12, 6),
-            relief="flat",
-        )
-        style.map(
-            "Mac.TButton",
-            background=[("active", COLORS["field"]), ("disabled", COLORS["surface"])],
-            foreground=[("disabled", COLORS["tertiary"])],
-        )
-        style.configure(
-            "Icon.TButton",
-            background=COLORS["surface_2"],
-            foreground=COLORS["text"],
-            bordercolor=COLORS["border"],
-            lightcolor=COLORS["surface_2"],
-            darkcolor=COLORS["surface_2"],
-            padding=(6, 5),
-            relief="flat",
-            font=("Segoe UI Symbol", 10),
-        )
-        style.map(
-            "Icon.TButton",
-            background=[("active", COLORS["field"]), ("disabled", COLORS["surface"])],
-            foreground=[("disabled", COLORS["tertiary"])],
-        )
-        style.configure(
-            "Primary.TButton",
-            background=COLORS["blue"],
-            foreground="white",
-            bordercolor=COLORS["blue"],
-            lightcolor=COLORS["blue"],
-            darkcolor=COLORS["blue"],
-            padding=(12, 5),
-            relief="flat",
-            font=("Segoe UI Semibold", 10),
-        )
-        style.map(
-            "Primary.TButton",
-            background=[("active", COLORS["blue_hover"]), ("disabled", COLORS["field"])],
-            foreground=[("disabled", COLORS["tertiary"])],
-        )
-        style.configure(
-            "Stop.TButton",
-            background=COLORS["red"],
-            foreground="white",
-            bordercolor=COLORS["red"],
-            lightcolor=COLORS["red"],
-            darkcolor=COLORS["red"],
-            padding=(12, 5),
-            relief="flat",
-            font=("Segoe UI Semibold", 10),
-        )
-        style.configure(
-            "SegmentActive.TButton",
-            background=COLORS["field"],
-            foreground=COLORS["text"],
-            bordercolor=COLORS["border"],
-            padding=(14, 6),
-            relief="flat",
-            font=("Segoe UI Semibold", 9),
-        )
-        style.configure(
-            "SegmentInactive.TButton",
-            background=COLORS["surface"],
-            foreground=COLORS["secondary"],
-            bordercolor=COLORS["border"],
-            padding=(14, 6),
-            relief="flat",
-            font=("Segoe UI", 9),
-        )
-        style.map(
-            "SegmentInactive.TButton",
-            background=[("active", COLORS["surface_2"])],
-            foreground=[("active", COLORS["text"]), ("disabled", COLORS["tertiary"])],
-        )
-        style.configure(
-            "Dark.TCombobox",
-            fieldbackground=COLORS["field"],
-            background=COLORS["field"],
-            foreground=COLORS["text"],
-            arrowcolor=COLORS["secondary"],
-            bordercolor=COLORS["border"],
-            lightcolor=COLORS["border"],
-            darkcolor=COLORS["border"],
-            padding=6,
-        )
-        style.map(
-            "Dark.TCombobox",
-            fieldbackground=[("readonly", COLORS["field"]), ("disabled", COLORS["surface"])],
-            foreground=[("readonly", COLORS["text"]), ("disabled", COLORS["tertiary"])],
-            selectbackground=[("readonly", COLORS["field"])],
-            selectforeground=[("readonly", COLORS["text"])],
-        )
-        style.configure(
-            "Dark.Horizontal.TProgressbar",
-            troughcolor=COLORS["field"],
-            background=COLORS["blue"],
-            bordercolor=COLORS["field"],
-            lightcolor=COLORS["blue"],
-            darkcolor=COLORS["blue"],
-        )
-        style.configure(
-            "Dark.Vertical.TScrollbar",
-            background=COLORS["field"],
-            troughcolor=COLORS["bg"],
-            bordercolor=COLORS["bg"],
-            arrowcolor=COLORS["secondary"],
-            lightcolor=COLORS["field"],
-            darkcolor=COLORS["field"],
-            borderwidth=0,
-            arrowsize=10,
-        )
+        from ui_theme import apply_theme
+        self.style = ttk.Style(self.root)
+        apply_theme(self.root, self.style, COLORS)
 
     def build_ui(self):
         self.root.columnconfigure(0, weight=1)

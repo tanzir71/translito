@@ -15,6 +15,8 @@ from engines.glossary import Glossary
 
 def _window(app, title, colors, center, width, height):
     window = tk.Toplevel(app.root)
+    from ui_theme import apply_theme
+    apply_theme(window, app.style, colors)
     window.title(title)
     window.configure(bg=colors["bg"])
     window.transient(app.root)
@@ -413,9 +415,7 @@ def open_terms_editor(app, colors, center):
              bg=colors["bg"], fg=colors["secondary"], anchor="w").pack(fill="x", pady=(4, 10))
     table_host = tk.Frame(body, bg=colors["bg"])
     table_host.pack(fill="both", expand=True)
-    app.style.configure("Terms.Treeview", background=colors["field"], fieldbackground=colors["field"],
-                        foreground=colors["text"], rowheight=26, borderwidth=0)
-    app.style.map("Terms.Treeview", background=[("selected", colors["blue"])])
+
     tree = ttk.Treeview(table_host, columns=("english", "spellings", "translation"),
                         show="headings", style="Terms.Treeview", selectmode="browse")
     for column, title, width in (("english", "English term", 180), ("spellings", "Arabic spellings", 300),

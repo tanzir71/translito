@@ -42,10 +42,8 @@ class ModelManagerWindow:
         table.grid(row=4, column=0, sticky="nsew")
         columns = ("model", "kind", "status", "size", "storage")
         style = ttk.Style(self.window)
-        style.configure("Models.Treeview", background=colors["surface"], fieldbackground=colors["surface"],
-                        foreground=colors["text"], rowheight=28)
-        style.configure("Models.Treeview.Heading", background=colors["surface_2"], foreground=colors["text"])
-        style.map("Models.Treeview", background=[("selected", colors["blue"])], foreground=[("selected", "white")])
+        from ui_theme import apply_theme
+        apply_theme(self.window, style, colors)
         self.tree = ttk.Treeview(table, columns=columns, show="headings", selectmode="browse", height=12,
                                  style="Models.Treeview")
         for key, title, width in (("model", "Model", 290), ("kind", "Use", 85), ("status", "Status", 100),
