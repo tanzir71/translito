@@ -27,12 +27,12 @@
   <meta property="twitter:title" content="{{ $title }}">
   <meta property="twitter:description" content="{{ $description }}">
   <meta property="twitter:image" content="{{ "img/landing/hero-meeting.webp" | absURL }}">
-  <link rel="icon" type="image/png" href="{{ "translito-icon.png" | relURL }}">
+  <link rel="icon" type="image/svg+xml" sizes="any" href="{{ "favicon.svg" | relURL }}">
   {{ if not $cjk }}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600&display=swap" rel="stylesheet">
-    {{ if eq $locale.script "arabic" }}<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">{{ end }}
+    {{ if or (eq $locale.script "arabic") (and .IsHome (eq $locale.code "en")) }}<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">{{ end }}
   {{ end }}
   <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
   <link rel="stylesheet" href="{{ "css/language-picker.css" | relURL }}">

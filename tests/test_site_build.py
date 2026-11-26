@@ -119,6 +119,11 @@ def test_english_landing_sections_assets_and_language_links(built_site):
                  "The features listed under New on Windows are not in the Mac app."):
         assert copy in document.text
     assert "Windows 1.0.4" not in document.text
+    assert "متى يمكننا تسليم النسخة الأولى؟" in document.plain_text
+    assert "When can we deliver the first version?" in document.plain_text
+    favicon = [tag for tag in document.tags("link") if tag.get("rel") == "icon"]
+    assert favicon == [dict(rel="icon", type="image/svg+xml", sizes="any", href="/favicon.svg")]
+    assert (built_site / "favicon.svg").read_bytes() == (ROOT / "branding/translito-mark.svg").read_bytes()
 
 
 def test_supplied_landing_assets_and_svg_roots_remain_unchanged():
@@ -159,7 +164,8 @@ def test_every_home_has_complete_localized_sections_examples_and_metadata(built_
     strings = tomllib.loads((SITE / "i18n" / (entry.site_locale + ".toml")).read_text(encoding="utf-8"))
     english = tomllib.loads((SITE / "i18n/en.toml").read_text(encoding="utf-8"))
     shared_words = {("de", "navDownload"), ("fr", "navMenu"), ("fr", "faqTitle"),
-                    ("nl", "translitoIn"), ("nl", "navMenu"), ("pl", "navMenu"), ("pt", "navMenu")}
+                    ("nl", "translitoIn"), ("nl", "navMenu"), ("pl", "navMenu"), ("pt", "navMenu"),
+                    ("ar", "heroPrevious")}
     for key, value in strings.items():
         if entry.code != "en" and key != "heroCurrent" and (entry.code, key) not in shared_words:
             assert value["other"] != english[key]["other"], (entry.code, key)
@@ -175,6 +181,10 @@ def test_every_home_has_complete_localized_sections_examples_and_metadata(built_
     assert len(current) == 1
     assert current[0]["lang"] == "en-US"
     assert current[0]["dir"] == "ltr"
+    previous = [tag for tag in document.tags("p") if tag.get("class") == "previous"]
+    assert len(previous) == 1
+    assert previous[0]["lang"] == ("ar-SA" if entry.code == "en" else entry.bcp47)
+    assert previous[0]["dir"] == ("rtl" if entry.code == "en" or entry.rtl else "ltr")
     if entry.code != "en":
         assert strings["heroCurrent"]["other"] == english["heroCurrent"]["other"]
     rows = [tag for tag in document.tags("div") if tag.get("class", "").startswith("reply-row")]
@@ -254,7 +264,7 @@ def test_script_metadata_fonts_and_rtl_isolation(built_site, entry):
     else:
         assert any("Funnel+Display:wght@400;500;600&" in url for url in fonts)
         assert all("700" not in url and "800" not in url for url in fonts)
-    assert any("Noto+Sans+Arabic" in url for url in fonts) == (entry.code == "ar")
+    assert any("Noto+Sans+Arabic" in url for url in fonts) == (entry.code in {"en", "ar"})
     if entry.code == "ar":
         assert root["dir"] == "rtl"
         assert len([tag for tag in document.tags("bdi") if tag.get("lang") == "en" and tag.get("dir") == "ltr"]) > 10

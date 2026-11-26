@@ -8,7 +8,7 @@
     "latin_extended_range": "U+0100-02BA",
     "fallback": "Inter, system-ui, sans-serif"
   },
-  "arabic_webfont": "Noto Sans Arabic; requested only on Arabic locale pages",
+  "arabic_webfont": "Noto Sans Arabic; requested on Arabic locale pages and the English home's Arabic-to-English demo",
   "cjk_webfonts": false,
   "verification": "Public font metadata and CSS only; no manual app/site checks."
 }
