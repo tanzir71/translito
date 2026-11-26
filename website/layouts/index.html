@@ -1,7 +1,7 @@
 {{ define "main" }}
 {{ $links := partial "download-links.html" . }}
 {{ $locale := index (where .Site.Data.languages "site_locale" .Site.Language.Lang) 0 }}
-{{ $sourceLocale := $locale }}
+{{ $sourceLocale := index (where .Site.Data.languages "code" "en") 0 }}
 {{ if eq $locale.code "en" }}{{ $sourceLocale = index (where .Site.Data.languages "code" "ar") 0 }}{{ end }}
 <section class="hero dark-band">
   <div class="container">
@@ -9,7 +9,7 @@
       <div class="actions"><a class="btn primary" href="{{ $links.windows }}">{{ partial "t.html" "downloadWindows" }}</a><a class="btn secondary" href="{{ $links.mac }}">{{ partial "t.html" "downloadMac" }}</a></div>
       <p class="hero-small">{{ partial "t.html" "heroSmall" }}</p>
     </div>
-    {{ partial "hero-shot.html" (dict "previous" (partial "t.html" "heroPrevious") "current" (partial "t.html" "heroCurrent") "code" $sourceLocale.bcp47 "rtl" $sourceLocale.rtl "language" "English") }}
+    {{ partial "hero-shot.html" (dict "previous" (partial "t.html" "heroPrevious") "current" (partial "t.html" "heroCurrent") "source" $sourceLocale "target" $locale) }}
   </div>
 </section>
 <section id="features" class="overview"><div class="container"><div class="section-heading"><p class="eyebrow">{{ partial "t.html" "overviewLabel" }}</p><h2>{{ partial "t.html" "overviewTitle" }}</h2></div>

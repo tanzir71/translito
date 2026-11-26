@@ -164,10 +164,9 @@ def test_every_home_has_complete_localized_sections_examples_and_metadata(built_
     strings = tomllib.loads((SITE / "i18n" / (entry.site_locale + ".toml")).read_text(encoding="utf-8"))
     english = tomllib.loads((SITE / "i18n/en.toml").read_text(encoding="utf-8"))
     shared_words = {("de", "navDownload"), ("fr", "navMenu"), ("fr", "faqTitle"),
-                    ("nl", "translitoIn"), ("nl", "navMenu"), ("pl", "navMenu"), ("pt", "navMenu"),
-                    ("ar", "heroPrevious")}
+                    ("nl", "translitoIn"), ("nl", "navMenu"), ("pl", "navMenu"), ("pt", "navMenu")}
     for key, value in strings.items():
-        if entry.code != "en" and key != "heroCurrent" and (entry.code, key) not in shared_words:
+        if entry.code != "en" and key not in {"heroPrevious", "heroCurrent"} and (entry.code, key) not in shared_words:
             assert value["other"] != english[key]["other"], (entry.code, key)
     for key in ("heroTitle", "heroPrevious", "heroCurrent", "overviewTitle", "feature1Title", "feature2Title",
                 "feature3Title", "feature4Title", "feature5Title", "howTitle", "downloadTitle", "faqTitle"):
@@ -176,17 +175,18 @@ def test_every_home_has_complete_localized_sections_examples_and_metadata(built_
     descriptions = [tag["content"] for tag in document.tags("meta") if tag.get("name") == "description"]
     assert descriptions == [strings["description"]["other"]]
     assert "Weekly sync is starting" in document.plain_text
-    assert "Subtitles are on, translating into English." in document.plain_text
+    assert f"Subtitles are on, translating into {entry.english_name}." in document.plain_text
     current = [tag for tag in document.tags("p") if tag.get("class") == "current"]
     assert len(current) == 1
-    assert current[0]["lang"] == "en-US"
-    assert current[0]["dir"] == "ltr"
+    assert current[0]["lang"] == entry.bcp47
+    assert current[0]["dir"] == ("rtl" if entry.rtl else "ltr")
     previous = [tag for tag in document.tags("p") if tag.get("class") == "previous"]
     assert len(previous) == 1
-    assert previous[0]["lang"] == ("ar-SA" if entry.code == "en" else entry.bcp47)
-    assert previous[0]["dir"] == ("rtl" if entry.code == "en" or entry.rtl else "ltr")
+    assert previous[0]["lang"] == ("ar-SA" if entry.code == "en" else "en-US")
+    assert previous[0]["dir"] == ("rtl" if entry.code == "en" else "ltr")
     if entry.code != "en":
-        assert strings["heroCurrent"]["other"] == english["heroCurrent"]["other"]
+        assert strings["heroPrevious"]["other"] == english["heroCurrent"]["other"]
+        assert strings["heroCurrent"]["other"] != strings["heroPrevious"]["other"]
     rows = [tag for tag in document.tags("div") if tag.get("class", "").startswith("reply-row")]
     assert len(rows) == (4 if entry.code == "en" else 3)
     if entry.code != "en":
@@ -195,10 +195,10 @@ def test_every_home_has_complete_localized_sections_examples_and_metadata(built_
         assert "Yes, Thursday is fine" in document.plain_text
 
 
-def test_reference_native_questions_are_shown_with_english_translations():
+def test_reference_native_questions_are_shown_as_translation_output():
     expected = {
-        "ar": ("تابع كل اجتماع بلغتك.", "متى يمكننا تسليم النسخة الأولى؟", "When can we deliver the first version?"),
-        "ja": ("すべての会議を、あなたの言語で。", "最初のバージョンはいつ納品できますか？", "When can we deliver the first version?"),
+        "ar": ("تابع كل اجتماع بلغتك.", "When can we deliver the first version?", "متى يمكننا تسليم النسخة الأولى؟"),
+        "ja": ("すべての会議を、あなたの言語で。", "When can we deliver the first version?", "最初のバージョンはいつ納品できますか？"),
     }
     for code, values in expected.items():
         strings = tomllib.loads((SITE / "i18n" / (code + ".toml")).read_text(encoding="utf-8"))

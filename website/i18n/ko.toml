@@ -54,10 +54,10 @@ other = "PC에서는 무료입니다. 클라우드 엔진은 선택 사항이며
 other = "Windows 바탕 화면의 회의 창과 작업 표시줄."
 
 [heroPrevious]
-other = "첫 번째 버전은 언제 납품할 수 있나요?"
+other = "When can we deliver the first version?"
 
 [heroCurrent]
-other = "When can we deliver the first version?"
+other = "첫 번째 버전은 언제 납품할 수 있나요?"
 
 [overviewLabel]
 other = "Windows의 새로운 기능"

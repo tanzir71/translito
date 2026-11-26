@@ -2,7 +2,7 @@
   <div class="shot-scene">
     <img class="meeting-image" src="{{ "img/landing/hero-meeting.webp" | relURL }}" alt="{{ i18n "heroImageAlt" }}" width="2560" height="1440" fetchpriority="high">
     <div class="subtitle-bar" dir="ltr">
-      <p class="previous" lang="{{ .code }}" dir="{{ if .rtl }}rtl{{ else }}ltr{{ end }}">{{ .previous }}</p><p class="current" lang="en-US" dir="ltr">{{ .current }}</p>
+      <p class="previous" lang="{{ .source.bcp47 }}" dir="{{ if .source.rtl }}rtl{{ else }}ltr{{ end }}">{{ .previous }}</p><p class="current" lang="{{ .target.bcp47 }}" dir="{{ if .target.rtl }}rtl{{ else }}ltr{{ end }}">{{ .current }}</p>
     </div>
     <div class="subtitle-controls">
       <button type="button" data-demo-pause aria-pressed="false" aria-label="{{ i18n "controlPause" }}"><img src="{{ "img/landing/icons/pause.svg" | relURL }}" alt=""></button>
@@ -13,7 +13,7 @@
     </div>
     <aside class="start-notice" lang="en" dir="ltr">
       <p class="notice-brand"><img src="{{ "img/landing/icons/notice-brand.svg" | relURL }}" alt="">Translito</p>
-      <p class="notice-title">Weekly sync is starting</p><p>Subtitles are on, translating into {{ .language }}.</p>
+      <p class="notice-title">Weekly sync is starting</p><p>Subtitles are on, translating into {{ .target.english_name }}.</p>
       <div><button type="button" data-demo-dismiss>Stop</button><a href="#schedule">Settings</a></div>
     </aside>
   </div>
