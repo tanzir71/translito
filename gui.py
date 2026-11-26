@@ -468,6 +468,7 @@ class TranslatorGUI:
         for name in CONTROL_VARIABLES:
             var = getattr(self, name + "_var")
             self.preferences.bind(var, "UI", name, var.get())
+        self._capture_source_type = self.listen_source_type_var.get()
         for action, var in self.hotkey_vars.items():
             self.preferences.bind(var, "HOTKEYS", action, var.get())
         geometry = self.preferences.get("UI", "window_geometry", "800x640")
@@ -786,6 +787,17 @@ class TranslatorGUI:
         source_field, self.listen_combo = self._field(
             frame, "Source", self.listen_device_var, width=26
         )
+        source_field.pack_slaves()[0].destroy()
+        capture_switch = tk.Frame(source_field, bg=COLORS["bg"])
+        capture_switch.pack(fill="x", before=self.listen_combo, pady=(0, 4))
+        self.capture_kind_buttons = {}
+        for kind in ("App audio", "Device"):
+            button = ttk.Button(capture_switch, text=kind, width=9,
+                command=lambda selected=kind:self.select_capture_source(selected))
+            button.pack(side="left")
+            self.capture_kind_buttons[kind] = button
+        self.listen_source_type_var.trace_add("write", lambda *_:self.update_capture_switch())
+        self.update_capture_switch()
         source_field.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         self.btn_refresh_listen = ttk.Button(
             frame, text="↻", width=2, style="Icon.TButton", command=self.manual_refresh_devices
@@ -797,14 +809,14 @@ class TranslatorGUI:
         )
         self.listen_source_label = from_field.winfo_children()[0]
         self.listen_source_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
-        from_field.grid(row=0, column=2, sticky="ew", padx=(0, 10))
+        from_field.grid(row=0, column=2, sticky="sew", padx=(0, 10))
 
         to_field, self.listen_target_combo = self._field(
             frame, "My language", self.my_language_var, width=12
         )
         self.listen_target_label = to_field.winfo_children()[0]
         self.listen_target_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
-        to_field.grid(row=0, column=3, sticky="ew", padx=(0, 12))
+        to_field.grid(row=0, column=3, sticky="sew", padx=(0, 12))
 
         self.listen_action_button = ttk.Button(
             frame,
@@ -814,15 +826,7 @@ class TranslatorGUI:
             command=self.toggle_capture,
         )
         self.listen_action_button.grid(row=0, column=4, sticky="s")
-        source_kind = tk.Frame(frame, bg=COLORS["bg"])
-        source_kind.grid(row=1, column=0, columnspan=5, sticky="ew", pady=(6, 0))
-        self.listen_source_type_combo = ttk.Combobox(source_kind, textvariable=self.listen_source_type_var,
-            values=["Device", "App audio"], state="readonly", width=12, style="Dark.TCombobox")
-        self.listen_source_type_combo.pack(side="left")
-        self.listen_source_type_combo.bind("<<ComboboxSelected>>", lambda _event: self.refresh_devices())
-        self.app_audio_hint = tk.Label(source_kind, text="", bg=COLORS["bg"], fg=COLORS["secondary"], font=("Segoe UI", 8))
-        self.app_audio_hint.pack(side="left", padx=10)
-        source_kind.grid_remove()
+        self.app_audio_hint = tk.Label(frame, text="", bg=COLORS["bg"], fg=COLORS["secondary"], font=("Segoe UI", 8), anchor="w")
         return frame
 
     def _build_speak_controls(self, parent):
@@ -1632,7 +1636,12 @@ class TranslatorGUI:
 
     def refresh_devices(self, show_error=False):
         current_listen = self.selected_listen_choice()
-        listen_name = current_listen.name if current_listen else load_device_config(CONFIG_FILE)
+        current_is_app = current_listen is not None and getattr(current_listen.raw, "is_process_loopback", False)
+        if self.listen_source_type_var.get() == "App audio":
+            listen_name = current_listen.name if current_is_app else ""
+        else:
+            listen_name = (current_listen.name if current_listen and not current_is_app else
+                self.preferences.get("CAPTURE", "device_name", "") or load_device_config(CONFIG_FILE))
         current_mic = self.selected_speak_mic_choice()
         mic_name = current_mic.name if current_mic else self.speak_mic_var.get()
         current_output = self.selected_output_choice()
@@ -1648,14 +1657,19 @@ class TranslatorGUI:
 
         self.listen_choices = self.input_choices
         if self.listen_source_type_var.get() == "App audio":
+            from meeting_app import preferred_app, resolve_default_app
+            preferred = preferred_app(self)
             from device_utils import InputDeviceChoice
             from engines.process_audio import ProcessSource, active_sources, supported
             if supported():
                 try:
                     sources = active_sources()
                     self.listen_choices = [InputDeviceChoice(source.name, source, True, False) for source in sources]
-                    previous = current_listen.raw if current_listen else None
-                    if isinstance(previous, ProcessSource):
+                    matching = (next((s for s in sources if s.exclude), None) if preferred == "*" else resolve_default_app(preferred, sources))
+                    previous = current_listen.raw if current_is_app else None
+                    if matching is not None:
+                        listen_name = matching.name
+                    elif isinstance(previous, ProcessSource):
                         matching = next((source for source in sources if (source.pid, source.birth) == (previous.pid, previous.birth)), None)
                         if matching:
                             listen_name = matching.name
@@ -1665,15 +1679,17 @@ class TranslatorGUI:
                             retained = InputDeviceChoice(f"{previous.name} — not playing", previous, True, False)
                             self.listen_choices.insert(0, retained)
                             listen_name = retained.name
-                    self.app_audio_hint.configure(text="Windows 11 / build 20348+ · includes app children · refreshes every 3 s")
+                    self.app_audio_hint.configure(text="Captures this app and its children. Browser selection includes all its audible tabs.")
                 except Exception:
                     self.listen_choices = []
                     self.app_audio_hint.configure(text="App list unavailable. Refresh or choose Device.")
             else:
                 self.listen_choices = []
                 self.app_audio_hint.configure(text="App audio needs 64-bit Windows build 20348+; use Device here.")
+            self.app_audio_hint.grid(row=1, column=0, columnspan=5, sticky="ew", pady=(6,0))
         else:
             self.app_audio_hint.configure(text="")
+            self.app_audio_hint.grid_remove()
         self.speak_mic_choices = [
             choice for choice in self.input_choices if not choice.is_loopback and not choice.is_virtual
         ]
@@ -1688,6 +1704,9 @@ class TranslatorGUI:
         self.speak_mic_combo["values"] = [choice.display_name for choice in self.speak_mic_choices]
         self.speak_output_combo["values"] = [choice.display_name for choice in self.output_choices]
         self.select_combo_by_name(self.listen_combo, self.listen_choices, listen_name)
+        if self.listen_source_type_var.get() == "App audio" and preferred not in {"", "*"} and not any(
+                getattr(c.raw,"executable","").casefold() == preferred.casefold() for c in self.listen_choices):
+            self.listen_combo.set(preferred + " · waiting for audio")
         self.select_combo_by_name(
             self.speak_mic_combo,
             self.speak_mic_choices,
@@ -1817,12 +1836,39 @@ class TranslatorGUI:
         if self.voice_var.get() not in voices:
             self.voice_var.set("Automatic")
 
-    def persist_current_listen_device(self):
-        if self.preview_mode or self._initializing or self.listen_source_type_var.get() == "App audio":
+    def update_capture_switch(self):
+        for kind, button in self.capture_kind_buttons.items():
+            button.configure(style="SegmentActive.TButton" if self.listen_source_type_var.get() == kind else "SegmentInactive.TButton")
+
+    def select_capture_source(self, kind=None):
+        if self.transcriber is not None or self.model_setup_busy:
+            return
+        from meeting_app import cancel_wait
+        if self._capture_source_type == "Device":
+            self.persist_current_listen_device(kind="Device")
+        cancel_wait(self)
+        self.meeting_source = None
+        self._capture_source_type = kind or self.listen_source_type_var.get()
+        self.listen_source_type_var.set(self._capture_source_type)
+        self.refresh_devices()
+        self.set_status("Ready")
+
+    def persist_current_listen_device(self, kind=None):
+        if self._initializing:
             return
         choice = self.selected_listen_choice()
-        if choice:
-            save_device_config(choice.name, CONFIG_FILE)
+        if not choice:
+            return
+        kind = kind or self.listen_source_type_var.get()
+        is_app = getattr(choice.raw,"is_process_loopback",False)
+        if kind == "App audio" and is_app and self.listen_combo.current() >= 0:
+            from meeting_app import executable_name
+            self.preferences.set("CAPTURE", "app_executable", "*" if choice.raw.exclude else executable_name(choice.raw))
+            self.meeting_source = choice.raw
+        elif kind == "Device" and not is_app:
+            self.preferences.set("CAPTURE", "device_name", choice.name)
+            if not self.preview_mode:
+                save_device_config(choice.name, CONFIG_FILE)
 
     def persist_settings(self):
         if self.preview_mode or self._initializing:
@@ -2151,7 +2197,6 @@ class TranslatorGUI:
         normal_state = "disabled" if locked else "normal"
         for widget in (
             self.listen_combo,
-            self.listen_source_type_combo,
             self.listen_source_combo,
             self.listen_target_combo,
             self.speak_mic_combo,
@@ -2166,6 +2211,7 @@ class TranslatorGUI:
             self.settings_button,
             self.listen_mode_button,
             self.speak_mode_button,
+            *self.capture_kind_buttons.values(),
         ):
             widget.configure(state=normal_state)
         self._set_settings_controls_state(not locked)

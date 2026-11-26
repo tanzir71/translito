@@ -135,3 +135,41 @@ def test_engine_cards_restore_measured_results_for_the_current_pair_only(app):
     refresh_measurements(app)
     assert "not measured" in app.engine_card_descriptions["cloud"].get()
     app.listen_source_var.set(app.language_name_for_iso(source))
+
+
+def test_main_capture_switch_remembers_device_and_app_and_cancels_default_wait(app,monkeypatch):
+    from device_utils import InputDeviceChoice
+    from engines.process_audio import ProcessSource
+    import engines.process_audio
+    device = InputDeviceChoice("Headphones",SimpleNamespace(is_process_loopback=False),True,False)
+    browser = ProcessSource(10,100,"Chrome",executable="chrome.exe")
+    monkeypatch.setattr(gui,"query_input_devices",lambda **kw:[device])
+    monkeypatch.setattr(engines.process_audio,"supported",lambda:True)
+    monkeypatch.setattr(engines.process_audio,"active_sources",lambda:[ProcessSource(1,1,"All apps",exclude=True),browser])
+    app.default_app_var.set("Zoom.exe")
+    app.refresh_devices()
+    app.capture_kind_buttons["App audio"].invoke()
+    app.listen_combo.current(1)
+    app.persist_current_listen_device()
+    assert app.preferences.get("CAPTURE","app_executable","") == "chrome.exe"
+    app._waiting_meeting_app, app._meeting_timer = True,app.root.after(10000,lambda:None)
+    app.capture_kind_buttons["Device"].invoke()
+    assert not app._waiting_meeting_app and app._meeting_timer is None
+    assert app.selected_listen_choice().raw is device.raw
+    assert app.preferences.get("CAPTURE","device_name","") == "Headphones"
+    app.capture_kind_buttons["App audio"].invoke()
+    assert app.selected_listen_choice().raw is browser
+    app.root.update_idletasks()
+    assert app.root.wm_geometry().split("+")[0] == "800x640"
+    assert all(button.winfo_viewable() for button in app.capture_kind_buttons.values())
+    assert app.listen_combo.winfo_rooty()+app.listen_combo.winfo_height() == app.listen_source_combo.winfo_rooty()+app.listen_source_combo.winfo_height()
+    app.lock_controls(True)
+    assert all(str(button.cget("state")) == "disabled" for button in app.capture_kind_buttons.values())
+    app.lock_controls(False)
+    app.capture_kind_buttons["Device"].invoke()
+    app.preferences.set("CAPTURE","app_executable","")
+    app.capture_kind_buttons["App audio"].invoke()
+    assert app.listen_combo.current() == -1 and "Zoom.exe" in app.listen_combo.get()
+    app.capture_kind_buttons["Device"].invoke()
+    assert app.preferences.get("CAPTURE","app_executable","") == ""
+    app.default_app_var.set("")

@@ -14,8 +14,8 @@ The script creates an isolated CPU-only build environment, runs PyInstaller, che
 
 Outputs:
 
-- Portable ZIP: `output\1.1.5\TranslitoPortable-1.1.5.zip`
-- Installer: `output\1.1.5\TranslitoSetup-1.1.5.exe`
+- Portable ZIP: `output\2.0.0\TranslitoPortable-2.0.0.zip`
+- Installer: `output\2.0.0\TranslitoSetup-2.0.0.exe`
 
 Pass `-BuildRoot <path>` to keep the virtual environment, PyInstaller files, and `output/` on another drive. Use a short path such as `D:\TranslitoBuild`; deeply nested Windows paths can exceed Inno Setup's file path limit.
 

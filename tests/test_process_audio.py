@@ -101,7 +101,7 @@ def test_packaged_bridge_pins_its_current_source_and_binary():
     assert hashlib.sha256((root / pin["source"]).read_bytes()).hexdigest() == pin["source_sha256"]
 
 
-def test_gui_refresh_retains_silent_app_instead_of_broadening_to_all_apps(monkeypatch):
+def test_gui_refresh_retains_silent_app_instead_of_broadening_to_all_apps(monkeypatch,tmp_path):
     import gui
     from device_utils import InputDeviceChoice
     source = ProcessSource(42, 1, "chrome.exe (PID 42)")
@@ -122,8 +122,11 @@ def test_gui_refresh_retains_silent_app_instead_of_broadening_to_all_apps(monkey
     host.listen_choices, host.speak_mic_choices, host.output_choices = [choice], [], []
     host.listen_combo, host.speak_mic_combo, host.speak_output_combo = Combo(0), Combo(), Combo()
     host.listen_source_type_var = SimpleNamespace(get=lambda: "App audio")
+    from settings_state import SettingsState
+    host.preferences = SettingsState(tmp_path/"config.ini")
+    host.default_app_var = SimpleNamespace(get=lambda:"")
     host.speak_mic_var = host.speak_output_var = SimpleNamespace(get=lambda: "")
-    host.app_audio_hint = SimpleNamespace(configure=Mock())
+    host.app_audio_hint = SimpleNamespace(configure=Mock(),grid=Mock(),grid_remove=Mock())
     host.update_routing_banner = Mock()
     monkeypatch.setattr(gui, "query_input_devices", lambda **kwargs: [])
     query_outputs = Mock(return_value=[])

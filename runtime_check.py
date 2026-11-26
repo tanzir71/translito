@@ -9,7 +9,9 @@ import sys
 def check_runtime():
     results = {}
     for name in ("numpy", "torch", "transformers", "faster_whisper",
-                 "sentencepiece", "google.protobuf", "soundcard", "sounddevice"):
+                 "sentencepiece", "google.protobuf", "soundcard", "sounddevice",
+                 "google.genai", "websockets", "httpx2", "icalendar", "recurring_ical_events",
+                 "tzdata", "arabic_reshaper", "bidi", "PIL", "tkinter"):
         try:
             module = importlib.import_module(name)
             if name == "torch":

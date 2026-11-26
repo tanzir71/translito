@@ -11,6 +11,17 @@ def resolve_default_app(executable, sources):
     return next((source for source in sources if not source.exclude and executable_name(source).casefold() == executable.casefold()), None)
 
 
+def preferred_app(app):
+    return app.preferences.get("CAPTURE", "app_executable", "") or app.default_app_var.get()
+
+
+def cancel_wait(app):
+    app._waiting_meeting_app = False
+    if app._meeting_timer is not None:
+        app.root.after_cancel(app._meeting_timer)
+        app._meeting_timer = None
+
+
 def initialize(app):
     app.default_app_var = app.preferences.bind(tk.StringVar(app.root), "CAPTURE", "default_app", "")
     app.if_app_closed_var = app.preferences.bind(tk.StringVar(app.root), "CAPTURE", "if_app_closed", "wait")
@@ -37,22 +48,30 @@ def page(app, colors):
         bg=colors["bg"], fg=colors["tertiary"], wraplength=560, justify="left", anchor="w").pack(fill="x", pady=(6,16))
     refresh()
     capture = field(parent,"Capture source",app.listen_source_type_var,colors,("Device","App audio"))
-    capture.bind("<<ComboboxSelected>>",lambda _event:app.refresh_devices())
+    capture.bind("<<ComboboxSelected>>",lambda _event:app.select_capture_source())
+    app.settings_controls.append(capture)
 
 
 def prepare_source(app):
-    if app.mode_var.get() != "listen" or not app.default_app_var.get() or app.transcriber is not None:
+    if app.mode_var.get() != "listen" or app.transcriber is not None:
+        return True
+    if app.listen_source_type_var.get() != "App audio":
+        cancel_wait(app)
+        return True
+    preferred = preferred_app(app)
+    if not preferred or preferred == "*":
         return True
     from engines.process_audio import active_sources
     from device_utils import InputDeviceChoice
     try:
         sources = active_sources()
-        source = resolve_default_app(app.default_app_var.get(), sources)
-        if source is None and app.if_app_closed_var.get() == "everything":
+        source = resolve_default_app(preferred, sources)
+        explicit_app = app.preferences.get("CAPTURE", "app_executable", "")
+        if source is None and not explicit_app and app.if_app_closed_var.get() == "everything":
             source = next((s for s in sources if s.exclude), None)
         if source is None:
             app._waiting_meeting_app = True
-            app.set_status("Waiting for " + app.default_app_var.get())
+            app.set_status("Waiting for " + preferred)
             app.show_hint("Waiting for your meeting app to play audio. Stop cancels this wait.")
             if app._meeting_timer is not None:
                 app.root.after_cancel(app._meeting_timer)
@@ -62,12 +81,11 @@ def prepare_source(app):
                     app.start()
             app._meeting_timer = app.root.after(1000, poll)
             return False
-        app._waiting_meeting_app = False
+        cancel_wait(app)
         app.meeting_source = source
-        app.listen_source_type_var.set("App audio")
         app.refresh_devices()
         choice = InputDeviceChoice(source.name, source, True, False)
-        app.listen_choices.insert(0, choice)
+        app.listen_choices = [choice] + [item for item in app.listen_choices if item.raw != source]
         app.listen_combo.configure(values=[c.display_name for c in app.listen_choices])
         app.listen_combo.current(0)
         app.show_hint(executable_name(source) + " · your meeting app")
