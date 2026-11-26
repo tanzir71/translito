@@ -6,7 +6,12 @@ import pytest
 import runtime_check
 
 
+_real_import = runtime_check.importlib.import_module
+
+
 def fake_import(name):
+    if name.startswith("tzdata.zoneinfo"):
+        return _real_import(name)
     if name == "torch":
         return SimpleNamespace(tensor=lambda data: SimpleNamespace(
             sum=lambda: SimpleNamespace(item=lambda: sum(data))))
@@ -57,3 +62,10 @@ def test_frozen_repair_guidance_uses_installer(monkeypatch):
     assert "free space" in message
     assert "Windows installer" in message
     assert "pip install" not in message
+
+
+def test_probe_checks_dhaka_zoneinfo_and_tzlocal(monkeypatch):
+    monkeypatch.setattr(runtime_check.importlib, "import_module", fake_import)
+    report = runtime_check.check_runtime()
+    assert report["dependencies"]["tzdata"]["ok"]
+    assert report["dependencies"]["tzlocal"]["ok"]

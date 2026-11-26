@@ -355,3 +355,32 @@ M7.1–M7.2: executable-name meeting app selection and waiting; weekly/iCal sche
 M8.1: bounded structured reply generation, readable ASCII romanization, a repeat choice, main reply strip and bundled phrasebooks for every UI language. Enable on Languages; Gemini suggestions use the connected Gemini text key and the shared budget/usage ledger. Hidden replies make no model call. Mock JSON/token settlement and zero-budget tests only; no cloud replies were generated live.
 
 M8.2: recordable Suggest replies and Say reply 1/2/3 hotkeys, binding labels, native-text Speak output, readable clipboard fallback and a shared subtitle reply tray that follows text size and visibility/fade. Every milestone was verified with python -m pytest -q and pushed to main with [skip ci], as requested. No live key, calendar, device, installer or visual-manual check was used.
+
+# Translito 2.0.1 fixes (2026-11-26)
+
+F1–F5 and F7–F9 are implemented on `codex/v2.1-fixes`: complete dark interaction
+states, local model readiness and safe preload policy, resumable child-process
+downloads with byte progress, a shared preserving settings store and visible
+save feedback, inline metadata-only cloud Connect, exact-size native icons,
+workday scheduling and quiet tray startup, and system-DPI scaled layouts.
+Installer metadata is 2.0.1; no build or publication was performed.
+
+The final review additionally covers existing Hugging Face blob-cache resume,
+windowed frozen-child output, verified-only model publication, UI-thread event
+dispatch, lazy cloud translation fallback and canonical Speak device/voice keys.
+The full F1–F9 regression suite uses fake credentials, HTTP and model downloads;
+external connections and real vault reads are forbidden by the test harness.
+
+See [RELEASE_2_0_1.md](RELEASE_2_0_1.md) for behavior, named coverage, pricing
+corrections and owner checks. It supersedes the older Engine > Run check path,
+the separate-provider-cap setup advice and the discounted Speechmatics price
+described above. Comparison is now under Models > Tools, empty provider limits
+inherit the shared budget, and the undiscounted Speechmatics list price is
+$0.40/hour. Live API, real download, installed icon and workday-start acceptance
+remain for the owner.
+
+F6 verification: 587 tests pass on the standalone fix branch; 803 pass after
+integration with `codex/v3-languages-landing`. The resolved integration retains
+v3 language support and script rendering alongside the fixes. Only the
+`codex/*` branches were pushed for this handback; main, workflows and releases
+were not changed by this fix task.

@@ -332,6 +332,8 @@ class LiveConversationPipeline:
         if self.player:
             self.player.reset_stream()
         self.emit("hint", message)
+        reason = "key rejected" if "key" in message.lower() and "reject" in message.lower() else "budget used up" if "budget" in message.lower() else "couldn't be reached"
+        self.emit("engine_fallback", reason)
         self.emit("engine", {"asr": "Free fallback", "mt": "Free fallback", "fallback": True})
         for state in self.pending:
             if state["entry"]["translation_pending"]:

@@ -146,6 +146,10 @@ class ModelLoadManager:
         offline_only=False,
         on_event=None,
     ):
+        from engines.model_files import DOWNLOADING, whisper_spec, ModelNotReady, Incomplete
+        spec = whisper_spec(whisper_model)
+        if spec.repo in DOWNLOADING:
+            raise ModelNotReady(spec, Incomplete(0, spec.expected_size))
         key = (whisper_model, translation_model, torch_device, str(torch_dtype), bool(offline_only))
         with self._condition:
             if self._maintenance:
@@ -209,23 +213,12 @@ class ModelLoadManager:
     ):
         _emit(on_event, "status", "Loading models")
         fast_model = FAST_WHISPER_MODELS.get(whisper_model)
-        fast_model_path = _local_fast_whisper_model(fast_model) if fast_model else None
-        if whisper_model == CODESWITCH_REPO:
-            fast_model_path = prepared_codeswitch_directory()
-            if fast_model_path is None:
-                if offline_only:
-                    raise FileNotFoundError("Download the Arabic code-switch fallback before using it offline.")
-                fast_model_path = prepare_codeswitch_model(on_event=on_event)
-        if not offline_only:
-            if fast_model_path is None:
-                whisper_repo = fast_whisper_repo(fast_model) if fast_model else whisper_model
-                _download_repo_with_progress(whisper_repo, "Whisper", 0.0, 0.5, on_event)
-            if not translation_model.startswith(("identity:", "translategemma:", "cloud:")):
-                repos = translation_model.split("|")
-                for i, repo in enumerate(repos):
-                    _download_repo_with_progress(repo, "translation", 0.5 + i * 0.5 / len(repos),
-                                                 0.5 / len(repos), on_event)
-
+        from engines.model_files import inspect_model, whisper_spec, Ready, ModelNotReady, Incomplete, Corrupt
+        spec = whisper_spec(whisper_model)
+        status = inspect_model(spec)
+        if not isinstance(status, Ready):
+            raise ModelNotReady(spec, status)
+        fast_model_path = str(status.path)
         _emit(
             on_event,
             "model_progress",
@@ -239,20 +232,22 @@ class ModelLoadManager:
         if fast_model:
             from faster_whisper import WhisperModel
 
-            asr = FastWhisperASR(
-                WhisperModel(
-                    fast_model_path or fast_model,
-                    device="cpu" if torch_device == -1 else "cuda",
+            try:
+                asr = FastWhisperASR(WhisperModel(
+                    fast_model_path, device="cpu" if torch_device == -1 else "cuda",
                     device_index=0 if torch_device == -1 else int(torch_device),
                     compute_type="int8" if torch_device == -1 else "float16",
-                    cpu_threads=physical_cpu_threads(),
-                    local_files_only=offline_only,
-                )
-            )
+                    cpu_threads=physical_cpu_threads(), local_files_only=True))
+            except Exception as error:
+                status = Incomplete() if "Unable to open file 'model.bin'" in str(error) else Corrupt()
+                if isinstance(status, Corrupt):
+                    from engines.model_files import mark_corrupt
+                    mark_corrupt(fast_model_path)
+                raise ModelNotReady(spec, status) from None
             if whisper_model == CODESWITCH_REPO:
                 asr.provider = "arabic-codeswitch-ct2"
         else:
-            asr_kwargs = {"model": whisper_model, "device": torch_device}
+            asr_kwargs = {"model": fast_model_path, "device": torch_device, "local_files_only": True}
             if torch_dtype is not None:
                 asr_kwargs["torch_dtype"] = torch_dtype
             try:
@@ -275,13 +270,11 @@ class ModelLoadManager:
         if translation_model.startswith(("translategemma:", "cloud:")):
             from engines.mt_quality import BoundLocalTranslator, LocalQualityTranslator
             _, source, target = translation_model.split(":")
-            translator_engine = LocalQualityTranslator(offline_only=offline_only, device=torch_device,
+            translator_engine = LocalQualityTranslator(offline_only=True, device=torch_device,
                                                        on_hint=lambda hint: _emit(on_event, "hint", hint))
-            if not translation_model.startswith("cloud:"):
-                translator_engine.preload(source, target)
             translator = BoundLocalTranslator(translator_engine, source, target)
         else:
-            translator = LocalOpusPipeline(translation_model, device=torch_device, offline_only=offline_only)
+            translator = LocalOpusPipeline(translation_model, device=torch_device, offline_only=True)
         _emit(on_event, "model_progress", {"phase": "Models ready", "fraction": 1.0})
         return LoadedModels(
             key=(whisper_model, translation_model, torch_device, str(torch_dtype), bool(offline_only)),

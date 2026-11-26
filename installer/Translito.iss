@@ -1,6 +1,7 @@
+#include "app_identity.iss"
 #define MyAppName "Translito"
 #define MyAppExeName "Translito.exe"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.0.1"
 #ifndef RuntimeBytes
   #error "Build with build_windows.ps1 so the runtime disk requirement is measured."
 #endif
@@ -43,15 +44,15 @@ Source: "redist\vbcable\*"; DestDir: "{app}\redist\vbcable"; Flags: ignoreversio
 Source: "vbcable.sha256"; DestDir: "{app}\redist\vbcable"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; AppUserModelID: "{#AppUserModelID}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; AppUserModelID: "{#AppUserModelID}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 Filename: "https://vb-audio.com/Services/licensing.htm"; Description: "Support VB-Audio / donate for VB-CABLE"; Flags: shellexec postinstall skipifsilent unchecked
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Translito"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: startup; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Translito"; ValueData: """{app}\{#MyAppExeName}"" --tray"; Tasks: startup; Flags: uninsdeletevalue
 
 [Code]
 const

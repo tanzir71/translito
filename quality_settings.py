@@ -1,4 +1,5 @@
 """Local model setup and Terms editor, using the app's Tk style."""
+from ui_scale import px, scaled_geometry
 from pathlib import Path
 import shutil
 import tempfile
@@ -14,7 +15,10 @@ from engines.glossary import Glossary
 
 
 def _window(app, title, colors, center, width, height):
+    width, height = px((width, height))
     window = tk.Toplevel(app.root)
+    from ui_theme import apply_theme
+    apply_theme(window, app.style, colors)
     window.title(title)
     window.configure(bg=colors["bg"])
     window.transient(app.root)
@@ -27,28 +31,28 @@ def _window(app, title, colors, center, width, height):
 
 def _entry(parent, label, variable, colors, *, secret=False):
     row = tk.Frame(parent, bg=colors["bg"])
-    row.pack(fill="x", pady=5)
-    tk.Label(row, text=label, bg=colors["bg"], fg=colors["text"], anchor="w", width=17).pack(side="left")
+    row.pack(fill="x", pady=px(5))
+    tk.Label(row, text=label, bg=colors["bg"], fg=colors["text"], anchor="w", width=px(17, chars=True)).pack(side="left")
     field = tk.Entry(row, textvariable=variable, show="•" if secret else "", bg=colors["field"],
                      fg=colors["text"], insertbackground=colors["text"], relief="flat")
-    field.pack(side="left", fill="x", expand=True, ipady=6)
+    field.pack(side="left", fill="x", expand=True, ipady=px(6))
     return field
 
 
 def open_cohere_setup(app, colors, center):
     window = _window(app, "Set up Saudi Arabic recognition", colors, center, 600, 510)
-    body = tk.Frame(window, bg=colors["bg"], padx=18, pady=18)
+    body = tk.Frame(window, bg=colors["bg"], padx=px(18), pady=px(18))
     body.pack(fill="both", expand=True)
     tk.Label(body, text="Cohere Transcribe Arabic", bg=colors["bg"], fg=colors["text"],
              font=("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
     tk.Label(body, text="Recommended for Saudi Arabic and English in the same conversation. "
              "It runs on your PC. Downloading the model does not upload meeting audio.",
-             bg=colors["bg"], fg=colors["secondary"], wraplength=555, justify="left").pack(fill="x", pady=8)
+             bg=colors["bg"], fg=colors["secondary"], wraplength=px(555), justify="left").pack(fill="x", pady=px(8))
     ttk.Button(body, text="1. Review and accept the Hugging Face model conditions", style="Mac.TButton",
-               command=lambda: webbrowser.open(MODEL_TERMS_URL)).pack(anchor="w", pady=5)
+               command=lambda: webbrowser.open(MODEL_TERMS_URL)).pack(anchor="w", pady=px(5))
     accepted = tk.BooleanVar(value=False)
     tk.Checkbutton(body, text="I accepted the model conditions on Hugging Face", variable=accepted,
-                    **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=5)
+                    **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=px(5))
     key, folder, status = tk.StringVar(), tk.StringVar(), tk.StringVar(value="Read tokens are saved only in Windows Credential Manager.")
     cache = load_cohere_cache_dir() or str(CONFIG_FILE.parent / "models" / "cohere")
     # The user sees and can change this path before an explicit download.
@@ -58,7 +62,7 @@ def open_cohere_setup(app, colors, center):
     _entry(body, "2. HF read token", key, colors, secret=True)
     _entry(body, "Model folder", folder, colors)
     buttons = tk.Frame(body, bg=colors["bg"])
-    buttons.pack(fill="x", pady=6)
+    buttons.pack(fill="x", pady=px(6))
 
     def browse():
         selected = filedialog.askdirectory(parent=window, title="Choose model cache folder")
@@ -68,9 +72,6 @@ def open_cohere_setup(app, colors, center):
     ttk.Button(buttons, text="Choose folder", style="Mac.TButton", command=browse).pack(side="left")
 
     def download():
-        if app.transcriber is not None or app.model_setup_busy:
-            status.set("Finish the current session or model setup first.")
-            return
         if app.preview_mode:
             status.set("Preview only: no key is saved and no download starts.")
             return
@@ -99,60 +100,25 @@ def open_cohere_setup(app, colors, center):
         except Exception as exc:
             status.set(str(exc))
             return
-        download_button.configure(state="disabled")
-        fallback_button.configure(state="disabled")
-        status.set("Downloading and preparing the model…")
-        app.model_setup_busy = True
-        app.set_status("Loading models")
-        app.update_action_button(running=False, loading=True)
-
-        def work():
-            success = False
-            try:
-                import torch
-                from engines.asr_local import get_cohere_model
-                model = get_cohere_model(device="cuda:0" if torch.cuda.is_available() else "cpu",
-                                          cache_dir=str(chosen), on_event=app.on_event)
-                model.offline_only = False
-                model.credentials = credentials
-                try:
-                    model.load()
-                finally:
-                    model.offline_only = True
-                success = True
-            except Exception:
-                # Download SDK errors may contain auth information; never show
-                # their exception text or traceback in this provider card.
-                pass
-
-            def finish():
-                app.model_setup_busy = False
-                app.finish_model_progress()
-                app.set_status("Ready")
-                app.update_action_button(running=False)
-                if window.winfo_exists():
-                    download_button.configure(state="normal")
-                    fallback_button.configure(state="normal")
-                    status.set("Model ready. Your next Arabic/English session will use it." if success else
-                               "Model setup failed. Check model access, the read token and free disk space, then retry.")
-
-            try:
-                app.root.after(0, finish)
-            except (RuntimeError, tk.TclError):
-                pass
-
-        threading.Thread(target=work, daemon=True).start()
+        from engines.model_library import ModelSpec
+        from engines.asr_cohere_local import MODEL_ID
+        try:
+            app.download_manager.enqueue_model(ModelSpec("cohere", "Cohere Arabic", "Speech", MODEL_ID,
+                "transformers", chosen, expected_size=7000000000), credential="huggingface")
+            status.set("Downloading in the background. You can close this window.")
+        except (ValueError, OSError) as error:
+            status.set(str(error))
 
     download_button = ttk.Button(buttons, text="3. Save key and download", style="Primary.TButton", command=download)
     download_button.pack(side="right")
-    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"], wraplength=550,
-             justify="left", anchor="w").pack(fill="x", pady=8)
+    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"], wraplength=px(550),
+             justify="left", anchor="w").pack(fill="x", pady=px(8))
     tk.Label(body, text="Lower-memory alternative: an Arabic/English Whisper model tuned on Egyptian speech. "
              "It needs no Hugging Face token, but may be weaker on Saudi dialects.", bg=colors["bg"],
-             fg=colors["secondary"], wraplength=550, justify="left").pack(fill="x", pady=(10, 5))
+             fg=colors["secondary"], wraplength=px(550), justify="left").pack(fill="x", pady=px((10, 5)))
 
     def download_fallback():
-        if app.preview_mode or app.transcriber is not None or app.model_setup_busy:
+        if app.preview_mode:
             status.set("Stop the session to download. Preview mode does not download models.")
             return
         try:
@@ -161,39 +127,13 @@ def open_cohere_setup(app, colors, center):
         except Exception:
             status.set("Choose an absolute model folder with enough free disk space.")
             return
-        fallback_button.configure(state="disabled")
-        download_button.configure(state="disabled")
-        app.set_status("Loading models")
-        app.update_action_button(running=False, loading=True)
-        status.set("Downloading the Arabic/English fallback…")
-        app.model_setup_busy = True
-
-        def work():
-            success = False
-            try:
-                from engines.asr_codeswitch import prepare_codeswitch_model
-                prepare_codeswitch_model(on_event=app.on_event)
-                success = True
-            except Exception:
-                pass
-
-            def finish():
-                app.model_setup_busy = False
-                app.finish_model_progress()
-                app.set_status("Ready")
-                app.update_action_button(running=False)
-                if window.winfo_exists():
-                    fallback_button.configure(state="normal")
-                    download_button.configure(state="normal")
-                    status.set("Fallback ready. It will be used when Cohere Arabic is unavailable." if success else
-                               "Fallback setup failed. Check your connection and free disk space, then retry.")
-
-            try:
-                app.root.after(0, finish)
-            except (RuntimeError, tk.TclError):
-                pass
-
-        threading.Thread(target=work, daemon=True).start()
+        from engines.model_files import whisper_spec
+        try:
+            from engines.asr_codeswitch import CODESWITCH_REPO
+            app.download_manager.enqueue_model(whisper_spec(CODESWITCH_REPO))
+            status.set("Downloading in the background. You can close this window.")
+        except (ValueError, OSError) as error:
+            status.set(str(error))
 
     fallback_button = ttk.Button(body, text="Download the Arabic/English fallback", style="Mac.TButton",
                                   command=download_fallback)
@@ -202,220 +142,23 @@ def open_cohere_setup(app, colors, center):
 
 
 def open_translategemma_setup(app, colors, center):
-    from engines.mt_translategemma import GEMMA_TERMS_URL, configured_model_path, enough_ram
-    window = _window(app, "Set up local translation", colors, center, 600, 420)
-    body = tk.Frame(window, bg=colors["bg"], padx=18, pady=18)
-    body.pack(fill="both", expand=True)
-    tk.Label(body, text="TranslateGemma 4B", bg=colors["bg"], fg=colors["text"],
-             font=("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
-    tk.Label(body, text="Optional local translation for Arabic, English and the other conversation languages. "
-             "The 2.5 GB model needs at least 8 GB RAM and 4 GB free disk space. "
-             "Your meeting audio and text stay on this PC.", bg=colors["bg"], fg=colors["secondary"],
-             wraplength=550, justify="left").pack(fill="x", pady=10)
-    ttk.Button(body, text="Review the Gemma Terms of Use", style="Mac.TButton",
-               command=lambda: webbrowser.open(GEMMA_TERMS_URL)).pack(anchor="w", pady=4)
-    accepted = tk.BooleanVar(value=False)
-    tk.Checkbutton(body, text="I have read and accept the Gemma Terms of Use", variable=accepted,
-                   **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=5)
-    model_path = configured_model_path()
-    folder = tk.StringVar(value=str(model_path.parent))
-    if not model_path.is_file() and Path("D:/").exists() and shutil.disk_usage(Path("D:/")).free > 4 * 2**30:
-        folder.set("D:/TranslitoModels/translategemma")
-    _entry(body, "Model folder", folder, colors)
-    status = tk.StringVar(value="No download starts until you accept the terms and press Download.")
-
-    def browse():
-        selected = filedialog.askdirectory(parent=window, title="Choose model folder")
-        if selected:
-            folder.set(selected)
-
-    def download():
-        if app.preview_mode:
-            status.set("Preview only: no download starts and no settings are saved.")
-            return
-        if app.transcriber is not None or app.model_setup_busy:
-            status.set("Finish the current session or model setup first.")
-            return
-        if not accepted.get():
-            status.set("Review and accept the Gemma Terms of Use first.")
-            return
-        try:
-            if not enough_ram():
-                raise ValueError("This model needs at least 8 GB RAM. Lite translation remains available.")
-            chosen = Path(folder.get()).expanduser()
-            if not chosen.is_absolute():
-                raise ValueError("Choose an absolute folder for the model.")
-            existing = chosen
-            while not existing.exists() and existing.parent != existing:
-                existing = existing.parent
-            if not existing.is_dir() or shutil.disk_usage(existing).free < 4 * 2**30:
-                raise ValueError("Choose a folder on an available drive with at least 4 GB free.")
-        except (OSError, ValueError) as exc:
-            status.set(str(exc))
-            return
-        app.model_setup_busy = True
-        app.set_status("Loading models")
-        app.update_action_button(running=False, loading=True)
-        download_button.configure(state="disabled")
-        status.set("Downloading and verifying TranslateGemma…")
-
-        def work():
-            success = False
-            try:
-                from app_config import save_translategemma_path
-                from engines.mt_translategemma import download_model, cached_translator
-                downloaded = download_model(chosen, accepted_terms=True, on_event=app.on_event)
-                cached_translator(str(downloaded)).warmup()
-                # Publish the path only after integrity, template and load checks.
-                save_translategemma_path(downloaded)
-                success = True
-            except Exception:
-                pass
-
-            def finish():
-                app.model_setup_busy = False
-                app.finish_model_progress()
-                app.set_status("Ready")
-                app.update_action_button(running=False)
-                if window.winfo_exists():
-                    download_button.configure(state="normal")
-                    status.set("TranslateGemma is ready for your next session." if success else
-                               "Model setup failed. Check your connection, memory and free disk space. "
-                               "Existing model files and settings were preserved.")
-            try:
-                app.root.after(0, finish)
-            except (RuntimeError, tk.TclError):
-                pass
-
-        threading.Thread(target=work, daemon=True).start()
-
-    buttons = tk.Frame(body, bg=colors["bg"])
-    buttons.pack(fill="x", pady=6)
-    ttk.Button(buttons, text="Choose folder", style="Mac.TButton", command=browse).pack(side="left")
-    download_button = ttk.Button(buttons, text="Download and prepare", style="Primary.TButton", command=download)
-    download_button.pack(side="right")
-    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"],
-             wraplength=550, justify="left", anchor="w").pack(fill="x", pady=10)
-    return window
-
-
-def open_speed_check(app, colors, center, *, first_run=False):
-    from engines.hardware import record_speed_check, run_speed_check
-    window = _window(app, "Choose local recognition speed", colors, center, 600, 360)
-    body = tk.Frame(window, bg=colors["bg"], padx=18, pady=18)
-    body.pack(fill="both", expand=True)
-    tk.Label(body, text="Check this PC before your first meeting", bg=colors["bg"], fg=colors["text"],
-             font=("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
-    tk.Label(body, text="Decode a bundled 8-second Arabic sample with Whisper Turbo on the CPU. "
-             "This checks speed, not Saudi accuracy. It does not record or upload audio. "
-             "You can skip this and keep your current model.", bg=colors["bg"],
-             fg=colors["secondary"], wraplength=550, justify="left").pack(fill="x", pady=10)
-    allow_download = tk.BooleanVar(value=False)
-    tk.Checkbutton(body, text="Download Turbo if missing (about 1.6 GB)", variable=allow_download,
-                   **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=6)
-    status = tk.StringVar(value="Without this checkbox, the check uses already-cached weights only.")
-    recommendation, recorded, closed = [None], [False], [False]
-
-    def close():
-        closed[0] = True
-        if first_run and not recorded[0] and not app.preview_mode:
-            try:
-                from datetime import datetime, timezone
-                record_speed_check({"event": "deferred", "created_utc": datetime.now(timezone.utc).isoformat()})
-            except (OSError, ValueError):
-                pass
-        window.destroy()
-        if first_run and not app.model_setup_busy:
-            app.preload_current_models()
-
-    window.protocol("WM_DELETE_WINDOW", close)
-
-    def run():
-        if app.preview_mode:
-            status.set("Preview only: no model loads, downloads or history writes.")
-            return
-        if app.transcriber is not None or app.model_setup_busy:
-            status.set("Finish the current session or model setup first.")
-            return
-        permit_download = allow_download.get()
-        if permit_download and app.offline_only_var.get():
-            status.set("Offline mode is on. Use cached weights or turn it off before downloading.")
-            return
-        app.model_setup_busy = True
-        app.set_status("Loading models")
-        app.update_action_button(running=False, loading=True)
-        run_button.configure(state="disabled")
-        status.set("Checking Turbo speed. The first model load can take a while…")
-
-        def work():
-            result = None
-            try:
-                result = run_speed_check(allow_download=permit_download, on_event=app.on_event)
-                record_speed_check(result)
-                recorded[0] = True
-            except Exception:
-                pass
-
-            def finish():
-                app.model_setup_busy = False
-                app.finish_model_progress()
-                app.set_status("Ready")
-                app.update_action_button(running=False)
-                if closed[0]:
-                    if first_run:
-                        app.preload_current_models()
-                    return
-                run_button.configure(state="normal")
-                if result is None:
-                    status.set("Check could not run. Turbo may not be cached. You can use Small now "
-                               "or allow the download and retry.")
-                else:
-                    recommendation[0] = result["recommended_model"]
-                    slow = result["rtf"] > .6
-                    status.set(f"8 seconds decoded in {result['decode_seconds']:.1f}s (RTF {result['rtf']:.2f}). "
-                               + ("Small is recommended: Turbo leaves too little headroom for live translation."
-                                  if slow else "Turbo has enough headroom on this sample. Actual meetings may differ."))
-                    use_button.configure(state="normal", text="Use Small" if slow else "Use Turbo")
-            try:
-                app.root.after(0, finish)
-            except (RuntimeError, tk.TclError):
-                pass
-
-        threading.Thread(target=work, daemon=True).start()
-
-    def use():
-        app.whisper_var.set(recommendation[0])
-        app.quality_var.set("Balanced" if recommendation[0].endswith("small") else "Best")
-        app.persist_settings()
-        close()
-
-    buttons = tk.Frame(body, bg=colors["bg"])
-    buttons.pack(fill="x", pady=8)
-    run_button = ttk.Button(buttons, text="Run speed check", style="Primary.TButton", command=run)
-    run_button.pack(side="left")
-    use_button = ttk.Button(buttons, text="Use recommendation", style="Mac.TButton", command=use, state="disabled")
-    use_button.pack(side="left", padx=8)
-    ttk.Button(buttons, text="Later" if first_run else "Close", style="Mac.TButton", command=close).pack(side="right")
-    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"],
-             wraplength=550, justify="left", anchor="w").pack(fill="x", pady=10)
-    return window
+    from download_ui import gemma_dialog
+    return gemma_dialog(app, colors, center)
 
 
 def open_terms_editor(app, colors, center):
     path = Path(tempfile.gettempdir()) / "Translito-preview" / "glossary.json" if app.preview_mode else None
     glossary = Glossary(path)
     window = _window(app, "Terms", colors, center, 800, 560)
-    body = tk.Frame(window, bg=colors["bg"], padx=16, pady=16)
+    body = tk.Frame(window, bg=colors["bg"], padx=px(16), pady=px(16))
     body.pack(fill="both", expand=True)
     tk.Label(body, text="English terms and Arabic spellings", bg=colors["bg"], fg=colors["text"],
              font=("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
     tk.Label(body, text="Terms guide recognition and translation. Disabling a term preserves it in your glossary.",
-             bg=colors["bg"], fg=colors["secondary"], anchor="w").pack(fill="x", pady=(4, 10))
+             bg=colors["bg"], fg=colors["secondary"], anchor="w").pack(fill="x", pady=px((4, 10)))
     table_host = tk.Frame(body, bg=colors["bg"])
     table_host.pack(fill="both", expand=True)
-    app.style.configure("Terms.Treeview", background=colors["field"], fieldbackground=colors["field"],
-                        foreground=colors["text"], rowheight=26, borderwidth=0)
-    app.style.map("Terms.Treeview", background=[("selected", colors["blue"])])
+
     tree = ttk.Treeview(table_host, columns=("english", "spellings", "translation"),
                         show="headings", style="Terms.Treeview", selectmode="browse")
     for column, title, width in (("english", "English term", 180), ("spellings", "Arabic spellings", 300),
@@ -500,9 +243,9 @@ def open_terms_editor(app, colors, center):
             status.set("Term disabled and preserved in the glossary.")
 
     buttons = tk.Frame(body, bg=colors["bg"])
-    buttons.pack(fill="x", pady=8)
+    buttons.pack(fill="x", pady=px(8))
     for text, command in (("Add term", add), ("Save term", save), ("Disable term", disable)):
-        ttk.Button(buttons, text=text, style="Mac.TButton", command=command).pack(side="left", padx=(0, 8))
+        ttk.Button(buttons, text=text, style="Mac.TButton", command=command).pack(side="left", padx=px((0, 8)))
     tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"], anchor="w").pack(fill="x")
     refresh()
     return window

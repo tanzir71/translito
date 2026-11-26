@@ -9,9 +9,9 @@ RUN_VALUE_NAME = "Translito"
 
 def default_startup_command():
     if getattr(sys, "frozen", False):
-        return f'"{sys.executable}"'
+        return f'"{sys.executable}" --tray'
     gui_path = Path(__file__).with_name("gui.py")
-    return f'"{sys.executable}" "{gui_path}"'
+    return f'"{sys.executable}" "{gui_path}" --tray'
 
 
 def is_open_at_login_enabled(command=None):
@@ -51,3 +51,20 @@ def set_open_at_login(enabled, command=None):
         return True, ""
     except Exception as exc:
         return False, str(exc)
+
+
+def migrate_startup_command(*, registry=None):
+    if os.name != "nt" and registry is None:
+        return False
+    if registry is None:
+        import winreg as registry
+    try:
+        with registry.OpenKey(registry.HKEY_CURRENT_USER, RUN_KEY, 0, registry.KEY_READ | registry.KEY_SET_VALUE) as key:
+            old, _ = registry.QueryValueEx(key, RUN_VALUE_NAME)
+            expected = default_startup_command()
+            if old == expected.removesuffix(" --tray"):
+                registry.SetValueEx(key, RUN_VALUE_NAME, 0, registry.REG_SZ, expected)
+                return True
+    except (OSError, ValueError):
+        pass
+    return False

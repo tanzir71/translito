@@ -20,6 +20,7 @@ hiddenimports = [
     "silero_vad",
     "faster_whisper",
     "ctranslate2",
+    "tzlocal",
 ]
 
 # These packages load backends dynamically. Limit collection to the two
@@ -41,7 +42,7 @@ a = Analysis(
     [str(repo_root / "gui.py")],
     pathex=[str(repo_root)],
     binaries=collect_dynamic_libs("llama_cpp") + collect_dynamic_libs("engines"),
-    datas=[("Translito.ico", "."), *collect_data_files("silero_vad"),
+    datas=[("Translito.ico", "."), *collect_data_files("silero_vad"), *collect_data_files("tzdata"),
            (str(repo_root / "engines" / "data"), "engines/data")],
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -75,6 +76,7 @@ exe = EXE(
     name="Translito",
     icon="Translito.ico",
     version="version_info.txt",
+    manifest=str(Path(SPECPATH) / "Translito.manifest"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

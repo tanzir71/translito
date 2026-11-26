@@ -38,6 +38,14 @@ def chunk():
     return AudioChunkResult("audio", np.ones(16000, np.float32) * .1, 16000, .1, .1)
 
 
+def test_rejected_key_fallback_is_explained_to_the_desktop():
+    item = setup()
+    item.pipeline.events.put(("fallback", "The provider key was rejected. Continuing on this PC."))
+    item.pipeline.poll()
+    assert ("engine_fallback", "key rejected") in item.events
+    assert not item.pipeline.live
+
+
 def test_listen_english_is_source_only_and_never_translated_or_spoken():
     item = setup()
     item.event("input_transcription", text="The API works.", language="en", finished=True)

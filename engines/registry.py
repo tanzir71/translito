@@ -31,6 +31,11 @@ class ProviderFactory:
     language_checked_on: str = ""
     language_evidence: str = ""
 
+    @property
+    def display_hourly_rate(self):
+        from decimal import Decimal
+        return Decimal(".18") if self.name == "soniox" else self.rate.per_audio_hour if self.rate else Decimal(0)
+
     def unavailable_reason(self, source, target):
         from engines.languages import canonical_code
         source, target = canonical_code(source), canonical_code(target)
@@ -97,7 +102,7 @@ def provider_factories():
         ProviderFactory("speechmatics", "live", build_speechmatics, "Speechmatics Melia + translator", "paid",
             privacy_note="Gated speech is sent to Speechmatics; recognized text goes to the selected translator.",
             setup_url="https://portal.speechmatics.com/", mixed_speech=True, streaming=True,
-            billing_mode="open_stream", models=("melia-1",), rate=Rate(per_audio_hour=Decimal(".20")), rate_checked_on=RATE_CHECKED_ON),
+            billing_mode="open_stream", models=("melia-1",), rate=Rate(per_audio_hour=Decimal(".40")), rate_checked_on=RATE_CHECKED_ON),
     )
     from engines.language_support import CHECKED_ON, EVIDENCE, supported_codes
     result = []
@@ -135,6 +140,8 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
             if pair and factory.unavailable_reason(*pair):
                 continue
             if not preference.enabled:
+                continue
+            if preference.account_kind == "paid" and (settings.monthly_cap <= 0 or preference.monthly_cap <= 0):
                 continue
             if not preference.tested_signature:
                 emit("hint", f"{factory.name}: Test the key in Settings before enabling cloud requests.")
@@ -201,6 +208,12 @@ def configured_live_interpreter(settings, *, offline_only=False, credentials=Non
         name = defaults["default_asr_provider"] or "soniox"
         if name == "local" or any(f.name == name and f.kind == "asr" for f in provider_factories()):
             return None
+        from engines.engine_status import engine_status
+        status = engine_status(settings, pair or ("", ""), block_all=offline_only,
+                               usage=ledger.snapshot() if ledger else None)
+        if status.reason:
+            emit("engine_fallback", status.reason)
+            return None
         preference = settings.provider(name)
         if not preference.enabled or not preference.tested_signature:
             emit("hint", f"{name}: Connect and Test the selected provider. Continuing on this PC.")
@@ -223,7 +236,8 @@ def configured_live_interpreter(settings, *, offline_only=False, credentials=Non
         except Exception:
             emit("hint", "The selected cloud engine is unavailable or its tested key changed. Continuing on this PC.")
             return None
-    if offline_only or settings.profile != "live-preview":
+    free_live = settings.engine_choice == "free" and settings.resolve(*(pair or ("", "")))["default_asr_provider"] == "gemini-live"
+    if offline_only or (settings.profile != "live-preview" and not free_live):
         return None
     emit = on_event or (lambda *a: None)
     preference = settings.provider("gemini-live")

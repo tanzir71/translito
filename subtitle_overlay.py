@@ -1,4 +1,5 @@
 """Non-activating desktop captions; all OS calls have an injectable boundary."""
+from ui_scale import px, scaled_geometry
 from dataclasses import dataclass
 import ctypes
 import re
@@ -111,6 +112,8 @@ class SubtitleOverlay:
         self.backend, self.clock = backend or Win32Overlay(), clock
         self.on_hide, self.on_open = on_hide, on_open
         self.window = tk.Toplevel(root)
+        from windows_icons import apply_window_icon
+        self.window.after_idle(lambda: apply_window_icon(self.window))
         self.window.withdraw()
         self.window.overrideredirect(True)
         self.window.attributes("-topmost", True)
@@ -119,21 +122,21 @@ class SubtitleOverlay:
         for label, command in (("Pause", self.pause), ("−", lambda: self.resize_text(-2)), ("+", lambda: self.resize_text(2)),
                                ("Move", self.enable_move), ("Open app", on_open), ("Hide", on_hide)):
             tk.Button(self.toolbar, text=label, command=command, bg=colors["black"], fg=colors["secondary"],
-                activebackground=colors["field"], activeforeground=colors["text"], relief="flat", bd=0, padx=8, pady=3).pack(side="left")
-        self.content = tk.Frame(self.window, bg=colors["black"], padx=16, pady=10)
+                activebackground=colors["field"], activeforeground=colors["text"], relief="flat", bd=0, padx=px(8), pady=px(3)).pack(side="left")
+        self.content = tk.Frame(self.window, bg=colors["black"], padx=px(16), pady=px(10))
         self.content.pack(fill="both", expand=True)
-        self.labels = [tk.Label(self.content, bg=colors["black"], fg=colors["text"], wraplength=688, justify="center") for _ in range(4)]
-        self.reply_tray = tk.Frame(self.window, bg=colors["black"], padx=12, pady=8)
+        self.labels = [tk.Label(self.content, bg=colors["black"], fg=colors["text"], wraplength=px(688), justify="center") for _ in range(4)]
+        self.reply_tray = tk.Frame(self.window, bg=colors["black"], padx=px(12), pady=px(8))
         self.entries, self.last_text = [], ""
         self.updated, self.paused, self.hovering = None, False, False
         self.monitor = self.backend.monitors(root)[0]
-        self.window.geometry("720x90")
+        self.window.geometry(scaled_geometry("720x90"))
         self.restore_position(self.monitor)
         self.window.bind("<ButtonPress-1>", self.drag_start)
         self.window.bind("<B1-Motion>", self.drag)
         self.window.bind("<ButtonRelease-1>", self.drag_end)
         self.window.update_idletasks()
-        self.window.geometry(f"720x{max(64, self.window.winfo_reqheight())}")
+        self.window.geometry(f"{px(720)}x{max(px(64), self.window.winfo_reqheight())}")
         self.apply_styles()
 
     def option(self, key, default):
@@ -175,13 +178,13 @@ class SubtitleOverlay:
             from engines.display import configure_language_text
             code = entry.get("target_language") if entry.get("translated_text") else entry.get("source_language")
             configure_language_text(label, text, code, round(size*.75 if current else size*.56), semibold=current)
-            label.pack(fill="x", pady=2)
+            label.pack(fill="x", pady=px(2))
         if rows and self.option("show_original", False) and rows[-1].get("translated_text"):
             self.labels[3].configure(text=display_text(rows[-1].get("source_text", "")), fg=self.colors["secondary"], font=("Segoe UI", 10))
             configure_language_text(self.labels[3], rows[-1].get("source_text", ""), rows[-1].get("source_language"), 10)
-            self.labels[3].pack(fill="x", pady=2)
+            self.labels[3].pack(fill="x", pady=px(2))
         self.window.update_idletasks()
-        self.window.geometry(f"720x{max(64, self.window.winfo_reqheight())}")
+        self.window.geometry(f"{px(720)}x{max(px(64), self.window.winfo_reqheight())}")
         self.apply_styles()
 
     def visible(self, enabled, *, listening, minimized):
@@ -221,10 +224,10 @@ class SubtitleOverlay:
         self.monitor = monitor
         value = self.preferences.get("SUBTITLES", self.position_key(monitor), "")
         match = re.fullmatch(r"(-?\d+),(-?\d+)", value)
-        x, y = map(int, match.groups()) if match else ((monitor.left+monitor.right-720)//2, monitor.bottom-170)
-        x = max(monitor.left, min(x, monitor.right-720))
-        y = max(monitor.top, min(y, monitor.bottom-120))
-        self.window.geometry(f"720x90{x:+d}{y:+d}")
+        x, y = map(int, match.groups()) if match else ((monitor.left+monitor.right-px(720))//2, monitor.bottom-px(170))
+        x = max(monitor.left, min(x, monitor.right-px(720)))
+        y = max(monitor.top, min(y, monitor.bottom-px(120)))
+        self.window.geometry(f"{px(720)}x{px(90)}{x:+d}{y:+d}")
 
     def drag_start(self, event):
         self._drag = event.x_root-self.window.winfo_x(), event.y_root-self.window.winfo_y()
@@ -311,11 +314,11 @@ def build_subtitle_page(app, colors):
     page = app.settings_shell.contents["Subtitles"]
     heading(page, "Subtitles on screen", "Show translations over any window, including when Translito is minimized to the tray.", colors)
     row = tk.Frame(page, bg=colors["bg"])
-    row.pack(fill="x", pady=10)
+    row.pack(fill="x", pady=px(10))
     tk.Label(row, text="Show subtitles on screen", bg=colors["bg"], fg=colors["text"]).pack(side="left")
     Switch(row, app.subtitles_enabled_var, colors).pack(side="right")
-    preview = tk.Label(page, text="Previous translation\nCurrent translation", bg=colors["black"], fg=colors["text"], font=("Segoe UI", 12), pady=16)
-    preview.pack(fill="x", pady=14)
+    preview = tk.Label(page, text="Previous translation\nCurrent translation", bg=colors["black"], fg=colors["text"], font=("Segoe UI", 12), pady=px(16))
+    preview.pack(fill="x", pady=px(14))
     for key, label, default, values in (
         ("show_when", "Show", "listening", ("listening", "minimized")),
         ("lines", "Lines", 2, (1,2,3)), ("text_size", "Text size", 24, (16,20,24,28,32,40,48)),
@@ -328,4 +331,4 @@ def build_subtitle_page(app, colors):
         ("click_through", "Let clicks pass through to the window underneath", True),
         ("hide_from_capture", "Hide subtitles from screen sharing", False)):
         variable = app.preferences.bind(tk.BooleanVar(app.root), "SUBTITLES", key, default)
-        tk.Checkbutton(page, text=label, variable=variable, **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=6)
+        tk.Checkbutton(page, text=label, variable=variable, **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=px(6))

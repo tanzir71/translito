@@ -89,7 +89,7 @@ def _legacy_config_paths():
     return (app_dir / "config.ini", Path.cwd() / "config.ini")
 
 
-def read_config(path=None):
+def _read_config(path=None):
     config = configparser.ConfigParser()
     config_path = _path(path)
     candidates = (config_path,)
@@ -101,7 +101,7 @@ def read_config(path=None):
     return config
 
 
-def write_config(config, path=None):
+def _write_config(config, path=None):
     config_path = _path(path)
     candidates = (config_path,) if config_path.exists() else (
         _legacy_config_paths() if config_path == CONFIG_FILE else ())
@@ -139,6 +139,14 @@ def write_config(config, path=None):
             else:
                 content += (newline if content and not content.endswith("\n") else "") + f"{key} = {value}{newline}"
             updated = updated[:start] + content + updated[end:]
+    for section, key in getattr(config, "_translito_deleted", ()):
+        headers = list(re.finditer(r"(?m)^\[([^\]\r\n]+)\][^\r\n]*(?:\r?\n|$)", updated))
+        index = next((i for i, match in enumerate(headers) if match[1] == section), None)
+        if index is not None:
+            start = headers[index].end()
+            end = headers[index+1].start() if index+1 < len(headers) else len(updated)
+            content = re.sub(r"(?mi)^" + re.escape(key) + r"\s*[:=][^\r\n]*(?:\r?\n|$)", "", updated[start:end])
+            updated = updated[:start] + content + updated[end:]
     encoded = updated.encode("utf-8")
     if config_path.exists() and encoded == original:
         return
@@ -155,6 +163,16 @@ def write_config(config, path=None):
     finally:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
+
+
+def read_config(path=None):
+    from settings_store import SettingsStore
+    return SettingsStore(path).read()
+
+
+def write_config(config, path=None):
+    from settings_store import SettingsStore
+    return SettingsStore(path).commit(config)
 
 
 def _ensure_section(config, section):
@@ -239,44 +257,11 @@ def migrate_conversation_config(path=None):
 
 
 def append_missing_settings(section, defaults, path=None):
-    """Add migration defaults without rewriting any existing byte or value."""
-    config_path = _path(path)
-    existing = read_config(path)
-    missing = {key: value for key, value in defaults.items()
-               if not existing.has_option(section, key)}
-    if not missing:
-        return
-    candidates = (config_path,) if config_path.exists() else (
-        _legacy_config_paths() if config_path == CONFIG_FILE else ())
-    original = next((p.read_bytes() for p in candidates if p.is_file()), b"")
-    text = original.decode("utf-8-sig")
-    newline = "\r\n" if "\r\n" in text else "\n"
-    addition = "".join(f"{key} = {value}{newline}" for key, value in missing.items()).encode("utf-8")
-    headers = list(re.finditer(rb"(?m)^(?:\xef\xbb\xbf)?\[([^\]\r\n]+)\][^\r\n]*(?:\r?\n|$)", original))
-    section_index = next((i for i, match in enumerate(headers)
-                          if match[1] == section.encode("utf-8")), None)
-    if section_index is None:
-        prefix = original + (newline.encode() if original and not original.endswith(b"\n") else b"")
-        updated = prefix + f"{newline}[{section}]{newline}".encode() + addition
-    else:
-        end = headers[section_index + 1].start() if section_index + 1 < len(headers) else len(original)
-        prefix = original[:end]
-        if prefix and not prefix.endswith(b"\n"):
-            prefix += newline.encode()
-        updated = prefix + addition + original[end:]
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=config_path.parent, delete=False) as handle:
-            temp_path = Path(handle.name)
-            handle.write(updated)
-            handle.flush()
-            os.fsync(handle.fileno())
-        from engines.fileio import atomic_replace
-        atomic_replace(temp_path, config_path)
-    finally:
-        if temp_path:
-            temp_path.unlink(missing_ok=True)
+    from settings_store import SettingsStore
+    store = SettingsStore(path)
+    existing = store.read()
+    changes = {(section, key): value for key, value in defaults.items() if not existing.has_option(section, key)}
+    store.update(changes, sync=True)
 
 
 def save_conversation_config(conversation, path=None):

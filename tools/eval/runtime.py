@@ -89,12 +89,8 @@ class DesktopRuntime:
         if not allow_network:
             if not allow_cloud:
                 os.environ["OFFLINE_ONLY"] = "1"
-            os.environ["HF_HUB_OFFLINE"] = "1"
-            os.environ["TRANSFORMERS_OFFLINE"] = "1"
         else:
             os.environ["OFFLINE_ONLY"] = "0"
-            os.environ.pop("HF_HUB_OFFLINE", None)
-            os.environ.pop("TRANSFORMERS_OFFLINE", None)
         os.environ["WHISPER_MODEL"] = whisper_model
         if runtime_factory is None:
             from main import ArabicAudioTranscriber

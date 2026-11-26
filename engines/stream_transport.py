@@ -9,7 +9,7 @@ import threading
 
 import numpy as np
 
-from engines.provider import ProviderError
+from engines.provider import AuthenticationError, ProviderError
 from engines.usage import Units
 
 
@@ -73,8 +73,12 @@ class SocketStream:
     def _run(self, work, headers, generation):
         try:
             asyncio.run(self.run_session(work, headers, generation))
-        except Exception:
-            self.on_error("Cloud streaming failed. Continuing on this PC.")
+        except Exception as error:
+            status = getattr(getattr(error, "response", None), "status_code", None)
+            if isinstance(error, AuthenticationError) or status in {401, 403}:
+                self.on_error("The provider key was rejected. Continuing on this PC.")
+            else:
+                self.on_error("Cloud streaming failed. Continuing on this PC.")
 
     async def run_session(self, work, headers, generation=1):
         ready, done, eof = asyncio.Event(), asyncio.Event(), asyncio.Event()
