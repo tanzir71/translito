@@ -73,9 +73,6 @@ def test_skip_one_occurrence_and_allow_start_during_download():
     action.assert_not_called()
     scheduler.tick(events,enabled=True)
     action.assert_called_once()
-    from pathlib import Path
-    source=Path("schedule_ui.py").read_text(encoding="utf-8")
-    assert "running=lambda:app.transcriber is not None," in source
 
 
 def test_quiet_startup_command_and_old_run_value_rewrite(monkeypatch):

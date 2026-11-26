@@ -573,6 +573,8 @@ class TranslatorGUI:
         self.reply_controller = ReplyController(self, COLORS)
         from download_ui import initialize as initialize_downloads
         initialize_downloads(self, COLORS)
+        from session_ui import SessionController
+        self.session_controller = SessionController(self)
         self._initializing = False
         center_window(self.root)
         if not self.preview_mode:
@@ -975,13 +977,17 @@ class TranslatorGUI:
         self.empty_measurements_var = tk.StringVar(value="")
         tk.Label(self.empty_state, textvariable=self.empty_measurements_var, bg=COLORS["bg"], fg=COLORS["tertiary"],
                  wraplength=px(460), justify="center", font=("Segoe UI", 9)).pack(pady=px((12, 0)))
-        actions = tk.Frame(self.empty_state, bg=COLORS["bg"])
+        actions = self.empty_actions = tk.Frame(self.empty_state, bg=COLORS["bg"])
         actions.pack(pady=px((12, 0)))
         actions.columnconfigure((0, 1), weight=1, uniform="empty-state-actions")
-        ttk.Button(actions, text="Set up cloud", command=self.open_cloud_setup, style="Mac.TButton").grid(
-            row=0, column=0, sticky="nsew", padx=px((0, 4)))
-        ttk.Button(actions, text="Keep using this PC", command=lambda: self.engine_choice_var.set("local"), style="Mac.TButton").grid(
-            row=0, column=1, sticky="nsew", padx=px((4, 0)))
+        self.empty_setup_button = ttk.Button(actions, text="Set up cloud", command=self.open_cloud_setup, style="Mac.TButton")
+        self.empty_setup_button.grid(row=0, column=0, sticky="nsew", padx=px((0, 4)))
+        def keep_local():
+            self.preferences.set("UI", "setup_offer_seen", True)
+            self.engine_choice_var.set("local")
+            self.session_controller.refresh()
+        self.empty_local_button = ttk.Button(actions, text="Keep using this PC", command=keep_local, style="Mac.TButton")
+        self.empty_local_button.grid(row=0, column=1, sticky="nsew", padx=px((4, 0)))
 
     def _build_bottom_bar(self):
         bar = tk.Frame(self.root, bg=COLORS["bg"], padx=px(12), pady=px(12))
@@ -1191,7 +1197,7 @@ class TranslatorGUI:
         )
         self.chunk_label.pack(side="left")
         offline = tk.Checkbutton(
-            recognition,
+            general,
             text="Never connect to the internet (blocks cloud and model downloads)",
             variable=self.offline_only_var,
             command=self.change_offline_mode,
@@ -1569,6 +1575,19 @@ class TranslatorGUI:
         self.preferences.set("NETWORK", "block_all", self.offline_only_var.get())
         self.configure_offline_env()
         self.persist_settings()
+        if self.offline_only_var.get():
+            if getattr(self, "download_manager", None):
+                self.download_manager.block_network()
+            if getattr(self, "reply_controller", None):
+                self.reply_controller.generation += 1
+                self.reply_controller.request_stop.set()
+                self.reply_controller.stop_speaking()
+            # Stop the active transport immediately. A new local session can
+            # then start using the saved audio source and language choices.
+            if self.transcriber is not None or self.model_setup_busy:
+                self.stop()
+        if getattr(self, "session_controller", None):
+            self.session_controller.refresh()
 
     def selected_listen_choice(self):
         index = self.listen_combo.current()
@@ -1908,6 +1927,15 @@ class TranslatorGUI:
         os.environ["OFFLINE_ONLY"] = "1" if self.offline_only_var.get() else "0"
 
     def current_model_request(self):
+        controller = getattr(self, "session_controller", None)
+        if controller:
+            controller.refresh()
+            plan = controller.plan
+            return dict(mode=plan.mode, src_bcp47=next(bcp for _, bcp, iso in LANGUAGES if iso == plan.pair[0]),
+                src_iso=plan.pair[0], tgt_iso=plan.pair[1], whisper_model=plan.whisper_model,
+                variety=self.variety_var.get(), translation_model=plan.translation_model,
+                cloud_translation=plan.cloud_translation, conversation=self.current_conversation(),
+                session_plan=plan, engine_settings=controller.settings())
         mode = self.mode_var.get()
         conversation = self.current_conversation()
         if not conversation.one_way:
@@ -1959,6 +1987,9 @@ class TranslatorGUI:
         }
 
     def toggle_capture(self):
+        if getattr(self, "model_setup_busy", False) and getattr(self, "session_controller", None):
+            self.stop()
+            return
         if getattr(self, "_waiting_meeting_app", False):
             self.stop()
             self.set_status("Ready")
@@ -1968,11 +1999,20 @@ class TranslatorGUI:
         else:
             self.stop()
 
-    def start(self):
+    def start(self, owner="manual"):
+        if getattr(self, "_waiting_meeting_app", False):
+            owner = getattr(self, "_waiting_owner", owner)
+        controller = getattr(self, "session_controller", None)
+        if controller and not self.model_setup_busy and self.transcriber is None:
+            if not controller.before_start(interactive=owner == "manual"):
+                return "blocked"
         if hasattr(self, "default_app_var") and not self.model_setup_busy:
             from meeting_app import prepare_source
             if not prepare_source(self):
-                return
+                self._waiting_owner = owner
+                if controller:
+                    controller.render_action()
+                return "pending"
         if self.transcriber is not None:
             return
         if getattr(self, "model_setup_busy", False):
@@ -2046,7 +2086,7 @@ class TranslatorGUI:
                     return
 
         from engines.model_files import ready_whisper
-        fallback = ready_whisper(request["whisper_model"])
+        fallback = request["whisper_model"] if controller else ready_whisper(request["whisper_model"])
         if fallback is None:
             self.download_missing_whisper()
             return
@@ -2070,6 +2110,17 @@ class TranslatorGUI:
             chunk_duration=self.chunk_duration_var.get(), transcript_folder=self.transcript_folder_var.get(),
             asr_preset=self.quality_var.get().lower(),
             engine_settings=load_engine_settings(self.preferences.path) if hasattr(self, "preferences") else None)
+        token = controller.begin(owner) if controller else None
+        if controller:
+            session_options.update(engine_settings=request["engine_settings"], session_plan=request["session_plan"])
+
+        def failed(error):
+            if not controller or controller.accepts(token):
+                self.start_failed(error)
+
+        def session_event(kind, payload):
+            if not controller or controller.allows_event(token):
+                self.on_event(kind, payload, token=token)
 
         def run_start():
             try:
@@ -2078,12 +2129,12 @@ class TranslatorGUI:
                     result = self_test(output_choice)
                     self.post_ui( lambda: self.virtual_mic_setup.test_result(output_choice, result))
                     if not result.passed:
-                        self.post_ui( lambda: self.start_failed(RuntimeError(result.message)))
+                        self.post_ui( lambda: failed(RuntimeError(result.message)))
                         return
                     self.post_ui( lambda: self.set_status("Loading models"))
                 transcriber = ArabicAudioTranscriber(
                     selected_device=selected_device,
-                    on_event=self.on_event,
+                    on_event=session_event if controller else self.on_event,
                     interactive=False,
                     asr_language=request["src_bcp47"],
                     translation_model=request["translation_model"],
@@ -2097,12 +2148,17 @@ class TranslatorGUI:
                     whisper_model=request.get("whisper_model"),
                 )
             except Exception as exc:
-                self.post_ui( lambda exc=exc: self.start_failed(exc))
+                self.post_ui( lambda exc=exc: failed(exc))
                 return
 
             def finish_start():
+                if controller and not controller.accepts(token):
+                    transcriber.stop_background()
+                    return
                 self.model_setup_busy = False
                 self.transcriber = transcriber
+                if controller:
+                    controller.started(token, request["session_plan"])
                 self.update_routing_banner()
                 self.set_status("Listening")
                 self.phase_var.set("")
@@ -2116,8 +2172,11 @@ class TranslatorGUI:
             self.post_ui( finish_start)
 
         threading.Thread(target=run_start, daemon=True).start()
+        return "pending"
 
     def start_failed(self, exc):
+        if getattr(self, "session_controller", None):
+            self.session_controller.cancel()
         self.model_setup_busy = False
         self.lock_controls(False)
         self.set_status("Error")
@@ -2135,35 +2194,61 @@ class TranslatorGUI:
         self.update_routing_banner()
 
     def stop(self, after=None):
+        if getattr(self, "_stopping", False):
+            if callable(after):
+                self.root.after(100, lambda: self.stop(after=after))
+            return
+        controller = getattr(self, "session_controller", None)
+        if controller:
+            controller.cancel()
         if hasattr(self, "reply_controller"):
             self.reply_controller.stop_speaking()
         self._waiting_meeting_app = False
+        self._waiting_owner = None
         if getattr(self, "_meeting_timer", None) is not None:
             self.root.after_cancel(self._meeting_timer)
             self._meeting_timer = None
         transcriber = self.transcriber
         if transcriber is None:
+            if controller:
+                self.model_setup_busy = False
+                self.lock_controls(False)
+                self.finish_model_progress()
+                self.set_status("Ready")
+                controller.refresh()
             if callable(after):
                 after()
             return
+        self._stopping = True
         self.set_status("Stopping")
         self.update_action_button(running=True, loading=True)
         transcriber.stop_background()
 
         def finalize():
             transcriber.join_background()
-            saved_path = transcriber.save_transcript()
+            save_error = ""
+            try:
+                saved_path = transcriber.save_transcript()
+            except (OSError, ValueError) as error:
+                saved_path, save_error = None, str(error)
 
             def done():
                 self.last_transcriber = transcriber
                 self.last_saved_path = saved_path or transcriber.last_saved_path
                 self.transcriber = None
+                self._stopping = False
+                if controller:
+                    controller.active_owner, controller.active_plan = None, None
+                    controller.active_token = None
+                    controller.actual_engines, controller.failure = {}, ""
                 self.lock_controls(False)
                 self.set_status("Ready")
                 self.level_frame.grid_remove()
                 self.update_level(0)
                 self.lag_var.set("")
                 self.update_action_button(running=False)
+                if save_error:
+                    self.show_hint("Transcript kept in memory. Save it again after checking the folder: " + save_error)
                 if callable(after):
                     after()
 
@@ -2225,6 +2310,9 @@ class TranslatorGUI:
                 pass
 
     def update_action_button(self, running=False, loading=False):
+        if getattr(self, "session_controller", None):
+            self.session_controller.refresh()
+            return
         button = self.speak_action_button if self.mode_var.get() == "speak" else self.listen_action_button
         other = self.listen_action_button if button is self.speak_action_button else self.speak_action_button
         other.configure(state="disabled" if running or loading else "normal")
@@ -2253,8 +2341,10 @@ class TranslatorGUI:
     # ------------------------------------------------------------------
     # Status, transcript, and model progress
 
-    def on_event(self, event_type, payload):
+    def on_event(self, event_type, payload, *, token=None):
         def handle():
+            if token is not None and not self.session_controller.allows_event(token):
+                return
             if event_type == "status":
                 self.set_status(self.pretty_status(str(payload)))
             elif event_type == "budget":
@@ -2262,6 +2352,10 @@ class TranslatorGUI:
                 self.show_hint("Monthly budget reached. " + ("Continuing on this PC." if (payload or {}).get("action") == "local" else "Stopped."))
                 if (payload or {}).get("action") == "stop" and self.transcriber is not None:
                     self.stop()
+            elif event_type == "setup_required":
+                if self.transcriber is not None:
+                    self.stop()
+                self.show_hint((payload or {}).get("message", "Finish setup before continuing."))
             elif event_type == "delay":
                 delay = (payload or {}).get("delay_median_s")
                 self.delay_var.set(f"Delay {delay:.1f} s" if delay is not None else "Delay —")
@@ -2272,6 +2366,10 @@ class TranslatorGUI:
             elif event_type == "engine_fallback":
                 from engine_ui import refresh_engine_status
                 self._engine_fallback_reason = str(payload)
+                if getattr(self, "session_controller", None) and str(payload) == "key rejected":
+                    plan = self.session_controller.active_plan
+                    if plan:
+                        self.session_controller.credentials[plan.asr] = False
                 status = refresh_engine_status(self, str(payload))
                 self.show_hint(status.text)
                 tk.Label(self.transcript_scroll.content, text=status.text, bg=COLORS["bg"], fg=COLORS["orange"],
@@ -2294,6 +2392,10 @@ class TranslatorGUI:
                 seconds = float((payload or {}).get("seconds", 0))
                 self.lag_var.set(f"Behind by {seconds:.0f}s" if seconds >= 1 else "")
             elif event_type == "engine":
+                if getattr(self, "session_controller", None):
+                    self.session_controller.actual_engines.update({k: payload[k] for k in ("asr", "mt") if payload.get(k)})
+                    if payload.get("fallback") is False:
+                        self.session_controller.failure = ""
                 for key in ("asr", "mt"):
                     if (payload or {}).get(key):
                         self.active_engines[key] = payload[key]
@@ -2558,14 +2660,22 @@ class TranslatorGUI:
         if transcriber is None or not self.transcript_entries:
             return
         transcriber.transcript_folder = self.transcript_folder_var.get()
-        saved = transcriber.save_transcript()
+        try:
+            saved = transcriber.save_transcript()
+        except (OSError, ValueError) as error:
+            self.show_hint("Transcript kept in memory. Check the folder and try saving again: " + str(error))
+            return
         if saved:
             self.last_saved_path = saved
             self.show_hint(f"Transcript saved to {saved}")
 
     def reveal_transcripts(self):
         folder = Path(self.transcript_folder_var.get()).expanduser()
-        folder.mkdir(parents=True, exist_ok=True)
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            self.show_hint("The transcript folder is unavailable: " + str(error))
+            return
         if os.name != "nt":
             return
         saved = Path(self.last_saved_path) if self.last_saved_path else None
@@ -2587,6 +2697,9 @@ class TranslatorGUI:
         self.model_manager = ModelManagerWindow(self, COLORS, center_window)
 
     def preload_current_models(self, force_online=False):
+        if getattr(self, "session_controller", None):
+            self.session_controller.refresh()
+            return
         if self.preview_mode or self.transcriber is not None or self.model_setup_busy:
             return
         try:
@@ -2625,6 +2738,9 @@ class TranslatorGUI:
         threading.Thread(target=run_preload, daemon=True).start()
 
     def refresh_model_hint(self):
+        if getattr(self, "session_controller", None):
+            self.session_controller.refresh()
+            return
         from engines.model_files import whisper_spec, inspect_model, ready_whisper, Ready, model_hint
         spec = whisper_spec(self.whisper_var.get())
         status = inspect_model(spec)
@@ -2700,7 +2816,13 @@ class TranslatorGUI:
         if self.preview_mode:
             return
         hotkeys = {action: variable.get() for action, variable in self.hotkey_vars.items()}
-        self.hotkey_manager.register(hotkeys)
+        if self.hotkey_manager.register(hotkeys) is False:
+            previous = self.hotkey_manager.last_registered
+            if previous:
+                for action, combo in previous.items():
+                    if action in self.hotkey_vars:
+                        self.hotkey_vars[action].set(combo)
+                save_hotkey_config(CONFIG_FILE, previous)
 
     # ------------------------------------------------------------------
     # Windows notification-area counterpart to the macOS MenuBarExtra
@@ -2747,6 +2869,10 @@ class TranslatorGUI:
                     enabled=lambda _item: bool(self.transcript_entries),
                 ),
                 pystray.MenuItem(lambda item: getattr(self, "download_status_text", "") or "No downloads running", lambda *args: None, enabled=False),
+                pystray.MenuItem("Pause / resume download", lambda *_: self.post_ui(lambda: self.download_control("pause")),
+                                enabled=lambda _: getattr(self, "download_current", None) is not None),
+                pystray.MenuItem("Cancel download", lambda *_: self.post_ui(lambda: self.download_control("cancel")),
+                                enabled=lambda _: getattr(self, "download_current", None) is not None),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
                     "Settings…",
@@ -2812,6 +2938,8 @@ class TranslatorGUI:
                 "Quit and resume the download next time?", parent=self.root):
             return
         self.download_manager.close()
+        if getattr(self, "session_controller", None):
+            self.session_controller.close()
         self.preferences.close()
         self.is_quitting = True
         self.subtitle_controller.close()

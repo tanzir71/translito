@@ -19,12 +19,14 @@ class ReplyController:
         self.visible_var = app.preferences.bind(tk.BooleanVar(app.root),"UI","reply_strip_visible",True)
         self.replies, self.context, self.language, self.target = (), [], "", "en"
         self.current_id, self.suggested, self.generation = None, None, 0
+        self.request_stop = threading.Event()
         self.reply_player, self.overlay_signature = None, None
         self.frame = tk.Frame(app.root,bg=colors["bg"],padx=px(16),pady=px(10))
         self.status = tk.StringVar()
         self.visible_var.trace_add("write",lambda *_:self.render())
         for variable in self.options.values():
             variable.trace_add("write",lambda *_:self.render())
+        self.options["enabled"].trace_add("write", self.enabled_changed)
         app.subtitles_enabled_var.trace_add("write",lambda *_:self.render_overlay())
 
     def somewhere_visible(self):
@@ -32,6 +34,14 @@ class ReplyController:
         window = self.app.subtitle_controller.overlay
         overlay = self.app.subtitles_enabled_var.get() and self.options["show_on_overlay"].get() and window is not None and window.window.winfo_viewable()
         return main or overlay
+
+    def enabled_changed(self, *_):
+        if not self.options["enabled"].get():
+            self.generation += 1
+            self.request_stop.set()
+            self.replies = ()
+            self.stop_speaking()
+            self.render()
 
     def accept(self, entry):
         text, identity = entry.get("source_text",""), entry.get("id")
@@ -64,18 +74,27 @@ class ReplyController:
         from engines.registry import build_session_routers
         local = SimpleNamespace(name="local",requires_network=False,supports=lambda *a:True)
         _, router = build_session_routers(local,local,load_engine_settings(self.app.preferences.path),
-            pair=(self.language,self.target),on_event=self.app.on_event)
+            pair=(self.language,self.target),on_event=self.app.on_event, offline_only=self.app.offline_only_var.get())
         return router
 
     def request(self):
         if not self.options["enabled"].get() or not self.context or not self.somewhere_visible():
             return
         self.generation += 1
+        self.request_stop.set()
+        stop = self.request_stop = threading.Event()
         generation, language, target = self.generation,self.language,self.target
         context, variety = [text for _,text in self.context],self.app.variety_var.get()
         self.status.set("Suggesting replies…")
         def work():
-            result = ReplyService(self.translator()).suggest(context,language,target,variety=variety)
+            from engines.cancellation import generation_scope, GenerationCancelled
+            try:
+                with generation_scope(stop):
+                    result = ReplyService(self.translator()).suggest(context,language,target,variety=variety)
+            except GenerationCancelled:
+                return
+            if stop.is_set():
+                return
             def finish():
                 if generation != self.generation or not self.options["enabled"].get():
                     return
@@ -176,6 +195,7 @@ class ReplyController:
 
     def close(self):
         self.generation += 1
+        self.request_stop.set()
         self.stop_speaking()
 
 

@@ -229,6 +229,8 @@ def configured_live_interpreter(settings, *, offline_only=False, credentials=Non
             if defaults["default_asr_model"]:
                 engine.select_model(defaults["default_asr_model"])
             engine.settings = settings
+            if name == "soniox":
+                engine.native_translation = defaults["default_mt_provider"] in {"", "soniox"}
             if ledger is not None:
                 engine.ledger = ledger
             engine.authorized_key()

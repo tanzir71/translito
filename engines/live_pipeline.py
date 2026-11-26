@@ -44,20 +44,25 @@ class LiveConversationPipeline:
         self.capture_lock = threading.Lock()
         self.capture_origin = None
         self.played_chunks = set()
+        self.epoch, self.retry_at, self.retry_count = 0, None, 0
+        self._router_privacy = []
+        self.recovering = False
 
     def start(self):
         self.started = True
+        self.epoch += 1
+        epoch = self.epoch
         target = self.conversation.my_language if self.mode == "listen" else self.conversation.audience_language
         try:
             pair = ((self.conversation.source,self.conversation.target) if hasattr(self.conversation,"source") else ("en",self.conversation.other_language))
             self.interpreter.start(pair, target, False,
-                                   lambda kind, data=None: self.events.put((kind, data)))
+                                   lambda kind, data=None: self.events.put((kind, data)) if epoch == self.epoch else None)
         except Exception:
             self.live = False
             self.emit("hint", "Live Translate is not configured or its tested key changed. Continuing with the Free profile.")
 
     def push_capture(self, samples, sample_rate):
-        if self.stop_event.is_set() or not self.live:
+        if self.stop_event.is_set() or not self.live or self.recovering:
             return
         audio = np.asarray(samples, dtype=np.float32)
         if audio.ndim == 2:
@@ -85,6 +90,8 @@ class LiveConversationPipeline:
         self.poll()
         if self.stop_event.is_set():
             return
+        if not self.live:
+            self._recover_at_boundary(chunk)
         if not self.live:
             self.fallback.feed(chunk)
             return
@@ -328,16 +335,35 @@ class LiveConversationPipeline:
         if not self.live:
             return
         self.live = False
+        self.epoch += 1
         self.interpreter.stop(timeout=0)
         if self.player:
             self.player.reset_stream()
         self.emit("hint", message)
         reason = "key rejected" if "key" in message.lower() and "reject" in message.lower() else "budget used up" if "budget" in message.lower() else "couldn't be reached"
+        self.retry_count += 1
+        self.retry_at = self.clock() + min(300, 60 * 2 ** min(self.retry_count - 1, 3)) if reason == "couldn't be reached" else None
+        if not self._router_privacy:
+            for candidate in (self.fallback.recognizer, self.fallback.translator):
+                router = getattr(candidate, "router", candidate)
+                if hasattr(router, "offline_only"):
+                    self._router_privacy.append((router, router.offline_only))
+                    router.offline_only = True
         self.emit("engine_fallback", reason)
-        self.emit("engine", {"asr": "Free fallback", "mt": "Free fallback", "fallback": True})
+        self.emit("engine", {"asr": "On this PC", "mt": "On this PC", "fallback": True})
         for state in self.pending:
             if state["entry"]["translation_pending"]:
                 self._commit(state, interrupted=True)
+        policy = getattr(getattr(self.interpreter, "settings", None), "fallback_on_budget", "local")
+        ready = getattr(self.interpreter, "local_fallback_ready", lambda: True)
+        if policy == "stop" or not ready():
+            self.retry_at = None
+            self.retained.clear()
+            self.emit("setup_required", {"action": "models", "message":
+                "Session stopped by your fallback setting." if policy == "stop" else
+                "Local backup is still preparing. Continue when setup finishes, or reconnect cloud."})
+            self.stop_event.set()
+            return
         if self.retained:
             self.emit("hint", "Recovering retained audio with Free. Some overlapping text may repeat.")
         while self.retained and not self.stop_event.is_set():
@@ -350,6 +376,39 @@ class LiveConversationPipeline:
             finally:
                 self.fallback.speech_player = player
         self.played_chunks.clear()
+
+    def _recover_at_boundary(self, chunk):
+        """Only new speech can retry cloud; local audio is never uploaded later."""
+        import os
+        if (self.retry_at is None or self.clock() < self.retry_at or self.stop_event.is_set()
+                or os.environ.get("OFFLINE_ONLY") == "1" or chunk.kind != "audio"):
+            return
+        # Finish the previous local utterance before switching its route.
+        self.fallback.flush()
+        if self.stop_event.is_set():
+            return
+        while not self.events.empty():
+            self.events.get_nowait()
+        self.live, self.recovering = True, True
+        self.start()  # Constructs a guarded stream; no paid socket opens here.
+        if not self.live:
+            self.recovering = False
+            self.retry_at = self.clock() + 60
+            return
+        self.retry_at = None
+        for router, private in self._router_privacy:
+            router.offline_only = private
+        self._router_privacy.clear()
+        self.input_row = self.output_row = self.audio_row = self.last_output_row = None
+        self.latest_input_row, self.orphan_target = None, []
+        self.pending.clear()
+        with self.capture_lock:
+            self.sample_count, self.capture_origin, self.confirmed_end, self.transport_base = 0, None, 0, 0
+        # This chunk has not been handled locally. Subsequent capture blocks
+        # go through push_capture normally; older local chunks are discarded.
+        self.recovering = False
+        self.push_capture(chunk.samples, chunk.sample_rate)
+        self.emit("hint", "Cloud is available again. Resuming on new speech.")
 
     def _handle(self, kind, data, *, text_only=False):
         text_only = text_only or not self.live
@@ -383,7 +442,10 @@ class LiveConversationPipeline:
                 self.input_row = self.output_row = self.audio_row = None
                 self.last_output_row = None
                 self.latest_input_row, self.orphan_target = None, []
-            self.emit("engine", {"asr": self.interpreter.name, "mt": self.interpreter.name, "fallback": False})
+            stages = {"asr": self.interpreter.name, "fallback": False}
+            if self.interpreter.name in {"soniox", "gemini-live"} and getattr(self.interpreter, "native_translation", True):
+                stages["mt"] = self.interpreter.name
+            self.emit("engine", stages)
             self.emit("status", "listening")
         elif kind in {"reconnecting", "interrupted"}:
             if self.player:

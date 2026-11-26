@@ -13,8 +13,11 @@ class ScheduleController:
     def __init__(self, app, colors):
         self.app, self.colors, self.feed = app, colors, None
         self.events, self.refreshing, self.next_refresh = [], False, None
-        self.scheduler = Scheduler(clock=lambda:datetime.now(timezone.utc), running=lambda:app.transcriber is not None,
+        self.checked_events = set()
+        self.device_probe, self.device_probe_busy, self.device_probe_at = (None, False), False, 0
+        self.scheduler = Scheduler(clock=lambda:datetime.now(timezone.utc), running=lambda:app.transcriber is not None or app.model_setup_busy or getattr(app, "_waiting_meeting_app", False),
             start_listen=self.start_listen, stop=app.stop, app_has_audio=self.app_has_audio, notice=self.toast,
+            session_state=self.session_state,
             confirm=lambda event:messagebox.askyesno("Scheduled meeting", "Start listening for this meeting?", parent=app.root))
         from engines.weekly_schedule import local_timezone, migrate_entries
         pc_zone = local_timezone()
@@ -42,22 +45,58 @@ class ScheduleController:
             self.variables[key] = app.preferences.bind(var, "SCHEDULE", key, default)
         app.next_meeting_var = tk.StringVar()
         tk.Label(app.status_bar, textvariable=app.next_meeting_var, bg=colors["bg"], fg=colors["tertiary"], font=("Segoe UI", 8), anchor="w").grid(row=1,column=1,columnspan=4,sticky="w",pady=px((3,0)))
-        self.tick()
+        self.timer = app.root.after(1000, self.tick)
 
     def app_has_audio(self):
-        if self.app.preview_mode or not self.app.default_app_var.get():
+        app = self.app
+        if app.preview_mode:
             return False
         from engines.process_audio import active_sources
         from meeting_app import resolve_default_app
         try:
-            return resolve_default_app(self.app.default_app_var.get(), active_sources()) is not None
+            if app.listen_source_type_var.get() == "Device":
+                choice = app.selected_listen_choice()
+                if choice is None:
+                    return False
+                import time
+                if not self.device_probe_busy and time.monotonic() >= self.device_probe_at:
+                    self.device_probe_busy, self.device_probe_at = True, time.monotonic() + 3
+                    def probe():
+                        audible = False
+                        try:
+                            import numpy as np
+                            with choice.raw.recorder(samplerate=16000) as recorder:
+                                sample = recorder.record(numframes=1600)
+                            audible = float(np.sqrt(np.mean(np.asarray(sample) ** 2))) > .001
+                        except Exception:
+                            pass
+                        self.device_probe, self.device_probe_busy = (choice.name, audible), False
+                    threading.Thread(target=probe, daemon=True, name="Check selected device activity").start()
+                return self.device_probe == (choice.name, True)
+            from meeting_app import preferred_app
+            desired = preferred_app(app)
+            sources = active_sources()
+            return any(not source.exclude for source in sources) if desired in {"", "*"} else resolve_default_app(desired, sources) is not None
         except Exception:
             return False
 
     def start_listen(self):
         self.app.set_mode("listen", force=True)
         self.app.subtitles_enabled_var.set(True)
-        self.app.start()
+        return self.app.start(owner="schedule:" + self.scheduler.pending.id)
+
+    def session_state(self, event):
+        controller = getattr(self.app, "session_controller", None)
+        if controller is None:
+            return "idle"
+        owner = "schedule:" + event.id
+        if self.app.transcriber is not None and controller.active_owner == owner:
+            return "running"
+        if controller.pending and controller.pending[1] == owner:
+            return "pending"
+        if getattr(self.app, "_waiting_meeting_app", False) and getattr(self.app, "_waiting_owner", None) == owner:
+            return "pending"
+        return "idle"
 
     def calendar_feed(self):
         if self.feed is None:
@@ -76,13 +115,25 @@ class ScheduleController:
                     self.events = weekly_meetings(json.loads(values["weekly_blocks"].get()), now-timedelta(days=1), now+timedelta(days=7), default_timezone=values["timezone"].get())
                 except (ValueError, KeyError, TypeError):
                     self.events = []
-            elif not self.refreshing and (self.next_refresh is None or now >= self.next_refresh):
+            if values["source"].get() != "weekly":
+                due = {event.id for event in self.events if event.start-timedelta(seconds=values["lead_seconds"].get()) <= now < event.end}
+                if due - self.checked_events and not self.refreshing:
+                    self.next_refresh = None
+            if values["source"].get() != "weekly" and not self.refreshing and not app.offline_only_var.get() and (self.next_refresh is None or now >= self.next_refresh):
                 self.refreshing, self.next_refresh = True, now+timedelta(minutes=15)
                 def refresh():
                     try:
-                        self.events = self.calendar_feed().meetings(now-timedelta(days=1), now+timedelta(days=7))
+                        feed = self.calendar_feed()
+                        if app.offline_only_var.get():
+                            return
+                        feed.next_refresh = 0
+                        self.events = feed.meetings(now-timedelta(days=1), now+timedelta(days=7))
+                        self.checked_events.update(due)
+                        if not feed.healthy:
+                            self.next_refresh = now+timedelta(seconds=30)
                     except Exception:
-                        pass
+                        self.events = []
+                        self.next_refresh = now+timedelta(seconds=30)
                     finally:
                         self.refreshing = False
                 threading.Thread(target=refresh, daemon=True).start()
@@ -92,9 +143,10 @@ class ScheduleController:
                     values["skipped"].set(json.dumps(skips))
             except (ValueError, KeyError, TypeError):
                 skips = []
-            self.scheduler.tick(self.events, skipped={item["id"] for item in skips}, **{key:var.get() for key,var in values.items() if key in {
+            eligible = self.events if values["source"].get() == "weekly" or (not app.offline_only_var.get() and not self.refreshing and self.feed and self.feed.healthy) else []
+            self.scheduler.tick(eligible, skipped={item["id"] for item in skips}, **{key:var.get() for key,var in values.items() if key in {
                 "enabled", "lead_seconds", "wait_for_app_audio", "stop_rule", "silence_seconds", "ask_before_start", "only_with_call_link"}})
-        elif self.scheduler.active:
+        elif self.scheduler.active or self.scheduler.pending:
             self.scheduler.tick([], enabled=False)
         coming = next((event for event in self.events if event.end > now), None) if values["enabled"].get() else None
         app.next_meeting_var.set("Next meeting · "+coming.start.astimezone().strftime("%a %H:%M") if coming else "")
@@ -110,8 +162,13 @@ class ScheduleController:
         tk.Label(window, text=("" if getattr(event, "download", False) else "Scheduled listening · ")+event.title, bg=self.colors["surface"], fg=self.colors["text"], wraplength=px(340), justify="left").pack(fill="x")
         actions = tk.Frame(window,bg=self.colors["surface"])
         actions.pack(fill="x",pady=px((8,0)))
-        ttk.Button(actions,text="Stop",style="Mac.TButton",command=lambda:(self.app.stop(),window.destroy())).pack(side="left")
-        ttk.Button(actions,text="Settings",style="Mac.TButton",command=lambda:(self.app.show_settings_from_tray(),self.app.settings_shell.show("Schedule"),window.destroy())).pack(side="right")
+        download = getattr(event, "download", False)
+        def dismiss_or_stop():
+            if not download and self.session_state(event) == "running":
+                self.app.stop()
+            window.destroy()
+        ttk.Button(actions,text="Dismiss" if download else "Stop",style="Mac.TButton",command=dismiss_or_stop).pack(side="left")
+        ttk.Button(actions,text="Models" if download else "Settings",style="Mac.TButton",command=lambda:(self.app.show_settings_from_tray(),self.app.settings_shell.show("Models" if download else "Schedule"),window.destroy())).pack(side="right")
         window.geometry(f"{px(380)}x{px(110)}+{max(0,self.app.root.winfo_screenwidth()-px(400))}+{px(30)}")
         window.after(12000,window.destroy)
 

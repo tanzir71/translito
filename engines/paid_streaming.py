@@ -31,6 +31,8 @@ class PaidStreamingInterpreter:
         self.model = {"soniox": "stt-rt-v6", "elevenlabs": "scribe_v3_live", "speechmatics": "melia-1"}[provider]
         self.translator = None
         self._mt_stop, self._mt_queue = threading.Event(), queue.Queue(maxsize=50)
+        self._session_generation = 0
+        self._callback_lock = threading.RLock()
         self.rate = {"soniox": SONIOX_RATE, "elevenlabs": Rate(per_audio_hour=Decimal(".22")),
                      "speechmatics": Rate(per_audio_hour=Decimal(".40"))}[provider]
         self.billing_mode = "audio_sent" if provider == "elevenlabs" else "open_stream"
@@ -78,38 +80,53 @@ class PaidStreamingInterpreter:
 
     def start(self, conversation, output_language, two_way, on_event):
         self.authorized_key()
-        self.emit, self.pair, self.target = on_event, tuple(conversation), output_language
+        with self._callback_lock:
+            self._session_generation += 1
+            session = self._session_generation
+            self._mt_stop.set()
+            self._mt_stop, self._mt_queue = threading.Event(), queue.Queue(maxsize=50)
+            self.buffers, self.commits, self.annotations, self.timings = {}, {}, {}, {}
+            self._tail, self._lid_audio = np.empty(0, np.float32), np.empty(0, np.float32)
+            self.emit = lambda kind, data=None: on_event(kind, data) if session == self._session_generation else None
+            self.pair, self.target = tuple(conversation), output_language
         if self.name == "soniox":
             self.protocol = SonioxProtocol(other=next((code for code in conversation if code != "en"), conversation[0]),
-                target=output_language, two_way=two_way, terms=self.terms, languages=conversation)
+                target=output_language, two_way=two_way, terms=self.terms, languages=conversation,
+                native_translation=getattr(self, "native_translation", True))
         elif self.name == "elevenlabs":
             self.protocol = ElevenLabsProtocol(languages=conversation)
         else:
             self.protocol = SpeechmaticsProtocol(model="melia-1", languages=conversation)
-        if self.name != "soniox" and not getattr(self, "recognition_only", False):
+        if (self.name != "soniox" or not getattr(self, "native_translation", True)) and not getattr(self, "recognition_only", False):
             if self.translator is None:
                 raise ValueError("A translator is required after streaming recognition")
-            self._mt_stop.clear()
-            self._mt_thread = threading.Thread(target=self._translate_finals, daemon=True)
+            self._mt_thread = threading.Thread(target=self._translate_finals,
+                args=(self._mt_stop, self._mt_queue, self.emit), daemon=True)
             self._mt_thread.start()
         if self.variety:
             self.protocol.variety = self.variety
-        self.worker = self.worker_factory(self.protocol, self.credentials, self._update,
-            lambda message: self.emit("fallback", message), authorize=self.authorized_key)
+        emit = self.emit
+        def update(raw, generation):
+            with self._callback_lock:
+                if session == self._session_generation:
+                    self._update(raw, generation)
+        self.worker = self.worker_factory(self.protocol, self.credentials,
+            update,
+            lambda message: emit("fallback", message), authorize=self.authorized_key)
         from app_config import read_config
         config = read_config()
         self.guard = CostGuard(self.worker, ledger=self.ledger, rate=self.rate,
             monthly_cap=self.preference.monthly_cap, total_monthly_cap=self.settings.monthly_cap,
             billing_mode=self.billing_mode, languages=conversation, inspect_audio=self.inspect_audio or self._inspect,
             excluded_languages=(output_language,),
-            fallback_on_budget=self.settings.fallback_on_budget, emit=on_event,
+            fallback_on_budget=self.settings.fallback_on_budget, emit=self.emit,
             skip_non_speech=config.getboolean("COSTGUARD", "skip_non_speech", fallback=True),
             skip_other_languages=config.getboolean("COSTGUARD", "skip_other_languages", fallback=True),
             close_idle_seconds=config.getfloat("COSTGUARD", "close_idle_seconds", fallback=8))
         self.guard.budget_warn_percent = self.settings.budget_warn_percent
 
     def _update(self, update, generation):
-        if self.name != "soniox":
+        if self.name != "soniox" or not getattr(self, "native_translation", True):
             return self._recognizer_update(update, generation)
         state = self.buffers.setdefault(generation, {"source": "", "target": "", "language": None, "end": None,"languages":set()})
         source_draft, target_draft = [], []
@@ -219,12 +236,13 @@ class PaidStreamingInterpreter:
                     self.timings[identity] = end
                     self.emit("timing", {"utterance_id": identity, "speech_end_at": end})
 
-    def _translate_finals(self):
+    def _translate_finals(self, stop=None, jobs=None, emit=None):
         from engines.cancellation import generation_scope
+        stop, jobs, emit = stop or self._mt_stop, jobs or self._mt_queue, emit or self.emit
         context = []
-        while not self._mt_stop.is_set():
+        while not stop.is_set():
             try:
-                item = self._mt_queue.get(timeout=.1)
+                item = jobs.get(timeout=.1)
             except queue.Empty:
                 continue
             if item is None:
@@ -233,12 +251,12 @@ class PaidStreamingInterpreter:
             try:
                 if language == self.target:
                     continue
-                with generation_scope(self._mt_stop):
+                with generation_scope(stop):
                     result = self.translator.translate(text, language, self.target, context=context[-2:],
                         glossary={term: "" for term in self.terms})
-                if self._mt_stop.is_set():
+                if stop.is_set():
                     return
-                self.emit("output_transcription", {"text": result.text, "replace": True, "finished": boundary,
+                emit("output_transcription", {"text": result.text, "replace": True, "finished": boundary,
                     "provisional": not boundary, "utterance_id": identity})
                 if boundary:
                     context.append((text, result.text))
@@ -246,7 +264,8 @@ class PaidStreamingInterpreter:
                         self.guard.translated_chars += len(result.text)
                         self.ledger.record_session(self.guard.session_id,translated_chars=self.guard.translated_chars)
             except Exception:
-                self.emit("fallback", "Streaming translation could not complete. Continuing on this PC.")
+                if not stop.is_set():
+                    emit("fallback", "Streaming translation could not complete. Continuing on this PC.")
 
     def push_audio(self, audio):
         return self.guard.feed(audio) if self.guard else False

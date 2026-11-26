@@ -19,6 +19,7 @@ class SettingsState:
         self.store = SettingsStore(path)
         self.path, self.writable = self.store.path, writable
         self.bindings, self.transient, self.errors = [], {}, {}
+        self.pending, self.listeners = {}, []
 
     def get(self, section, key, default):
         if (section, key) in self.transient:
@@ -50,7 +51,15 @@ class SettingsState:
         self.transient[section, key] = encoded if isinstance(value, str) else value
         if self.writable():
             self.store.update({(section, key): encoded}, delay=delay)
+        for callback in tuple(self.listeners):
+            callback(section, key)
         return True
+
+    def commit_pending(self):
+        valid = True
+        for commit in tuple(self.pending.values()):
+            valid = commit() and valid
+        return valid
 
     def bind(self, var, section, key, default, *, encode=lambda v: v, decode=lambda v: v, writable=lambda: True):
         from settings_schema import setting
@@ -58,17 +67,40 @@ class SettingsState:
         var.setting = setting(section, key, default)
         var.settings_owner = getattr(self, "owner", None)
         var.validation_error = __import__("tkinter").StringVar(var._root)
-        def changed(*_):
+        timer = [None]
+        financial = key.endswith("cap_usd")
+        def commit():
+            if timer[0] is not None:
+                var._root.after_cancel(timer[0])
+                timer[0] = None
             if not writable():
-                return
+                return True
             try:
                 value = encode(var.get())
-                self.set(section, key, value, delay=.4 if isinstance(default, str) else 0)
+                valid = self.set(section, key, value, delay=.4 if isinstance(default, str) else 0)
                 var.validation_error.set(self.errors.get((section, key), ""))
+                return valid
             except (ValueError, __import__("tkinter").TclError):
                 var.validation_error.set("Enter a valid value")
+                return False
+        def changed(*_):
+            if financial:
+                if timer[0] is not None:
+                    var._root.after_cancel(timer[0])
+                # Validation is immediate; the running budget changes only
+                # after a completed edit, Enter, blur, or Start.
+                try:
+                    var.setting.encode(encode(var.get()))
+                    var.validation_error.set("")
+                except (ValueError, TypeError):
+                    var.validation_error.set("Enter an amount like 5 or 12.50")
+                timer[0] = var._root.after(600, commit)
+            else:
+                commit()
         token = var.trace_add("write", changed)
-        var.save_now = lambda: self.set(section, key, encode(var.get()))
+        var.save_now = commit
+        if financial:
+            self.pending[section, key] = commit
         self.bindings.append((var, token))
         return var
 
@@ -101,6 +133,9 @@ class SettingsState:
             writable=lambda: not getattr(app, "_restoring_devices", False) if name in {"listen_device", "speak_mic", "speak_output", "voice"} else True)
 
     def close(self):
+        self.commit_pending()
+        self.pending.clear()
+        self.listeners.clear()
         for var, token in self.bindings:
             var.trace_remove("write", token)
             var.save_now = lambda: None

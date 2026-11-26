@@ -159,12 +159,20 @@ def test_budget_edits_update_active_routers_and_zero_cap_stops_the_live_policy(t
     events = []
     router = ProviderRouter([],total_monthly_cap=5)
     guard = SimpleNamespace(total_monthly_cap=5,fallback_on_budget="local",ledger=ledger,paused=False)
-    interpreter = SimpleNamespace(guard=guard,emit=lambda k,v:events.append((k,v)))
+    interpreter = SimpleNamespace(name="soniox",guard=guard,emit=lambda k,v:events.append((k,v)))
     fallback = SimpleNamespace(recognizer=router,translator=router)
     pipeline = SimpleNamespace(fallback=fallback,interpreter=interpreter)
     variable = lambda value:SimpleNamespace(get=lambda:value)
+    from settings_state import SettingsState
+    preferences = SettingsState(tmp_path / "config.ini")
+    preferences.set("ENGINES", "monthly_cap_usd", "5")
+    preferences.set("ENGINES", "fallback_on_budget", "stop")
+    preferences.set("ENGINES", "budget_warn_percent", "75")
     app = SimpleNamespace(preview_mode=False,_initializing=False,transcriber=SimpleNamespace(conversation_pipeline=pipeline),
-        monthly_budget_var=variable(""),budget_fallback_var=variable("stop"),budget_warning_var=variable("75"))
+        preferences=preferences,monthly_budget_var=variable(""),budget_fallback_var=variable("stop"),budget_warning_var=variable("75"))
+    apply_budget(app)
+    assert guard.total_monthly_cap == 5 and not guard.paused and not events
+    preferences.set("ENGINES", "monthly_cap_usd", "0")
     apply_budget(app)
     assert router.total_monthly_cap == guard.total_monthly_cap == 0
     assert guard.paused and events == [("budget",dict(action="stop",message="Monthly budget reached."))]
@@ -173,6 +181,7 @@ def test_budget_edits_update_active_routers_and_zero_cap_stops_the_live_policy(t
     live.live, live.emit, live.stop_event = True, Mock(), stop
     live._handle(*events[0])
     assert stop.is_set()
+    preferences.close()
 
 
 def test_free_choice_never_builds_a_paid_text_provider_even_with_a_positive_budget():

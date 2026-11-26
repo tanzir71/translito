@@ -69,7 +69,7 @@ def weekly_meetings(entries, start, end, *, default_timezone=None):
 class CalendarFeed:
     def __init__(self, credentials, *, http=None, clock=time.monotonic):
         self.credentials, self.http, self.clock = credentials, http, clock
-        self.content, self.next_refresh = None, 0
+        self.content, self.next_refresh, self.healthy = None, 0, False
 
     def connect(self, url):
         if not url.startswith("https://") or any(c in url for c in "\r\n"):
@@ -91,16 +91,20 @@ class CalendarFeed:
                     content = self.http.get_text(link)
                     calendar_meetings(content, start, end)
                     self.content = content
+                    self.healthy = True
+                else:
+                    self.content, self.healthy = None, False
             except Exception:
-                pass
+                self.content, self.healthy = None, False
         return calendar_meetings(self.content, start, end) if self.content else []
 
 
 class Scheduler:
-    def __init__(self, *, clock, running, start_listen, stop, app_has_audio, notice=lambda event: None, confirm=lambda event: True):
+    def __init__(self, *, clock, running, start_listen, stop, app_has_audio, notice=lambda event: None, confirm=lambda event: True, session_state=None):
         self.clock, self.running, self.start_listen, self.stop = clock, running, start_listen, stop
         self.app_has_audio, self.notice, self.confirm = app_has_audio, notice, confirm
         self.active, self.seen, self.last_speech = None, set(), None
+        self.pending, self.session_state = None, session_state
 
     def notify_speech(self):
         self.last_speech = self.clock()
@@ -108,7 +112,26 @@ class Scheduler:
     def tick(self, events, *, enabled=False, lead_seconds=60, wait_for_app_audio=True, stop_rule="end",
              silence_seconds=300, ask_before_start=False, only_with_call_link=False, skipped=()):
         now = self.clock()
+        if self.session_state and self.pending:
+            event = self.pending
+            state = self.session_state(event)
+            if now >= event.end or not enabled or event.id in skipped:
+                if state in {"pending", "running"}:
+                    self.stop()
+                self.seen.add(event.id)
+                self.pending = None
+            elif state == "running":
+                self.active, self.pending, self.last_speech = event, None, now
+                self.seen.add(event.id)
+                self.notice(event)
+            elif state != "pending":
+                self.seen.add(event.id)
+                self.pending = None
+            return
         if self.active is not None:
+            if self.session_state and self.session_state(self.active) != "running":
+                self.active = None
+                return
             silent = self.last_speech is not None and (now-self.last_speech).total_seconds() >= silence_seconds
             if now >= self.active.end or (stop_rule == "silence" and silent) or not enabled:
                 self.stop()
@@ -123,10 +146,17 @@ class Scheduler:
                 continue
             if wait_for_app_audio and not self.app_has_audio():
                 continue
-            self.seen.add(event.id)
             if ask_before_start and not self.confirm(event):
+                self.seen.add(event.id)
                 continue
-            self.start_listen()
+            self.pending = event
+            outcome = self.start_listen()
+            if self.session_state:
+                if outcome == "blocked":
+                    self.pending = None
+                return
+            self.pending = None
+            self.seen.add(event.id)
             self.active, self.last_speech = event, now
             self.notice(event)
             return

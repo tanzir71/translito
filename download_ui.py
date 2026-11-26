@@ -9,8 +9,33 @@ from tkinter import ttk, filedialog, messagebox
 def initialize(app, colors):
     from engines.downloads import DownloadManager
     app.download_text = tk.StringVar(app.root)
-    app.download_chip = ttk.Button(app.status_bar, textvariable=app.download_text, style="Mac.TButton",
+    app.download_panel = tk.Frame(app.status_bar, bg=colors["bg"])
+    app.download_panel.columnconfigure(0, weight=1)
+    app.download_chip = ttk.Button(app.download_panel, textvariable=app.download_text, style="Mac.TButton",
                                   command=lambda: show_models(app))
+    app.download_chip.grid(row=0, column=0, sticky="ew")
+    app.download_current = None
+    def control(action):
+        job = app.download_current
+        if job is None:
+            return
+        try:
+            if action == "pause":
+                if job.state in {"Paused", "Cancelled"}:
+                    app.download_manager.resume(job)
+                else:
+                    app.download_manager.pause(job)
+            else:
+                app.download_manager.cancel(job)
+        except ValueError as error:
+            app.show_hint(str(error))
+    app.download_control = control
+    app.download_pause = ttk.Button(app.download_panel, text="Pause", style="Mac.TButton", command=lambda: control("pause"))
+    app.download_pause.grid(row=0, column=1, padx=px((8, 4)))
+    app.download_cancel = ttk.Button(app.download_panel, text="Cancel", style="Mac.TButton", command=lambda: control("cancel"))
+    app.download_cancel.grid(row=0, column=2)
+    app.download_progress = ttk.Progressbar(app.download_panel, maximum=1, style="Dark.Horizontal.TProgressbar")
+    app.download_progress.grid(row=1, column=0, columnspan=3, sticky="ew", pady=px((5, 0)))
     def changed(job):
         if job.state == "Ready":
             message = f"{job.title} is ready. It will be used from your next session."
@@ -20,13 +45,19 @@ def initialize(app, colors):
             if job.gemma:
                 from engines.mt_translategemma import MANIFEST
                 app.preferences.set("ENGINES", "translategemma_path", str(Path(job.ready_path) / MANIFEST["filename"]))
-        active = next((j for j in app.download_manager.jobs if j.state in {"Downloading", "Verifying", "Stalled · retrying"}), None)
-        app.download_status_text = f"↓ {active.title} {active.fraction:.0%}" if active else ""
+        jobs = sorted(app.download_manager.jobs, key=lambda j: j.priority)
+        active = next((j for j in jobs if j.state in {"Downloading", "Verifying", "Stalled · retrying"}), None)
+        active = active or next((j for j in jobs if j.state == "Queued"), None)
+        active = active or next((j for j in jobs if j.state in {"Paused", "Cancelled"} and j.pause_reason in {"user", "failure", "blocked"}), None)
+        app.download_current = active
+        app.download_status_text = f"{active.title} · {active.fraction:.0%} · {active.state}" if active else ""
         app.download_text.set(app.download_status_text)
         if active:
-            app.download_chip.grid(row=1, column=0, columnspan=4, sticky="w")
+            app.download_panel.grid(row=2, column=0, columnspan=6, sticky="ew", pady=px((8, 0)))
+            app.download_progress.configure(value=active.fraction)
+            app.download_pause.configure(text="Resume" if active.state in {"Paused", "Cancelled"} else "Pause")
         else:
-            app.download_chip.grid_remove()
+            app.download_panel.grid_remove()
         app.update_action_button(running=app.transcriber is not None)
         app.refresh_tray_menu()
         for callback in list(getattr(app, "download_views", [])):
@@ -34,6 +65,8 @@ def initialize(app, colors):
     app.download_views = []
     app.download_manager = DownloadManager(app.root, directory=app.preferences.path.parent / "downloads",
         on_change=changed, blocked=lambda: app.offline_only_var.get())
+    if app.download_manager.jobs:
+        changed(app.download_manager.jobs[-1])
 
 
 def show_models(app):
@@ -134,7 +167,11 @@ def models_page(app, parent, colors):
     tk.Label(parent, text="Models download once, then run on this PC. Downloads continue in the background.",
              bg=colors["bg"], fg=colors["secondary"], wraplength=px(550), justify="left").pack(anchor="w", pady=px((0, 12)))
     rows = {}
-    specs = default_catalog()
+    specs = list(default_catalog())
+    controller = getattr(app, "session_controller", None)
+    if controller and controller.plan:
+        relevant = {s.repo for s in controller.plan.required_resources + controller.plan.backup_resources}
+        specs.sort(key=lambda s: s.repo not in relevant)
     for spec in specs:
         row = tk.Frame(parent, bg=colors["surface"], padx=px(12), pady=px(10),
                        highlightthickness=px(1), highlightbackground=colors["border"])
@@ -156,9 +193,14 @@ def models_page(app, parent, colors):
             text, buttons = rows[spec.key]
             for child in buttons.winfo_children():
                 child.destroy()
-            job = next((j for j in reversed(app.download_manager.jobs) if j.repo == spec.repo and j.state != "Cancelled"), None)
+            job = next((j for j in reversed(app.download_manager.jobs) if j.repo == spec.repo), None)
             def button(title, command):
-                ttk.Button(buttons, text=title, style="Mac.TButton", command=command).pack(side="right", padx=px(3))
+                def invoke():
+                    try:
+                        command()
+                    except (ValueError, OSError) as error:
+                        app.show_hint(str(error))
+                ttk.Button(buttons, text=title, style="Mac.TButton", command=invoke).pack(side="right", padx=px(3))
             if job and job.state != "Ready":
                 text.set(job.error or job.progress_text)
                 button("Cancel", lambda j=job: app.download_manager.cancel(j))

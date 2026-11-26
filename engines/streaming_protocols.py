@@ -79,7 +79,8 @@ class SonioxProtocol:
     model = "stt-rt-v6"
     wait_for_ready = False
 
-    def __init__(self, *, other="ar", target="en", two_way=True, terms=(), languages=None):
+    def __init__(self, *, other="ar", target="en", two_way=True, terms=(), languages=None, native_translation=True):
+        self.native_translation = native_translation
         self.languages = tuple(dict.fromkeys(languages or ("en", other)))
         if not self.languages or target not in self.languages:
             raise ValueError("Choose a supported source and target language pair")
@@ -102,6 +103,9 @@ class SonioxProtocol:
         instruction = script_instruction(self.other if self.two_way else self.target)
         if instruction:
             value["context"].setdefault("general", []).append({"key": "translation writing system", "value": instruction})
+        if not self.native_translation:
+            value.pop("translation", None)
+            value["context"].pop("translation_terms", None)
         return value
 
     def audio(self, pcm):

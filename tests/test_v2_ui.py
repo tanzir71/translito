@@ -155,6 +155,7 @@ def test_unsupported_provider_stays_visible_with_language_guidance(app):
     from engine_ui import refresh_provider_choices
     app.open_settings()
     app.listen_source_var.set("Spanish")
+    app.one_way_var.set(True)
     refresh_provider_choices(app)
     widget = app.engine_provider_widgets["asr"]
     label = widget.display_labels["cohere-api"]

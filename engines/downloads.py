@@ -48,6 +48,10 @@ class DownloadJob:
     registry_path: str = ""
     ready_path: str = ""
     cache_dir: str = ""
+    origin: str = "manual"
+    pause_reason: str = ""
+    priority: int = 50
+    context: str = ""
 
     @property
     def fraction(self):
@@ -94,7 +98,8 @@ class DownloadManager:
             raise ValueError("Internet is blocked. Allow internet access before downloading models.")
         existing = next((j for j in self.jobs if j.repo == spec.repo and j.state not in {"Ready", "Cancelled"}), None)
         if existing:
-            self.resume(existing)
+            if options.get("origin", "manual") == "manual":
+                self.resume(existing)
             return existing
         from app_config import CONFIG_FILE
         from engines.model_files import local_folder, inspect_model, Incomplete
@@ -132,7 +137,7 @@ class DownloadManager:
 
     def _start(self, job):
         if self.blocked():
-            job.state, job.error = "Paused", "Internet is blocked."
+            job.state, job.error, job.pause_reason = "Paused", "Internet is blocked.", "blocked"
             self.save(job)
             self.on_change(job)
             return
@@ -145,7 +150,7 @@ class DownloadManager:
             self.process = self.spawn(command + ["--download-job", str(self.directory / f"{job.id}.json")],
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", creationflags=flags)
         except OSError:
-            job.state, job.error = "Paused", "Couldn't start the download. Try again."
+            job.state, job.error, job.pause_reason = "Paused", "Couldn't start the download. Try again.", "failure"
             self.save(job)
             self.on_change(job)
             return
@@ -173,10 +178,11 @@ class DownloadManager:
             _locks.discard(self.active.repo)
         self.active, self.process = None, None
 
-    def pause(self, job, *, state="Paused"):
+    def pause(self, job, *, state="Paused", reason="user"):
         if self.active is job:
             self._stop()
-        job.state = state
+        job.state, job.pause_reason = state, reason
+        job.bytes_per_s = 0
         self.save(job)
         self.on_change(job)
 
@@ -184,16 +190,18 @@ class DownloadManager:
         self.pause(job, state="Cancelled")
 
     def resume(self, job):
+        if self.blocked():
+            raise ValueError("Internet is blocked. Allow internet access before resuming downloads.")
         if job.state in {"Downloading", "Queued", "Stalled · retrying"}:
             return
-        job.state, job.retries, job.error = "Queued", 0, ""
+        job.state, job.retries, job.error, job.pause_reason = "Queued", 0, "", ""
         self.save(job)
         self.on_change(job)
 
     def _retry(self, job):
         self._stop()
         if job.retries >= 3:
-            job.state, job.error = "Paused", "Paused · check your connection"
+            job.state, job.error, job.pause_reason = "Paused", "Paused · check your connection", "failure"
         else:
             self.retry_at = self.clock() + (10, 30, 60)[job.retries]
             job.retries += 1
@@ -227,7 +235,7 @@ class DownloadManager:
                 job.bytes = job.total
                 self._stop()
             elif "error" in data:
-                job.state, job.error = "Paused", data["error"]
+                job.state, job.error, job.pause_reason = "Paused", data["error"], "failure"
                 self._stop()
             elif "exit" in data:
                 self._retry(job)
@@ -236,12 +244,59 @@ class DownloadManager:
         if self.active and self.clock() - self.last_progress >= 60:
             self._retry(self.active)
         if self.active is None:
-            next_job = next((j for j in self.jobs if j.state == "Queued" or
-                (j.state == "Stalled · retrying" and self.clock() >= self.retry_at)), None)
+            next_job = next(iter(sorted((j for j in self.jobs if j.state == "Queued" or
+                (j.state == "Stalled · retrying" and self.clock() >= self.retry_at)), key=lambda j: j.priority)), None)
             if next_job:
                 self._start(next_job)
         if self.root is not None:
             self.timer = self.root.after(250, self.poll)
+
+    def reconcile_setup(self, required, backup=(), *, context="", enabled=True):
+        """Prioritize the current pair without undoing a user's Pause/Cancel."""
+        from engines.model_files import Ready, inspect_model
+        desired = {spec.repo: (spec, priority) for priority, specs in ((20, backup), (0, required)) for spec in specs}
+        for job in tuple(self.jobs):
+            if job.state == "Ready":
+                continue
+            if job.origin != "auto_setup":
+                priority = desired[job.repo][1] if job.repo in desired else 50
+                if job.priority != priority:
+                    job.priority = priority
+                    self.save(job)
+                    self.on_change(job)
+                continue
+            if not enabled or job.repo not in desired:
+                if job.state in {"Queued", "Downloading", "Verifying", "Stalled · retrying"}:
+                    self.pause(job, reason="superseded" if enabled else "policy")
+            else:
+                spec, priority = desired[job.repo]
+                changed = (job.priority, job.context, job.title) != (priority, context, spec.title)
+                job.priority, job.context, job.title = priority, context, spec.title
+                if job.state == "Paused" and job.pause_reason in {"superseded", "policy", "blocked"} and not self.blocked():
+                    self.resume(job)
+                if changed:
+                    self.save(job)
+                    self.on_change(job)
+        if enabled and not self.blocked():
+            for spec, priority in sorted(desired.values(), key=lambda item: item[1]):
+                if isinstance(inspect_model(spec), Ready):
+                    continue
+                previous = next((j for j in reversed(self.jobs) if j.repo == spec.repo), None)
+                if previous is None or previous.state == "Ready":
+                    self.enqueue_model(spec, origin="auto_setup", priority=priority, context=context)
+        active = self.active
+        urgent = next((j for j in sorted(self.jobs, key=lambda j: j.priority) if j.state == "Queued"), None)
+        if active and active.origin == "auto_setup" and urgent and urgent.priority < active.priority and active.state != "Verifying":
+            self.pause(active, reason="preempted")
+        # A preempted job remains queued behind the new mandatory resource.
+        for job in self.jobs:
+            if job.state == "Paused" and job.pause_reason == "preempted" and job.repo in desired and enabled and not self.blocked():
+                self.resume(job)
+
+    def block_network(self):
+        for job in tuple(self.jobs):
+            if job.state in {"Queued", "Downloading", "Verifying", "Stalled · retrying"}:
+                self.pause(job, reason="blocked")
 
     def close(self):
         self.closed = True

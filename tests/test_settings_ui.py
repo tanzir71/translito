@@ -217,6 +217,173 @@ def test_empty_state_actions_share_one_row_and_equal_size(desktop):
     assert cloud.winfo_x() + cloud.winfo_width() < local.winfo_x()
 
 
+def test_cloud_ready_has_start_and_no_repeated_setup_offer(desktop, monkeypatch):
+    from dataclasses import replace
+    from decimal import Decimal
+    from types import SimpleNamespace
+    import session_ui
+    from engines.session_state import resolve_plan
+    from engines.model_files import Ready, Missing
+    from engines.settings import EngineSettings, ProviderSettings, credential_signature, save_engine_settings
+    create, path = desktop
+    app = create()
+    key = "fake-key-only"
+    pref = ProviderSettings(enabled=True, monthly_cap=Decimal(5), account_kind="paid")
+    pref = replace(pref, tested_signature=credential_signature("soniox", key, pref))
+    save_engine_settings(EngineSettings(engine_choice="cloud", monthly_cap=Decimal(5), providers={"soniox": pref}), path)
+    app.credential_store = SimpleNamespace(get=lambda _: key)
+    app.engine_choice_var.set("cloud")
+    monkeypatch.setattr(session_ui, "resolve_plan", lambda *a, **kw: resolve_plan(*a, **kw,
+        inspect=lambda spec: Ready(path.parent) if "whisper" in spec.repo.lower() else Missing()))
+    app.selected_listen_choice = lambda: SimpleNamespace(name="Saved device")
+    app.session_controller.reset_connection()
+    end = time.monotonic() + 2
+    while app.session_controller.checking and time.monotonic() < end:
+        app.root.update()
+        time.sleep(.01)
+    app.session_controller.refresh()
+    assert app.listen_action_button.cget("text") == "Start"
+    assert not app.empty_actions.winfo_manager()
+    assert app.engine_var.get() == "Soniox"
+    request = app.current_model_request()
+    assert request["whisper_model"] == "openai/whisper-base"
+    assert request["cloud_translation"] and request["translation_model"] == "cloud:ar:en"
+    # Navigation does not mutate a selected engine.
+    app.session_controller.open_action("engine")
+    assert app.engine_choice_var.get() == "cloud"
+
+
+def test_money_edits_are_pending_until_valid_commit(desktop):
+    from engines.settings import load_engine_settings
+    create, path = desktop
+    app = create()
+    app.preferences.set("ENGINES", "monthly_cap_usd", "12")
+    app.monthly_budget_var.set("")
+    assert load_engine_settings(path).monthly_cap == 12
+    assert not app.preferences.commit_pending()
+    assert load_engine_settings(path).monthly_cap == 12
+    app.monthly_budget_var.set("7.")
+    assert not app.preferences.commit_pending()
+    assert load_engine_settings(path).monthly_cap == 12
+    app.monthly_budget_var.set("7.50")
+    assert load_engine_settings(path).monthly_cap == 12
+    assert app.preferences.commit_pending()
+    assert load_engine_settings(path).monthly_cap == 7.5
+
+
+def test_active_pair_and_stale_start_tokens_follow_mode_and_language(desktop):
+    create, _ = desktop
+    app = create()
+    app.one_way_var.set(True)
+    app.listen_source_var.set("Spanish")
+    app.listen_target_var.set("English")
+    app.session_controller.refresh()
+    assert app.session_controller.plan.pair == ("es", "en")
+    old = app.session_controller.begin()
+    app.listen_source_var.set("French")
+    app.session_controller.refresh()
+    assert not app.session_controller.accepts(old)
+    app.set_mode("speak")
+    app.speak_source_var.set("English")
+    app.speak_target_var.set("Japanese")
+    app.session_controller.refresh()
+    assert app.session_controller.plan.pair == ("en", "ja")
+    from engine_ui import pair
+    assert pair(app) == ("en", "ja")
+
+
+def test_main_download_progress_and_controls_share_current_job(desktop):
+    from engines.downloads import DownloadJob
+    create, path = desktop
+    app = create()
+    app.download_manager.closed = True
+    job = DownloadJob("progress", "fake/progress", "Lite translation · es → en", str(path.parent),
+                      bytes=50, total=100, state="Downloading")
+    app.download_manager.enqueue(job)
+    assert "50%" in app.download_text.get()
+    assert app.download_progress.cget("value") == .5
+    app.download_pause.invoke()
+    assert job.state == "Paused" and app.download_pause.cget("text") == "Resume"
+    app.download_pause.invoke()
+    assert job.state == "Queued" and job.bytes == 50
+    app.download_cancel.invoke()
+    assert job.state == "Cancelled" and job.bytes == 50
+
+
+def test_stop_during_startup_discards_late_transcriber(desktop, monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    import session_ui
+    from engines.model_files import Ready
+    from engines.session_state import resolve_plan
+    create, path = desktop
+    app = create()
+    app.listen_source_type_var.set("Device")
+    monkeypatch.setattr(session_ui, "resolve_plan", lambda *a, **kw: resolve_plan(*a, **kw, inspect=lambda _: Ready(path.parent)))
+    monkeypatch.setattr("engines.model_files.missing_translations", lambda *a: [])
+    app.selected_listen_choice = lambda: SimpleNamespace(name="Test source", raw=SimpleNamespace())
+    entered, release = threading.Event(), threading.Event()
+    child = Mock()
+    def construct(**kw):
+        entered.set()
+        release.wait(3)
+        kw["on_event"]("hint", "Stale startup must not appear")
+        return child
+    monkeypatch.setattr(gui, "ArabicAudioTranscriber", construct)
+    assert app.start() == "pending"
+    assert entered.wait(2)
+    app.stop()
+    release.set()
+    end = time.monotonic() + 1
+    while not child.stop_background.called and time.monotonic() < end:
+        app.root.update()
+        time.sleep(.01)
+    assert app.transcriber is None and not app.model_setup_busy
+    child.stop_background.assert_called_once()
+    child.start_background.assert_not_called()
+
+
+def test_download_notification_cannot_stop_a_meeting(desktop, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    create, _ = desktop
+    app = create()
+    monkeypatch.setattr(app, "stop", Mock())
+    app.schedule_controller.toast(SimpleNamespace(title="Lite is ready", download=True))
+    app.root.update_idletasks()
+    choices = [w for w in widgets(app.root) if w.winfo_class() == "TButton" and w.cget("text") == "Dismiss"]
+    assert len(choices) == 1
+    notice = choices[0].winfo_toplevel()
+    assert {w.cget("text") for w in widgets(notice) if w.winfo_class() == "TButton"} == {"Dismiss", "Models"}
+    choices[0].invoke()
+    app.stop.assert_not_called()
+
+
+def test_repeated_stop_does_not_overlap_shutdown_or_save(desktop):
+    import threading
+    from unittest.mock import Mock
+    create, _ = desktop
+    app = create()
+    release = threading.Event()
+    child = Mock(last_saved_path=None)
+    child.join_background.side_effect = lambda: release.wait(2)
+    child.save_transcript.return_value = None
+    app.transcriber = child
+    app.stop()
+    app.stop()
+    child.stop_background.assert_called_once()
+    assert app.listen_action_button.cget("text") == "Stopping…"
+    assert str(app.listen_action_button.cget("state")) == "disabled"
+    release.set()
+    end = time.monotonic() + 1
+    while app.transcriber is not None and time.monotonic() < end:
+        app.root.update()
+        time.sleep(.01)
+    assert app.transcriber is None
+    child.save_transcript.assert_called_once()
+
+
 def test_speak_selects_available_cable_and_only_shows_setup_when_needed(desktop, monkeypatch):
     from device_utils import OutputDeviceChoice
     from engines.virtual_mic import CableTestResult

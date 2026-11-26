@@ -74,6 +74,36 @@ def test_source_partial_revision_replaces_text():
     assert sources[-1]["text"] == "Hola" and sources[-1]["replace"]
 
 
+def test_recovered_stream_discards_old_callbacks_and_partial_buffers(tmp_path):
+    from unittest.mock import Mock
+    workers = []
+    def worker(protocol, credentials, update, error, **kw):
+        item = SimpleNamespace(name="soniox", update=update, error=error, close_stream=Mock(), finalize=Mock())
+        workers.append(item)
+        return item
+    pref = ProviderSettings(enabled=True, monthly_cap=Decimal(5), account_kind="paid")
+    pref = replace(pref, tested_signature=credential_signature("soniox", "fake-key", pref))
+    engine = PaidStreamingInterpreter(SimpleNamespace(get=lambda _: "fake-key"), pref,
+        settings=EngineSettings(monthly_cap=Decimal(5)), ledger=UsageLedger(tmp_path/"usage.json"), worker_factory=worker)
+    events = []
+    engine.start(("es", "en"), "en", False, lambda k,v: events.append((k,v)))
+    first_emit, first_stop, first_queue = engine.emit, engine._mt_stop, engine._mt_queue
+    protocol = engine.protocol
+    workers[0].update(protocol.parse({"tokens":[{"text":"Old ","is_final":True,"language":"es"}]}), 1)
+    assert engine.buffers
+    engine.stop()
+    engine.start(("es", "en"), "en", False, lambda k,v: events.append((k,v)))
+    events.clear()
+    workers[0].error("Late error")
+    first_emit("output_transcription", {"text":"Late target"})
+    workers[0].update(protocol.parse({"tokens":[{"text":"Late ","is_final":True,"language":"es"}]}), 1)
+    assert not events and not engine.buffers
+    assert first_stop.is_set() and first_stop is not engine._mt_stop and first_queue is not engine._mt_queue
+    workers[1].update(protocol.parse({"tokens":[{"text":"Nuevo.","is_final":True,"language":"es"}]}), 1)
+    assert next(v["text"] for k,v in events if k == "input_transcription") == "Nuevo."
+    engine.stop()
+
+
 def test_transport_auth_failure_is_sanitized_and_explained():
     from engines.stream_transport import SocketStream
     from engines.provider import AuthenticationError

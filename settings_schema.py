@@ -74,8 +74,8 @@ def add(section, key, default, *, live=False, validator=None, labels=None):
 
 add("ENGINES", "monthly_cap_usd", "0.00", validator=money, live=True)
 add("ENGINES", "engine_choice", "free")
-add("ENGINES", "fallback_on_budget", "local", labels={"local": "Continue on this PC", "stop": "Stop the session"})
-add("ENGINES", "budget_warn_percent", "80", labels={str(v): f"{v}%" for v in (50, 75, 80, 90, 100)})
+add("ENGINES", "fallback_on_budget", "local", live=True, labels={"local": "Continue on this PC", "stop": "Stop the session"})
+add("ENGINES", "budget_warn_percent", "80", live=True, labels={str(v): f"{v}%" for v in (50, 75, 80, 90, 100)})
 add("UI", "engine_scope", "all", labels={"all": "All language pairs", "pair": "This language pair"})
 for section, pairs in {
     "UI": {"subtitles_enabled": False, "reply_strip_visible": True, "last_settings_page": "Languages", "window_geometry": "800x640"},

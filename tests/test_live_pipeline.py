@@ -46,6 +46,42 @@ def test_rejected_key_fallback_is_explained_to_the_desktop():
     assert not item.pipeline.live
 
 
+def test_temporary_failure_recovers_on_new_utterance_without_resending_local_audio(monkeypatch):
+    monkeypatch.setenv("OFFLINE_ONLY", "0")
+    item = setup()
+    item.pipeline._fallback("Cloud streaming failed. Continuing on this PC.")
+    local = chunk()
+    item.pipeline.feed(local)
+    assert item.recognizer.transcribe.call_count == 1
+    item.interpreter.push_audio.assert_not_called()
+    item.clock[0] = 61
+    item.pipeline.poll()
+    assert item.interpreter.start.call_count == 1  # Silence never probes cloud.
+    fresh = replace(chunk(), samples=np.full(16000, .25, np.float32))
+    item.pipeline.feed(fresh)
+    assert item.pipeline.live and item.interpreter.start.call_count == 2
+    assert item.recognizer.transcribe.call_count == 1
+    item.interpreter.push_audio.assert_called_once()
+    np.testing.assert_array_equal(item.interpreter.push_audio.call_args.args[0], fresh.samples)
+
+
+def test_auth_failure_never_automatically_retries_cloud(monkeypatch):
+    monkeypatch.setenv("OFFLINE_ONLY", "0")
+    item = setup()
+    item.pipeline._fallback("The provider key was rejected.")
+    item.clock[0] = 10000
+    item.pipeline.feed(chunk())
+    assert not item.pipeline.live and item.interpreter.start.call_count == 1
+
+
+def test_recognition_only_stream_does_not_claim_to_be_the_translator():
+    item = setup()
+    item.interpreter.name = "speechmatics"
+    item.pipeline._handle("connected", {})
+    stages = [data for kind, data in item.events if kind == "engine"][-1]
+    assert stages == {"asr":"speechmatics", "fallback":False}
+
+
 def test_listen_english_is_source_only_and_never_translated_or_spoken():
     item = setup()
     item.event("input_transcription", text="The API works.", language="en", finished=True)

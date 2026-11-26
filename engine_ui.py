@@ -41,12 +41,15 @@ def initialize(app):
             app.show_hint("Set a monthly budget in Cost & usage before using paid cloud engines.")
     app.engine_choice_var.trace_add("write", choice_changed)
     app.engine_scope_var.trace_add("write", lambda *_: restore_scope(app))
-    for variable in (app.monthly_budget_var, app.budget_fallback_var, app.budget_warning_var):
-        variable.trace_add("write", lambda *_: apply_budget(app))
+    state.listeners.append(lambda section, key: apply_budget(app) if section == "ENGINES" and
+        (key.endswith("cap_usd") or key in {"fallback_on_budget", "budget_warn_percent"}) else None)
 
 
 def pair(app):
-    return tuple(app.language_entry_by_name(v.get())[2] for v in (app.listen_source_var, app.listen_target_var))
+    if getattr(app, "session_controller", None):
+        return app.session_controller.context()[1]
+    variables = (app.speak_source_var, app.speak_target_var) if app.mode_var.get() == "speak" else (app.listen_source_var, app.listen_target_var)
+    return tuple(app.language_entry_by_name(v.get())[2] for v in variables)
 
 
 def save_default(app, key, value):
@@ -253,6 +256,10 @@ def refresh_measurements(app):
 
 
 def refresh_engine_status(app, failure=""):
+    if getattr(app, "session_controller", None):
+        if failure:
+            app.session_controller.failure = failure
+        return app.session_controller.refresh()
     from engines.engine_status import engine_status
     settings = load_engine_settings(app.preferences.path)
     if app.preview_mode:
@@ -273,9 +280,8 @@ def apply_budget(app):
     transcriber = app.transcriber
     if transcriber is None:
         return
-    cap = safe_budget(app.monthly_budget_var.get())
-    fallback = app.budget_fallback_var.get()
-    warning = int(app.budget_warning_var.get())
+    committed = load_engine_settings(app.preferences.path)
+    cap, fallback, warning = committed.monthly_cap, committed.fallback_on_budget, committed.budget_warn_percent
     pipeline = getattr(transcriber, "conversation_pipeline", None)
     fallback_pipeline = getattr(pipeline, "fallback", pipeline)
     for candidate in (getattr(transcriber, "recognizer", None), getattr(transcriber, "translator_engine", None),
@@ -288,6 +294,7 @@ def apply_budget(app):
     guard = getattr(interpreter, "guard", None)
     if guard:
         guard.total_monthly_cap, guard.fallback_on_budget, guard.budget_warn_percent = cap, fallback, warning
+        guard.monthly_cap = committed.provider(interpreter.name).monthly_cap
         spent = sum(Decimal(v["estimated_usd"]) for v in guard.ledger.snapshot()["providers"].values())
         if cap <= spent and not guard.paused:
             guard.paused = True

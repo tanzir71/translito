@@ -40,4 +40,31 @@ def test_weekly_times_and_private_calendar_link_never_need_config(tmp_path):
     assert keys["calendar"] == secret and list(tmp_path.iterdir()) == []
     http.get_text.side_effect = OSError("offline")
     clock[0] = 901
-    assert feed.meetings(now,now+timedelta(days=2))
+    assert not feed.meetings(now,now+timedelta(days=2))
+    assert not feed.healthy
+
+
+def test_schedule_waits_for_actual_capture_and_does_not_stop_foreign_session():
+    now = datetime(2026,11,25,15,tzinfo=ZoneInfo("UTC"))
+    event = SimpleNamespace(id="owned", start=now, end=now+timedelta(hours=1), has_call_link=True)
+    clock, state = [now], ["idle"]
+    stop, notice = Mock(), Mock()
+    def start():
+        state[0] = "pending"
+        return "pending"
+    scheduler = Scheduler(clock=lambda:clock[0], running=lambda:state[0] != "idle", start_listen=start,
+        stop=stop, app_has_audio=lambda:True, notice=notice, session_state=lambda _:state[0])
+    scheduler.tick([event], enabled=True)
+    assert scheduler.pending is event and scheduler.active is None and not scheduler.seen
+    notice.assert_not_called()
+    scheduler.tick([event], enabled=True)
+    assert scheduler.active is None
+    state[0] = "running"
+    scheduler.tick([event], enabled=True)
+    assert scheduler.active is event and scheduler.pending is None
+    notice.assert_called_once()
+    state[0] = "foreign"
+    clock[0] = event.end
+    scheduler.tick([event], enabled=True)
+    stop.assert_not_called()
+    assert scheduler.active is None

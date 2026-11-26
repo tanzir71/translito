@@ -129,6 +129,8 @@ def provider_page(app, parent, colors):
         if app.preview_mode:
             return
         connector().remove(state["provider"])
+        if getattr(app, "session_controller", None):
+            app.session_controller.reset_connection()
         state["has_key"] = False
         key.set("")
         status.set("Key removed")
@@ -174,6 +176,8 @@ def provider_page(app, parent, colors):
                 status.set(error)
             else:
                 key.set("")
+                if getattr(app, "session_controller", None):
+                    app.session_controller.reset_connection()
                 app.engine_default_vars["default_asr_provider"].set(name)
                 if factories[name].models and app.engine_default_vars["default_asr_model"].get() not in factories[name].models:
                     app.engine_default_vars["default_asr_model"].set(factories[name].models[0])

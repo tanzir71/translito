@@ -7,8 +7,10 @@ class GlobalHotkeyManager:
         self.on_error = on_error
         self._handles = []
         self._keyboard = None
+        self.last_registered = None
 
     def register(self, hotkeys):
+        previous = self.last_registered
         self.unregister()
         try:
             import keyboard
@@ -19,9 +21,20 @@ class GlobalHotkeyManager:
                 callback = self.callbacks.get(action)
                 if combo and callback:
                     self._handles.append(keyboard.add_hotkey(combo, callback))
+            self.last_registered = dict(hotkeys or DEFAULT_HOTKEYS)
+            return True
         except Exception as exc:
+            self.unregister()
+            if previous:
+                try:
+                    for action, combo in previous.items():
+                        if normalize_hotkey(combo) and self.callbacks.get(action):
+                            self._handles.append(self._keyboard.add_hotkey(normalize_hotkey(combo), self.callbacks[action]))
+                except Exception:
+                    self.unregister()
             if callable(self.on_error):
                 self.on_error(str(exc))
+            return False
 
     def unregister(self):
         if not self._keyboard:

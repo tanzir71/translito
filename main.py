@@ -189,6 +189,7 @@ class ArabicAudioTranscriber:
         variety="",
         whisper_model=None,
         engine_settings=None,
+        session_plan=None,
     ):
         print("\nInitializing Translito...")
 
@@ -262,6 +263,17 @@ class ArabicAudioTranscriber:
         self.live_pipeline = None
         from engines.settings import load_engine_settings
         self.engine_settings = engine_settings or load_engine_settings()
+        self.session_plan = session_plan
+        if session_plan:
+            from dataclasses import replace
+            from engines.session_state import normalized_settings
+            frozen = normalized_settings(self.engine_settings)
+            resolved = frozen.resolve(*session_plan.pair)
+            self.engine_settings = replace(frozen, pair_overrides={},
+                default_asr_provider=session_plan.asr, default_mt_provider=session_plan.mt,
+                default_asr_model=resolved["default_asr_model"], default_mt_model=resolved["default_mt_model"],
+                providers={name: replace(pref, enabled=pref.enabled and name in {session_plan.asr, session_plan.mt})
+                           for name, pref in frozen.providers.items()})
         from engines.usage import UsageLedger
         from engines.delay import DelayTracker
         self.usage_ledger = UsageLedger()
@@ -390,6 +402,14 @@ class ArabicAudioTranscriber:
                     speech_player=self.speech_player,voice=self.speech_voice,ledger=self.usage_ledger,variety=self.variety)
                 self.live_pipeline = LiveConversationPipeline(fallback,interpreter,lid=lid)
                 self.conversation_pipeline = self.live_pipeline
+
+        if self.live_pipeline is not None and session_plan:
+            def local_fallback_ready():
+                from dataclasses import replace
+                from engines.session_state import resolve_plan
+                local_settings = replace(self.engine_settings, engine_choice="local", profile="offline")
+                return resolve_plan(local_settings, session_plan.pair, preferred_whisper=self.whisper_model).local_ready
+            self.live_pipeline.interpreter.local_fallback_ready = local_fallback_ready
 
         router = (getattr(self.conversation_pipeline,"fallback",self.conversation_pipeline).translator
                   if self.conversation_pipeline is not None else self.translation_router)

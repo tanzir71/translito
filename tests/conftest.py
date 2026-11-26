@@ -43,6 +43,7 @@ def tk_parent(isolated_tcl_runtime):
 
 @pytest.fixture(autouse=True)
 def isolated_usage_and_network(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRANSLITO_AUTO_SETUP_DISABLED", "1")
     from engines.secrets import CredentialStore
     initialize_credentials = CredentialStore.__init__
     def fake_credentials_only(self, backend=None):
