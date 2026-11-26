@@ -1,10 +1,11 @@
 """Compact native Tk controls matching the shared Figma tokens."""
+from ui_scale import px, scaled_geometry
 import tkinter as tk
 
 
 class Switch(tk.Canvas):
     def __init__(self, parent, variable, colors, *, command=None):
-        super().__init__(parent, width=34, height=20, bg=parent.cget("bg"), highlightthickness=0,
+        super().__init__(parent, width=px(34), height=px(20), bg=parent.cget("bg"), highlightthickness=px(0),
                          takefocus=True, cursor="hand2")
         self.variable, self.colors, self.command = variable, colors, command
         self.token = variable.trace_add("write", lambda *_: self.draw())
@@ -24,8 +25,8 @@ class Switch(tk.Canvas):
         self.delete("all")
         on = self.variable.get()
         color = self.colors["blue" if on else "field"]
-        self.create_rectangle(10, 0, 24, 20, fill=color, outline="")
+        self.create_rectangle(*px((10, 0, 24, 20)), fill=color, outline="")
         for left in (0, 14):
-            self.create_oval(left, 0, left+20, 20, fill=color, outline="")
+            self.create_oval(*px((left, 0, left+20, 20)), fill=color, outline="")
         left = 16 if on else 2
-        self.create_oval(left, 2, left+16, 18, fill=self.colors["on_accent"], outline="")
+        self.create_oval(*px((left, 2, left+16, 18)), fill=self.colors["on_accent"], outline="")

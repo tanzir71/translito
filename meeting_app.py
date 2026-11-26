@@ -1,4 +1,5 @@
 """Resolve a meeting app by executable name; PIDs are session-only."""
+from ui_scale import px, scaled_geometry
 import tkinter as tk
 from tkinter import ttk
 
@@ -42,10 +43,10 @@ def page(app, colors):
             picker.configure(values=["", *values])
         except Exception:
             app.show_hint("Meeting apps are unavailable. Refresh after the app starts playing audio.")
-    ttk.Button(parent, text="Refresh meeting apps", command=refresh, style="Mac.TButton").pack(anchor="w", pady=6)
+    ttk.Button(parent, text="Refresh meeting apps", command=refresh, style="Mac.TButton").pack(anchor="w", pady=px(6))
     field(parent, "If it is not open", app.if_app_closed_var, colors, ("wait", "everything"))
     tk.Label(parent, text="Browser meetings include all audio from that browser. The executable name is remembered after it restarts.",
-        bg=colors["bg"], fg=colors["tertiary"], wraplength=560, justify="left", anchor="w").pack(fill="x", pady=(6,16))
+        bg=colors["bg"], fg=colors["tertiary"], wraplength=px(560), justify="left", anchor="w").pack(fill="x", pady=px((6,16)))
     refresh()
     capture = field(parent,"Capture source",app.listen_source_type_var,colors,("Device","App audio"))
     capture.bind("<<ComboboxSelected>>",lambda _event:app.select_capture_source())

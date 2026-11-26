@@ -1,4 +1,5 @@
 """One reply set shared by the main strip, desktop captions and hotkeys."""
+from ui_scale import px, scaled_geometry
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -17,7 +18,7 @@ class ReplyController:
         self.replies, self.context, self.language, self.target = (), [], "", "en"
         self.current_id, self.suggested, self.generation = None, None, 0
         self.reply_player, self.overlay_signature = None, None
-        self.frame = tk.Frame(app.root,bg=colors["bg"],padx=16,pady=10)
+        self.frame = tk.Frame(app.root,bg=colors["bg"],padx=px(16),pady=px(10))
         self.status = tk.StringVar()
         self.visible_var.trace_add("write",lambda *_:self.render())
         for variable in self.options.values():
@@ -90,18 +91,18 @@ class ReplyController:
         else:
             self.frame.grid(row=9,column=0,sticky="ew")
             header = tk.Frame(self.frame,bg=self.colors["bg"])
-            header.pack(fill="x",pady=(0,8))
+            header.pack(fill="x",pady=px((0,8)))
             tk.Label(header,textvariable=self.status,bg=self.colors["bg"],fg=self.colors["secondary"],font=("Segoe UI",8)).pack(side="left")
             ttk.Button(header,text="Hide",command=lambda:self.visible_var.set(False),style="Mac.TButton").pack(side="right")
-            ttk.Button(header,text="More",command=self.request,style="Mac.TButton").pack(side="right",padx=6)
+            ttk.Button(header,text="More",command=self.request,style="Mac.TButton").pack(side="right",padx=px(6))
             cards = tk.Frame(self.frame,bg=self.colors["bg"])
             cards.pack(fill="x")
             for index, reply in enumerate(self.replies):
-                card = tk.Frame(cards,bg=self.colors["surface_2"],highlightthickness=1,highlightbackground=self.colors["border"],padx=10,pady=8)
-                card.grid(row=0,column=index,sticky="nsew",padx=(0,8))
+                card = tk.Frame(cards,bg=self.colors["surface_2"],highlightthickness=px(1),highlightbackground=self.colors["border"],padx=px(10),pady=px(8))
+                card.grid(row=0,column=index,sticky="nsew",padx=px((0,8)))
                 cards.columnconfigure(index,weight=1,uniform="replies")
-                tk.Label(card,text=f"{index+1}  {reply.spoken}",bg=self.colors["surface_2"],fg=self.colors["text"],font=("Segoe UI Semibold",10),wraplength=210,justify="left",anchor="w").pack(fill="x")
-                tk.Label(card,text=reply.meaning,bg=self.colors["surface_2"],fg=self.colors["secondary"],font=("Segoe UI",9),wraplength=210,justify="left",anchor="w").pack(fill="x",pady=(4,0))
+                tk.Label(card,text=f"{index+1}  {reply.spoken}",bg=self.colors["surface_2"],fg=self.colors["text"],font=("Segoe UI Semibold",10),wraplength=px(210),justify="left",anchor="w").pack(fill="x")
+                tk.Label(card,text=reply.meaning,bg=self.colors["surface_2"],fg=self.colors["secondary"],font=("Segoe UI",9),wraplength=px(210),justify="left",anchor="w").pack(fill="x",pady=px((4,0)))
                 if self.options["show_native"].get() and reply.romanized:
                     from engines.display import display_text
                     tk.Label(card,text=display_text(reply.native),bg=self.colors["surface_2"],fg=self.colors["tertiary"],font=("Segoe UI",9)).pack(fill="x")
@@ -110,7 +111,7 @@ class ReplyController:
 
     def card_actions(self, card, index):
         row = tk.Frame(card,bg=self.colors["surface_2"])
-        row.pack(fill="x",pady=(6,0))
+        row.pack(fill="x",pady=px((6,0)))
         binding = self.app.hotkey_vars.get(f"reply_{index+1}")
         tk.Label(row,text=binding.get() if binding else "",bg=self.colors["surface_2"],fg=self.colors["tertiary"],font=("Segoe UI",8)).pack(side="left")
         ttk.Button(row,text="Say",command=lambda:self.say(index),style="Mac.TButton").pack(side="right")
@@ -130,17 +131,17 @@ class ReplyController:
         if not self.replies or not all(signature[1:4]):
             tray.pack_forget()
             return
-        tray.pack(fill="x",pady=(6,0))
+        tray.pack(fill="x",pady=px((6,0)))
         for index, reply in enumerate(self.replies):
-            card = tk.Frame(tray,bg=self.colors["black"],padx=8)
+            card = tk.Frame(tray,bg=self.colors["black"],padx=px(8))
             card.grid(row=0,column=index,sticky="nsew")
             tray.columnconfigure(index,weight=1,uniform="reply-tray")
             size = max(9,round(overlay.option("text_size",24)*.4))
             tk.Button(card,text=f"{index+1}  {reply.spoken}",command=lambda i=index:self.say(i),bg=self.colors["black"],
                 fg=self.colors["text"],activebackground=self.colors["field"],activeforeground=self.colors["text"],relief="flat",bd=0,
-                font=("Segoe UI Semibold",size),wraplength=205,anchor="w",justify="left").pack(fill="x")
+                font=("Segoe UI Semibold",size),wraplength=px(205),anchor="w",justify="left").pack(fill="x")
             tk.Label(card,text=reply.meaning,bg=self.colors["black"],fg=self.colors["secondary"],font=("Segoe UI",max(8,size-1)),
-                wraplength=205,anchor="w",justify="left").pack(fill="x")
+                wraplength=px(205),anchor="w",justify="left").pack(fill="x")
         overlay.window.update_idletasks()
         overlay.window.geometry(f"720x{max(64,overlay.window.winfo_reqheight())}")
         overlay.apply_styles()
@@ -183,11 +184,11 @@ def page(app, colors):
     parent, controller = app.settings_shell.contents["Languages"], app.reply_controller
     heading(parent,"Reply suggestions","Short replies in the spoken language, with readable English letters and a meaning.",colors)
     row = tk.Frame(parent,bg=colors["bg"])
-    row.pack(fill="x",pady=8)
+    row.pack(fill="x",pady=px(8))
     tk.Label(row,text="Suggest short replies",bg=colors["bg"],fg=colors["text"]).pack(side="left")
     Switch(row,controller.options["enabled"],colors).pack(side="right")
     field(parent,"Suggest",controller.options["trigger"],colors,("question","hotkey"))
     for key,label in (("show_native","Show the native script as well"),("show_on_overlay","Show suggestions on the subtitle bar")):
-        tk.Checkbutton(parent,text=label,variable=controller.options[key],**{**app._checkbutton_options(),"bg":colors["bg"]}).pack(anchor="w",pady=6)
+        tk.Checkbutton(parent,text=label,variable=controller.options[key],**{**app._checkbutton_options(),"bg":colors["bg"]}).pack(anchor="w",pady=px(6))
     tk.Checkbutton(parent,text="Show reply strip in the main window",variable=controller.visible_var,
-        **{**app._checkbutton_options(),"bg":colors["bg"]}).pack(anchor="w",pady=6)
+        **{**app._checkbutton_options(),"bg":colors["bg"]}).pack(anchor="w",pady=px(6))

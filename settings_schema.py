@@ -108,3 +108,5 @@ def setting(section, key, default=""):
 add("SCHEDULE", "weekly_blocks", "[]")
 add("SCHEDULE", "skipped", "[]", live=True)
 add("SCHEDULE", "lead_seconds", 60, labels={0:"At the start time",60:"1 min before the start time",120:"2 min before",300:"5 min before"})
+
+add("UI", "window_dpi", 96, live=True)

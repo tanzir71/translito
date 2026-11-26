@@ -11,6 +11,7 @@ def isolated_tcl_runtime(tmp_path_factory):
     from pathlib import Path
     import shutil
     import sys
+    os.environ.setdefault("TRANSLITO_UI_SCALE", "1.0")
     source = Path(sys.base_prefix) / "tcl"
     if os.name != "nt" or not source.is_dir():
         yield

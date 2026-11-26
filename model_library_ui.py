@@ -1,4 +1,5 @@
 """Model inventory, explicit downloads and confirmed cache deletion."""
+from ui_scale import px, scaled_geometry
 import os
 import subprocess
 import sys
@@ -18,22 +19,22 @@ class ModelManagerWindow:
         self.window = tk.Toplevel(app.root)
         self.window.title("Manage models")
         self.window.configure(bg=colors["bg"])
-        self.window.minsize(680, 400)
+        self.window.minsize(px(680), px(400))
         self.window.transient(app.root)
-        body = tk.Frame(self.window, bg=colors["bg"], padx=18, pady=16)
+        body = tk.Frame(self.window, bg=colors["bg"], padx=px(18), pady=px(16))
         body.pack(fill="both", expand=True)
         body.columnconfigure(0, weight=1)
         body.rowconfigure(4, weight=1)
         tk.Label(body, text="Models on this PC", bg=colors["bg"], fg=colors["text"],
                  font=("Segoe UI Semibold", 14)).grid(row=0, column=0, sticky="w")
         tk.Label(body, text="Download a model once, or delete a cached copy to recover disk space.",
-                 bg=colors["bg"], fg=colors["secondary"], wraplength=620,
-                 justify="left").grid(row=1, column=0, sticky="w", pady=(4, 12))
+                 bg=colors["bg"], fg=colors["secondary"], wraplength=px(620),
+                 justify="left").grid(row=1, column=0, sticky="w", pady=px((4, 12)))
         toolbar = tk.Frame(body, bg=colors["bg"])
-        toolbar.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        toolbar.grid(row=2, column=0, sticky="ew", pady=px((0, 10)))
         self.filter = tk.StringVar(value="All models")
         combo = ttk.Combobox(toolbar, state="readonly", textvariable=self.filter,
-                             values=("All models", "Downloaded", "Available / partial"), width=19)
+                             values=("All models", "Downloaded", "Available / partial"), width=px(19, chars=True))
         combo.pack(side="left")
         combo.bind("<<ComboboxSelected>>", lambda _event: self.render())
         self.refresh_button = ttk.Button(toolbar, text="Refresh", command=self.refresh)
@@ -44,12 +45,12 @@ class ModelManagerWindow:
         style = ttk.Style(self.window)
         from ui_theme import apply_theme
         apply_theme(self.window, style, colors)
-        self.tree = ttk.Treeview(table, columns=columns, show="headings", selectmode="browse", height=12,
+        self.tree = ttk.Treeview(table, columns=columns, show="headings", selectmode="browse", height=px(12, chars=True),
                                  style="Models.Treeview")
         for key, title, width in (("model", "Model", 290), ("kind", "Use", 85), ("status", "Status", 100),
                                   ("size", "Disk use", 90), ("storage", "Location", 175)):
             self.tree.heading(key, text=title)
-            self.tree.column(key, width=width, minwidth=65, stretch=key in {"model", "storage"})
+            self.tree.column(key, width=px(width), minwidth=px(65), stretch=key in {"model", "storage"})
         scrollbar = ttk.Scrollbar(table, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.pack(side="left", fill="both", expand=True)
@@ -57,20 +58,20 @@ class ModelManagerWindow:
         self.tree.bind("<<TreeviewSelect>>", lambda _event: self.selection_changed())
         self.detail = tk.StringVar(value="Reading local model caches…")
         tk.Label(body, textvariable=self.detail, bg=colors["bg"], fg=colors["secondary"],
-                 anchor="w", justify="left", wraplength=620, height=3).grid(row=5, column=0, sticky="ew", pady=8)
+                 anchor="w", justify="left", wraplength=px(620), height=px(3, chars=True)).grid(row=5, column=0, sticky="ew", pady=px(8))
         # Put actions in the fixed toolbar. Only the table can grow/shrink;
         # pack previously let its requested height push all actions offscreen.
         buttons = tk.Frame(body, bg=colors["bg"])
-        buttons.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        buttons.grid(row=3, column=0, sticky="ew", pady=px((0, 10)))
         self.download_button = ttk.Button(buttons, text="Download", command=self.download)
-        self.download_button.pack(side="left", padx=(0, 8))
+        self.download_button.pack(side="left", padx=px((0, 8)))
         self.delete_button = ttk.Button(buttons, text="Delete model…", command=self.delete)
-        self.delete_button.pack(side="left", padx=(0, 8))
+        self.delete_button.pack(side="left", padx=px((0, 8)))
         self.folder_button = ttk.Button(buttons, text="Open folder", command=self.open_folder)
         self.folder_button.pack(side="left")
         self.status = tk.StringVar(value="Listing models uses no network.")
         tk.Label(body, textvariable=self.status, bg=colors["bg"], fg=colors["secondary"],
-                 wraplength=620, anchor="w", justify="left").grid(row=6, column=0, sticky="ew", pady=(10, 0))
+                 wraplength=px(620), anchor="w", justify="left").grid(row=6, column=0, sticky="ew", pady=px((10, 0)))
         center(self.window, app.root,
                width=min(900, max(680, self.window.winfo_vrootwidth() - 48)),
                height=min(580, max(400, self.window.winfo_vrootheight() - 96)))

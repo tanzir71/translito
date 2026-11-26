@@ -1,4 +1,5 @@
 """The 800px comparison dialog. Running a check is always an explicit action."""
+from ui_scale import px, scaled_geometry
 from decimal import Decimal
 import threading
 import tkinter as tk
@@ -13,23 +14,23 @@ from quality_settings import _window
 
 def open_check(app, colors, center, *, first_run=False):
     window = _window(app, "Speed and accuracy check", colors, center, 800, 546)
-    body = tk.Frame(window, bg=colors["bg"], padx=24, pady=22)
+    body = tk.Frame(window, bg=colors["bg"], padx=px(24), pady=px(22))
     body.pack(fill="both", expand=True)
     heading(body, "Speed and accuracy check", "The same public clips run through every engine. Accuracy stays blank for recordings without references.", colors)
     source, target = pair(app)
     samples, results = [], []
     status = tk.StringVar(value="Load the public sample or choose a recording. No microphone is opened.")
     top = tk.Frame(body, bg=colors["bg"])
-    top.pack(fill="x", pady=8)
+    top.pack(fill="x", pady=px(8))
     columns = ("Engine", "Delay p50 / p95", "Words right", "Terms kept", "Cost / speech h")
-    tree = ttk.Treeview(body, columns=columns, show="headings", height=8)
+    tree = ttk.Treeview(body, columns=columns, show="headings", height=px(8, chars=True))
     for column in columns:
         tree.heading(column, text=column)
-        tree.column(column, width=140 if column == "Engine" else 125, stretch=True)
-    tree.pack(fill="both", expand=True, pady=12)
+        tree.column(column, width=px(140 if column == "Engine" else 125), stretch=True)
+    tree.pack(fill="both", expand=True, pady=px(12))
     from ui_theme import apply_theme
     apply_theme(window, app.style, colors)
-    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"], wraplength=740, justify="left", anchor="w").pack(fill="x", pady=8)
+    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"], wraplength=px(740), justify="left", anchor="w").pack(fill="x", pady=px(8))
     settings = load_engine_settings(app.preferences.path)
     connected = [f for f in provider_factories() if f.kind == "live" and settings.provider(f.name).enabled and settings.provider(f.name).tested_signature and not f.unavailable_reason(source, target)]
     for name in ["On this PC", *[f.title for f in provider_factories() if f.kind == "live"]]:
@@ -72,7 +73,7 @@ def open_check(app, colors, center, *, first_run=False):
             background(lambda: [SampleCatalog.recording(path, source, target, variety=app.variety_var.get())], loaded)
     load_button = ttk.Button(top, text="Load public sample", style="Mac.TButton", command=load)
     load_button.pack(side="left")
-    ttk.Button(top, text="Use my recording", style="Mac.TButton", command=own).pack(side="left", padx=8)
+    ttk.Button(top, text="Use my recording", style="Mac.TButton", command=own).pack(side="left", padx=px(8))
     full_sample = tk.BooleanVar(window, value=False)
     if source == "ar" and target == "en":
         tk.Checkbutton(top, text="Full set (300)", variable=full_sample,
@@ -133,7 +134,7 @@ def open_check(app, colors, center, *, first_run=False):
         if not results:
             return
         detail = _window(app, "Check transcripts", colors, center, 760, 500)
-        text = tk.Text(detail, wrap="word", bg=colors["field"], fg=colors["text"], padx=18, pady=18)
+        text = tk.Text(detail, wrap="word", bg=colors["field"], fg=colors["text"], padx=px(18), pady=px(18))
         text.pack(fill="both", expand=True)
         for result in results:
             text.insert("end", result["engine"] + "\n\n")
@@ -142,7 +143,7 @@ def open_check(app, colors, center, *, first_run=False):
         text.configure(state="disabled")
     bottom = tk.Frame(body, bg=colors["bg"])
     bottom.pack(fill="x")
-    ttk.Button(bottom, text="View transcripts", command=transcripts, style="Mac.TButton").pack(side="left", padx=8)
+    ttk.Button(bottom, text="View transcripts", command=transcripts, style="Mac.TButton").pack(side="left", padx=px(8))
     run_button = ttk.Button(bottom, text="Run check", command=run, style="Primary.TButton", state="disabled")
     run_button.pack(side="right")
     window.results = results

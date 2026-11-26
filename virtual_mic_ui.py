@@ -1,4 +1,5 @@
 """Opt-in Windows virtual-mic setup; kept out of Listen Mode."""
+from ui_scale import px, scaled_geometry
 import os
 import threading
 import tkinter as tk
@@ -38,21 +39,21 @@ class VirtualMicSetup:
         self.confirmed_app = config.get("VIRTUAL_MIC", "confirmed_app", fallback="")
         if self.meeting_app not in GUIDES:
             self.meeting_app = "Other"
-        self.frame = tk.Frame(host.root, bg=colors["yellow_bg"], padx=12, pady=8)
+        self.frame = tk.Frame(host.root, bg=colors["yellow_bg"], padx=px(12), pady=px(8))
         self.steps = tk.StringVar()
         tk.Label(self.frame, textvariable=self.steps, bg=colors["yellow_bg"], fg=colors["text"],
                  anchor="w", justify="left", font=("Segoe UI Semibold", 9)).pack(fill="x")
         self.label = tk.Label(self.frame, text="", bg=colors["yellow_bg"], fg=colors["secondary"],
-                              anchor="w", justify="left", wraplength=700, font=("Segoe UI", 9))
-        self.label.pack(fill="x", pady=(4, 6))
+                              anchor="w", justify="left", wraplength=px(700), font=("Segoe UI", 9))
+        self.label.pack(fill="x", pady=px((4, 6)))
         actions = tk.Frame(self.frame, bg=colors["yellow_bg"])
         actions.pack(fill="x")
         self.install_button = ttk.Button(actions, text="Install virtual mic", style="Mac.TButton", command=self.consent)
-        self.install_button.pack(side="left", padx=(0, 6))
+        self.install_button.pack(side="left", padx=px((0, 6)))
         self.test_button = ttk.Button(actions, text="Test virtual mic", style="Mac.TButton", command=self.test)
-        self.test_button.pack(side="left", padx=(0, 6))
+        self.test_button.pack(side="left", padx=px((0, 6)))
         self.guide_button = ttk.Button(actions, text="Pick meeting mic…", style="Mac.TButton", command=self.guide)
-        self.guide_button.pack(side="left", padx=(0, 6))
+        self.guide_button.pack(side="left", padx=px((0, 6)))
         self.sound_button = ttk.Button(actions, text="Sound settings", style="Mac.TButton", command=self.sound_settings)
         self.sound_button.pack(side="left")
         self.restart_button = ttk.Button(actions, text="Restart Windows…", style="Mac.TButton", command=self.restart)
@@ -152,15 +153,15 @@ class VirtualMicSetup:
         window.transient(self.host.root)
         window.grab_set()
         tk.Label(window, text="What does this install?", bg=self.colors["bg"], fg=self.colors["text"],
-                 font=("Segoe UI Semibold", 12)).pack(anchor="w", padx=20, pady=(18, 8))
+                 font=("Segoe UI Semibold", 12)).pack(anchor="w", padx=px(20), pady=px((18, 8)))
         tk.Label(window, text="VB-CABLE adds a virtual playback / microphone pair to Windows. Translito sends translated speech to CABLE Input; your meeting app records CABLE Output.\n\nVB-CABLE is donationware by VB-Audio. You can review its terms and donate below. Organizations that cannot expose donation/payment to their users need the appropriate VB-Audio license.\n\nOnly the driver installer requests administrator access. Expect Windows permission and driver-publisher prompts. A restart may be needed. Translito will not restart Windows automatically.",
-                 bg=self.colors["bg"], fg=self.colors["secondary"], wraplength=490, justify="left").pack(padx=20)
+                 bg=self.colors["bg"], fg=self.colors["secondary"], wraplength=px(490), justify="left").pack(padx=px(20))
         links = tk.Frame(window, bg=self.colors["bg"])
-        links.pack(fill="x", padx=20, pady=12)
+        links.pack(fill="x", padx=px(20), pady=px(12))
         for title, url in [("What is VB-CABLE?", cable.PACKAGE["product"]), ("Terms / Donate to VB-Audio", cable.PACKAGE["donate"])]:
-            ttk.Button(links, text=title, command=lambda url=url: webbrowser.open(url), style="Mac.TButton").pack(side="left", padx=(0, 8))
+            ttk.Button(links, text=title, command=lambda url=url: webbrowser.open(url), style="Mac.TButton").pack(side="left", padx=px((0, 8)))
         actions = tk.Frame(window, bg=self.colors["bg"])
-        actions.pack(fill="x", padx=20, pady=(0, 18))
+        actions.pack(fill="x", padx=px(20), pady=px((0, 18)))
         ttk.Button(actions, text="Cancel", command=window.destroy, style="Mac.TButton").pack(side="right")
         def install():
             window.destroy()
@@ -176,7 +177,7 @@ class VirtualMicSetup:
                     self.host.persist_settings()
                     self.host.show_hint("Virtual microphone found and selected. Run Test virtual mic next.")
             self._work(work, done, "Waiting for virtual microphone")
-        ttk.Button(actions, text="Install optional driver", command=install, style="Primary.TButton").pack(side="right", padx=8)
+        ttk.Button(actions, text="Install optional driver", command=install, style="Primary.TButton").pack(side="right", padx=px(8))
         self._place(window)
 
     def test_result(self, output, result):
@@ -200,9 +201,9 @@ class VirtualMicSetup:
         window.transient(self.host.root)
         variable = tk.StringVar(value=self.meeting_app)
         combo = ttk.Combobox(window, textvariable=variable, values=list(GUIDES), state="readonly", style="Dark.TCombobox")
-        combo.pack(fill="x", padx=18, pady=16)
-        label = tk.Label(window, bg=self.colors["bg"], fg=self.colors["text"], justify="left", wraplength=480)
-        label.pack(fill="x", padx=18)
+        combo.pack(fill="x", padx=px(18), pady=px(16))
+        label = tk.Label(window, bg=self.colors["bg"], fg=self.colors["text"], justify="left", wraplength=px(480))
+        label.pack(fill="x", padx=px(18))
         def selected(_event=None):
             label.configure(text=GUIDES[variable.get()][0])
         combo.bind("<<ComboboxSelected>>", selected)
@@ -211,7 +212,7 @@ class VirtualMicSetup:
             url = GUIDES[variable.get()][1]
             if url:
                 webbrowser.open(url)
-        ttk.Button(window, text="Official app instructions", command=help_page, style="Mac.TButton").pack(anchor="w", padx=18, pady=10)
+        ttk.Button(window, text="Official app instructions", command=help_page, style="Mac.TButton").pack(anchor="w", padx=px(18), pady=px(10))
         def confirm():
             self.meeting_app = self.confirmed_app = variable.get()
             if not self.host.preview_mode:
@@ -224,7 +225,7 @@ class VirtualMicSetup:
             self.force_visible = False
             window.destroy()
             self.update()
-        ttk.Button(window, text="I've selected CABLE Output in my meeting app", command=confirm, style="Primary.TButton").pack(padx=18, pady=(0, 16))
+        ttk.Button(window, text="I've selected CABLE Output in my meeting app", command=confirm, style="Primary.TButton").pack(padx=px(18), pady=px((0, 16)))
         self._place(window)
 
     def sound_settings(self):

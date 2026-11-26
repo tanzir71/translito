@@ -1,4 +1,5 @@
 """The Figma settings shell: 188px sidebar and one scrollable page at a time."""
+from ui_scale import px, scaled_geometry
 import tkinter as tk
 
 PAGE_GROUPS = (("Translation", ("Languages", "Engine", "Cost & usage")),
@@ -15,27 +16,27 @@ class SettingsShell:
         self.colors, self.on_page = colors, on_page
         body = tk.Frame(window, bg=colors["bg"])
         body.pack(fill="both", expand=True)
-        sidebar = tk.Frame(body, bg=colors["surface"], width=188, padx=10, pady=6)
+        sidebar = tk.Frame(body, bg=colors["surface"], width=px(188), padx=px(10), pady=px(6))
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
-        tk.Frame(body, bg=colors["separator"], width=1).pack(side="left", fill="y")
+        tk.Frame(body, bg=colors["separator"], width=px(1)).pack(side="left", fill="y")
         self.host = tk.Frame(body, bg=colors["bg"])
         self.host.pack(side="left", fill="both", expand=True)
         self.pages, self.buttons, self.contents = {}, {}, {}
         for heading, pages in PAGE_GROUPS:
             tk.Label(sidebar, text=heading, bg=colors["surface"], fg=colors["tertiary"],
-                     anchor="w", font=("Segoe UI", 8)).pack(fill="x", padx=10, pady=(12, 4))
+                     anchor="w", font=("Segoe UI", 8)).pack(fill="x", padx=px(10), pady=px((12, 4)))
             for page in pages:
                 button = tk.Button(sidebar, text=page, command=lambda p=page: self.show(p),
                     bg=colors["surface"], fg=colors["secondary"], activebackground=colors["surface_2"],
-                    activeforeground=colors["text"], relief="flat", borderwidth=0, anchor="w",
-                    padx=10, pady=7, font=("Segoe UI", 10), cursor="hand2", takefocus=True)
-                button.pack(fill="x", pady=1)
+                    activeforeground=colors["text"], relief="flat", borderwidth=px(0), anchor="w",
+                    padx=px(10), pady=px(7), font=("Segoe UI", 10), cursor="hand2", takefocus=True)
+                button.pack(fill="x", pady=px(1))
                 self.buttons[page] = button
                 button.bind("<Enter>", lambda event, p=page: self._hover(p, True))
                 button.bind("<Leave>", lambda event, p=page: self._hover(p, False))
                 scroll = scroll_class(self.host, background=colors["bg"])
-                scroll.content.configure(padx=26, pady=22)
+                scroll.content.configure(padx=px(26), pady=px(22))
                 self.pages[page], self.contents[page] = scroll, scroll.content
         self.show(initial if initial in self.pages else "Languages")
 

@@ -1,4 +1,5 @@
 """Engine and cost pages using the Figma spacing and existing dark controls."""
+from ui_scale import px, scaled_geometry
 from decimal import Decimal
 import tkinter as tk
 from tkinter import ttk
@@ -83,8 +84,8 @@ def refresh_provider_choices(app):
 
 def field(parent, label, variable, colors, values=None):
     frame = tk.Frame(parent, bg=colors["bg"])
-    frame.pack(fill="x", pady=5)
-    tk.Label(frame, text=label, bg=colors["bg"], fg=colors["secondary"], anchor="w", font=("Segoe UI", 8)).pack(fill="x", pady=(0, 4))
+    frame.pack(fill="x", pady=px(5))
+    tk.Label(frame, text=label, bg=colors["bg"], fg=colors["secondary"], anchor="w", font=("Segoe UI", 8)).pack(fill="x", pady=px((0, 4)))
     display = variable
     labels = getattr(getattr(variable, "setting", None), "labels", {})
     if values is not None and label.casefold().endswith(" provider"):
@@ -131,7 +132,7 @@ def field(parent, label, variable, colors, values=None):
 def heading(parent, title, description, colors):
     tk.Label(parent, text=title, bg=colors["bg"], fg=colors["text"], font=("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
     tk.Label(parent, text=description, bg=colors["bg"], fg=colors["secondary"], font=("Segoe UI", 9),
-             wraplength=560, justify="left", anchor="w").pack(fill="x", pady=(4, 16))
+             wraplength=px(560), justify="left", anchor="w").pack(fill="x", pady=px((4, 16)))
 
 
 def pages(app, colors):
@@ -146,8 +147,8 @@ def pages(app, colors):
         ("cloud", "Cloud, pay as you go", "Most accurate. Sends only speech in your languages.", f"${rate:.2f} per hour"),
         ("local", "On this PC", "Free and private. Nothing leaves this computer.", "Free · no limit"),
         ("free", "Free cloud allowances", "Free tiers with limits. Some providers reuse your data.", "Free · limited")):
-        card = tk.Frame(engine, bg=colors["surface"], highlightthickness=1, highlightbackground=colors["border"], padx=12, pady=10)
-        card.pack(fill="x", pady=(0, 8))
+        card = tk.Frame(engine, bg=colors["surface"], highlightthickness=px(1), highlightbackground=colors["border"], padx=px(12), pady=px(10))
+        card.pack(fill="x", pady=px((0, 8)))
         tk.Radiobutton(card, text=title, variable=app.engine_choice_var, value=value, bg=colors["surface"], fg=colors["text"],
             selectcolor=colors["field"], activebackground=colors["surface"], activeforeground=colors["text"],
             font=("Segoe UI", 10), anchor="w").pack(side="left")
@@ -156,19 +157,19 @@ def pages(app, colors):
         description_var = tk.StringVar(app.root, value=description)
         app.engine_card_descriptions[value] = description_var
         tk.Label(engine, textvariable=description_var, bg=colors["bg"], fg=colors["secondary"],
-                 anchor="w", wraplength=520, font=("Segoe UI", 8)).pack(fill="x", pady=(0, 6))
+                 anchor="w", wraplength=px(520), font=("Segoe UI", 8)).pack(fill="x", pady=px((0, 6)))
     cloud = tk.Frame(engine, bg=colors["bg"])
-    cloud.pack(fill="x", pady=10)
+    cloud.pack(fill="x", pady=px(10))
     from cloud_ui import provider_page
     provider_page(app, cloud, colors)
     free = tk.Frame(engine, bg=colors["bg"])
-    tk.Label(free, text="Connect a free account and review its data-use terms in Advanced.", bg=colors["bg"], fg=colors["secondary"], wraplength=520).pack(anchor="w")
-    ttk.Button(free, text="Connect a free provider", style="Mac.TButton", command=app.open_provider_settings).pack(anchor="w", pady=8)
+    tk.Label(free, text="Connect a free account and review its data-use terms in Advanced.", bg=colors["bg"], fg=colors["secondary"], wraplength=px(520)).pack(anchor="w")
+    ttk.Button(free, text="Connect a free provider", style="Mac.TButton", command=app.open_provider_settings).pack(anchor="w", pady=px(8))
     advanced_button = ttk.Button(engine, text="Advanced ▸", style="Mac.TButton")
-    advanced_button.pack(fill="x", pady=8)
+    advanced_button.pack(fill="x", pady=px(8))
     advanced = tk.Frame(engine, bg=colors["bg"])
     advanced_button.configure(command=lambda: advanced.pack_forget() if advanced.winfo_manager() else advanced.pack(fill="x", after=advanced_button))
-    ttk.Button(advanced, text="Provider limits, keys and data-use terms", style="Mac.TButton", command=app.open_provider_settings).pack(anchor="w", pady=8)
+    ttk.Button(advanced, text="Provider limits, keys and data-use terms", style="Mac.TButton", command=app.open_provider_settings).pack(anchor="w", pady=px(8))
     factories = provider_factories()
     app.engine_provider_widgets = {}
     for kind, label in (("asr", "Recognition"), ("mt", "Translation")):
@@ -185,7 +186,7 @@ def pages(app, colors):
         variable.trace_add("write", refresh)
         refresh()
     app.engine_support_var = tk.StringVar(app.root)
-    tk.Label(advanced, textvariable=app.engine_support_var, bg=colors["bg"], fg=colors["orange"], wraplength=520).pack(fill="x")
+    tk.Label(advanced, textvariable=app.engine_support_var, bg=colors["bg"], fg=colors["orange"], wraplength=px(520)).pack(fill="x")
     field(advanced, "Use these defaults for", app.engine_scope_var, colors, ("all", "pair"))
     def selected(*_):
         choice = app.engine_choice_var.get()
@@ -206,14 +207,14 @@ def pages(app, colors):
     selected()
     heading(cost, "Cost & usage", "Figures are estimates or conservative reservations until billing is known.", colors)
     app.cost_summary_var = tk.StringVar(value="This month $0.00 · speech sent 0 min of 0 min captured")
-    tk.Label(cost, textvariable=app.cost_summary_var, bg=colors["bg"], fg=colors["text"], wraplength=540, justify="left").pack(fill="x", pady=12)
+    tk.Label(cost, textvariable=app.cost_summary_var, bg=colors["bg"], fg=colors["text"], wraplength=px(540), justify="left").pack(fill="x", pady=px(12))
     ttk.Button(cost, text="Change the monthly budget in Engine", style="Mac.TButton", command=lambda: app.settings_shell.show("Engine")).pack(anchor="w")
     field(cost, "Warn at", app.budget_warning_var, colors, ("50", "75", "80", "90", "100"))
     for title, variable in (("Skip silence, music and noise", app.skip_non_speech_var), ("Skip speech outside the selected languages", app.skip_other_languages_var)):
-        tk.Checkbutton(cost, text=title, variable=variable, **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=6)
+        tk.Checkbutton(cost, text=title, variable=variable, **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=px(6))
     field(cost, "Close idle connections after seconds (8–10)", app.close_idle_var, colors, ("8", "9", "10"))
     app.provider_totals_var = tk.StringVar()
-    tk.Label(cost, textvariable=app.provider_totals_var, bg=colors["bg"], fg=colors["secondary"], anchor="w", justify="left").pack(fill="x", pady=16)
+    tk.Label(cost, textvariable=app.provider_totals_var, bg=colors["bg"], fg=colors["secondary"], anchor="w", justify="left").pack(fill="x", pady=px(16))
     refresh_provider_choices(app)
     refresh_measurements(app)
     refresh_usage(app)

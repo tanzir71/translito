@@ -1,4 +1,5 @@
 """Tk views of the process download queue. All callbacks run on the Tk thread."""
+from ui_scale import px, scaled_geometry
 from pathlib import Path
 import shutil
 import tkinter as tk
@@ -45,12 +46,12 @@ def gemma_dialog(app, colors, center):
     from quality_settings import _window
     import webbrowser
     window = _window(app, "Set up local translation", colors, center, 560, 400)
-    body = tk.Frame(window, bg=colors["bg"], padx=24, pady=20)
+    body = tk.Frame(window, bg=colors["bg"], padx=px(24), pady=px(20))
     body.pack(fill="both", expand=True)
     def label(text, **kw):
         widget = tk.Label(body, text=text, bg=colors["bg"], fg=colors["secondary"],
-                          wraplength=510, justify="left", anchor="w", **kw)
-        widget.pack(fill="x", pady=5)
+                          wraplength=px(510), justify="left", anchor="w", **kw)
+        widget.pack(fill="x", pady=px(5))
         return widget
     label("TranslateGemma 4B", font=("Segoe UI Semibold", 13))
     label("Better translation on this PC for supported languages. A 2.49 GB download that needs 8 GB RAM. Meeting audio and text stay on this PC.")
@@ -79,7 +80,7 @@ def gemma_dialog(app, colors, center):
     ttk.Button(body, text="Change…", style="Mac.TButton", command=browse).pack(anchor="e")
     update_location()
     progress = ttk.Progressbar(body, maximum=1, style="Dark.Horizontal.TProgressbar")
-    progress.pack(fill="x", pady=8)
+    progress.pack(fill="x", pady=px(8))
     status = label("You can close this window. The download keeps going, and Translito tells you when it is ready. Until then, Lite translation is used.")
     current = [next((j for j in app.download_manager.jobs if j.gemma and j.state not in {"Ready", "Cancelled"}), None)]
     def render(job):
@@ -108,7 +109,7 @@ def gemma_dialog(app, colors, center):
         except (ValueError, OSError) as error:
             status.configure(text=str(error))
     buttons = tk.Frame(body, bg=colors["bg"])
-    buttons.pack(fill="x", pady=8)
+    buttons.pack(fill="x", pady=px(8))
     ttk.Button(buttons, text="Cancel download", style="Mac.TButton",
                command=lambda: app.download_manager.cancel(current[0]) if current[0] else close()).pack(side="left")
     download = ttk.Button(buttons, text="Download 2.49 GB", style="Primary.TButton", command=start)
@@ -128,18 +129,18 @@ def models_page(app, parent, colors):
     from engines.model_library import default_catalog
     from engines.model_files import inspect_model, Ready, Incomplete, Corrupt, model_hint
     heading = tk.Label(parent, text="Models and downloads", bg=colors["bg"], fg=colors["text"], font=("Segoe UI Semibold", 13))
-    heading.pack(anchor="w", pady=(8, 4))
+    heading.pack(anchor="w", pady=px((8, 4)))
     tk.Label(parent, text="Models download once, then run on this PC. Downloads continue in the background.",
-             bg=colors["bg"], fg=colors["secondary"], wraplength=550, justify="left").pack(anchor="w", pady=(0, 12))
+             bg=colors["bg"], fg=colors["secondary"], wraplength=px(550), justify="left").pack(anchor="w", pady=px((0, 12)))
     rows = {}
     specs = default_catalog()
     for spec in specs:
-        row = tk.Frame(parent, bg=colors["surface"], padx=12, pady=10,
-                       highlightthickness=1, highlightbackground=colors["border"])
-        row.pack(fill="x", pady=4)
+        row = tk.Frame(parent, bg=colors["surface"], padx=px(12), pady=px(10),
+                       highlightthickness=px(1), highlightbackground=colors["border"])
+        row.pack(fill="x", pady=px(4))
         tk.Label(row, text=spec.title, bg=colors["surface"], fg=colors["text"]).pack(anchor="w")
         text = tk.StringVar(row)
-        tk.Label(row, textvariable=text, bg=colors["surface"], fg=colors["secondary"], wraplength=510, justify="left").pack(anchor="w")
+        tk.Label(row, textvariable=text, bg=colors["surface"], fg=colors["secondary"], wraplength=px(510), justify="left").pack(anchor="w")
         buttons = tk.Frame(row, bg=colors["surface"])
         buttons.pack(fill="x")
         rows[spec.key] = text, buttons
@@ -154,7 +155,7 @@ def models_page(app, parent, colors):
                 child.destroy()
             job = next((j for j in reversed(app.download_manager.jobs) if j.repo == spec.repo and j.state != "Cancelled"), None)
             def button(title, command):
-                ttk.Button(buttons, text=title, style="Mac.TButton", command=command).pack(side="right", padx=3)
+                ttk.Button(buttons, text=title, style="Mac.TButton", command=command).pack(side="right", padx=px(3))
             if job and job.state != "Ready":
                 text.set(job.error or job.progress_text)
                 button("Cancel", lambda j=job: app.download_manager.cancel(j))
@@ -179,8 +180,8 @@ def models_page(app, parent, colors):
                 button(model_hint(spec, status)[1], download)
     app.download_views.append(refresh)
     refresh()
-    tools = tk.Frame(parent, bg=colors["surface"], padx=12, pady=12)
-    tools.pack(fill="x", pady=12)
+    tools = tk.Frame(parent, bg=colors["surface"], padx=px(12), pady=px(12))
+    tools.pack(fill="x", pady=px(12))
     tk.Label(tools, text="Tools · Compare engines on a sample", bg=colors["surface"], fg=colors["text"]).pack(anchor="w")
     tk.Label(tools, text="Optional. Never needed for setup.", bg=colors["surface"], fg=colors["secondary"]).pack(anchor="w")
     ttk.Button(tools, text="Open", style="Mac.TButton", command=app.open_speed_check).pack(anchor="e")

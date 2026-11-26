@@ -76,6 +76,7 @@ exe = EXE(
     name="Translito",
     icon="Translito.ico",
     version="version_info.txt",
+    manifest=str(Path(SPECPATH) / "Translito.manifest"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

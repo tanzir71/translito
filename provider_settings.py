@@ -1,4 +1,5 @@
 """Advanced provider connections; checks metadata instead of running a sample."""
+from ui_scale import px, scaled_geometry
 import queue
 import threading
 import tkinter as tk
@@ -14,7 +15,7 @@ from quality_settings import _window
 
 def open_provider_settings(app, colors, center):
     window = _window(app, "Advanced cloud providers", colors, center, 560, 524)
-    body = tk.Frame(window, bg=colors["bg"], padx=24, pady=22)
+    body = tk.Frame(window, bg=colors["bg"], padx=px(24), pady=px(22))
     body.pack(fill="both", expand=True)
     heading(body, "Advanced cloud providers", "Connect a saved key or replace it. No audio is sent by Connect.", colors)
     factories = {f.name: f for f in provider_factories()}
@@ -28,10 +29,10 @@ def open_provider_settings(app, colors, center):
     field(body, "Azure region", region, colors)
     consent = tk.BooleanVar(window)
     tk.Checkbutton(body, text="I accept the provider's free-tier data-use terms", variable=consent,
-        **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=8)
+        **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=px(8))
     details, status = tk.StringVar(window), tk.StringVar(window)
-    tk.Label(body, textvariable=details, bg=colors["bg"], fg=colors["secondary"], wraplength=500, justify="left").pack(fill="x", pady=8)
-    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["text"], wraplength=500, justify="left").pack(fill="x", pady=8)
+    tk.Label(body, textvariable=details, bg=colors["bg"], fg=colors["secondary"], wraplength=px(500), justify="left").pack(fill="x", pady=px(8))
+    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["text"], wraplength=px(500), justify="left").pack(fill="x", pady=px(8))
     loading, events = [False], queue.Queue()
     def controller():
         from engines.secrets import CredentialStore
@@ -81,7 +82,7 @@ def open_provider_settings(app, colors, center):
                 events.put((name, "Couldn't save the key. Check Credential Manager and retry."))
         threading.Thread(target=work, daemon=True).start()
     action = ttk.Button(body, text="Connect", style="Primary.TButton", command=connect)
-    action.pack(anchor="e", pady=10)
+    action.pack(anchor="e", pady=px(10))
     ttk.Button(body, text="Get a key ↗", style="Mac.TButton", command=lambda: webbrowser.open(factories[provider.get()].setup_url)).pack(anchor="w")
     def poll():
         if not window.winfo_exists():

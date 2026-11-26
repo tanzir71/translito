@@ -1,4 +1,5 @@
 """Save status is delivered from the writer to Tk by a main-thread poll."""
+from ui_scale import px, scaled_geometry
 import queue
 import time
 import tkinter as tk
@@ -6,14 +7,14 @@ from tkinter import ttk
 
 
 def add_footer(app, window, colors):
-    footer = tk.Frame(window, bg=colors["bg"], padx=24, pady=12)
+    footer = tk.Frame(window, bg=colors["bg"], padx=px(24), pady=px(12))
     footer.pack(side="bottom", fill="x")
     tk.Label(footer, text="Changes save automatically", bg=colors["bg"], fg=colors["tertiary"],
              font=("Segoe UI", 8)).pack(side="left")
     app.save_status_var = tk.StringVar(window)
     retry = ttk.Button(footer, text="Retry", style="Mac.TButton", command=app.preferences.store.retry)
     status = tk.Label(footer, textvariable=app.save_status_var, bg=colors["bg"], fg=colors["green"],
-                      font=("Segoe UI", 8), wraplength=380, justify="right")
+                      font=("Segoe UI", 8), wraplength=px(380), justify="right")
     status.pack(side="right")
     until = [0]
     def poll():
@@ -35,7 +36,7 @@ def add_footer(app, window, colors):
                 status.configure(fg=colors["red"])
                 until[0] = 0
                 if kind == "error":
-                    retry.pack(side="right", padx=8)
+                    retry.pack(side="right", padx=px(8))
         if until[0] and time.monotonic() >= until[0]:
             app.save_status_var.set("")
             until[0] = 0

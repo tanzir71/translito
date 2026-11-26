@@ -1,4 +1,5 @@
 """Inline provider connection and advanced cloud preferences."""
+from ui_scale import px, scaled_geometry
 from datetime import datetime
 import queue
 import threading
@@ -24,23 +25,23 @@ def provider_page(app, parent, colors):
     state = {"provider": selected if selected in primary else "soniox", "connector": None}
     key = tk.StringVar(parent)
     key_row = tk.Frame(parent, bg=colors["bg"])
-    key_row.pack(fill="x", pady=8)
+    key_row.pack(fill="x", pady=px(8))
     key_row.columnconfigure(0, weight=1)
     app.cloud_key_entry = ttk.Entry(key_row, textvariable=key, show="•", style="Dark.TEntry")
-    app.cloud_key_entry.grid(row=1, column=0, sticky="ew", padx=(0, 12))
+    app.cloud_key_entry.grid(row=1, column=0, sticky="ew", padx=px((0, 12)))
     key_label = tk.Label(key_row, bg=colors["bg"], fg=colors["secondary"], anchor="w")
-    key_label.grid(row=0, column=0, sticky="w", pady=(0, 4))
+    key_label.grid(row=0, column=0, sticky="w", pady=px((0, 4)))
     status = tk.StringVar(parent)
     app.cloud_connection_status = status
-    card = tk.Frame(parent, bg=colors["surface"], padx=12, pady=10,
-                    highlightbackground=colors["border"], highlightthickness=1)
+    card = tk.Frame(parent, bg=colors["surface"], padx=px(12), pady=px(10),
+                    highlightbackground=colors["border"], highlightthickness=px(1))
     tk.Label(card, textvariable=status, bg=colors["surface"], fg=colors["text"],
-             wraplength=520, justify="left", anchor="w").pack(fill="x")
+             wraplength=px(520), justify="left", anchor="w").pack(fill="x")
     actions = tk.Frame(card, bg=colors["surface"])
-    actions.pack(fill="x", pady=4)
+    actions.pack(fill="x", pady=px(4))
     notice = tk.StringVar(parent)
     tk.Label(parent, textvariable=notice, bg=colors["bg"], fg=colors["tertiary"],
-             wraplength=540, justify="left", anchor="w", font=("Segoe UI", 8)).pack(fill="x", pady=6)
+             wraplength=px(540), justify="left", anchor="w", font=("Segoe UI", 8)).pack(fill="x", pady=px(6))
     events = queue.Queue()
     def connector():
         if state["connector"] is None:
@@ -64,7 +65,7 @@ def provider_page(app, parent, colors):
                     local = datetime.fromisoformat(checked).astimezone()
                     checked_text = local.strftime("checked today at %H:%M") if local.date() == datetime.now().date() else local.strftime("checked %d %b at %H:%M")
                 status.set(f"Connected to {TITLES[name]}\nKey ending {ending} · {checked_text}" if valid else "Saved key found · Check again")
-                card.pack(fill="x", after=key_row, pady=6)
+                card.pack(fill="x", after=key_row, pady=px(6))
                 app.cloud_connect_button.configure(text="Check again" if not valid else "Replace key")
         except Exception:
             status.set("Couldn't read the saved key. Try Connect again.")
@@ -77,13 +78,13 @@ def provider_page(app, parent, colors):
     def connect():
         if app.preview_mode:
             status.set("Preview only: no key check or credential write.")
-            card.pack(fill="x", after=key_row, pady=6)
+            card.pack(fill="x", after=key_row, pady=px(6))
             return
         name, pasted = state["provider"], key.get()
         account_kind = "paid" if app.engine_choice_var.get() == "cloud" else "free"
         app.cloud_connect_button.configure(state="disabled")
         status.set(f"Connecting to {TITLES[name]}…")
-        card.pack(fill="x", after=key_row, pady=6)
+        card.pack(fill="x", after=key_row, pady=px(6))
         controller = connector()
         def work():
             try:
@@ -121,8 +122,8 @@ def provider_page(app, parent, colors):
           ("Continue on this PC", "Stop the session"))
     budget_text = tk.StringVar(parent)
     budget_label = tk.Label(parent, textvariable=budget_text, bg=colors["bg"], fg=colors["orange"],
-                            wraplength=540, justify="left", anchor="w", font=("Segoe UI", 8))
-    budget_label.pack(fill="x", pady=8)
+                            wraplength=px(540), justify="left", anchor="w", font=("Segoe UI", 8))
+    budget_label.pack(fill="x", pady=px(8))
     def budget_changed(*_):
         amount = safe_budget(app.monthly_budget_var.get())
         rate = factories[state["provider"]].display_hourly_rate

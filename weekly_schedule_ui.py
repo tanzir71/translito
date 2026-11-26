@@ -1,4 +1,5 @@
 """Workday chips and editable hours in the Schedule settings page."""
+from ui_scale import px, scaled_geometry
 from datetime import datetime, timedelta, timezone
 import json
 import tkinter as tk
@@ -16,7 +17,7 @@ def page(app, colors):
     heading(parent, "Schedule", "Start listening and show subtitles on their own at your meeting times.", colors)
     def toggle(label, variable, command=None):
         row = tk.Frame(parent, bg=colors["bg"])
-        row.pack(fill="x", pady=7)
+        row.pack(fill="x", pady=px(7))
         tk.Label(row, text=label, bg=colors["bg"], fg=colors["text"]).pack(side="left")
         switch = Switch(row, variable, colors, command=command)
         switch.pack(side="right")
@@ -24,7 +25,7 @@ def page(app, colors):
     toggle("Start automatically for meetings", values["enabled"])
     toggle("Open Translito when Windows starts", app.login_var, app.toggle_login)
     login_note = tk.StringVar(parent)
-    tk.Label(parent, textvariable=login_note, bg=colors["bg"], fg=colors["secondary"], wraplength=540, justify="left", anchor="w").pack(fill="x", pady=(0, 12))
+    tk.Label(parent, textvariable=login_note, bg=colors["bg"], fg=colors["secondary"], wraplength=px(540), justify="left", anchor="w").pack(fill="x", pady=px((0, 12)))
     def login_changed(*_):
         if parent.winfo_exists():
             login_note.set("The schedule only runs while Translito is open in the tray." +
@@ -35,11 +36,11 @@ def page(app, colors):
     source_cards, expansions = {}, {}
     for source, title, copy in (("ical", "A calendar link", "Paste the private iCal link from Google Calendar, Outlook or iCloud."),
                                  ("weekly", "Fixed weekly times", "The same hours on the days you choose.")):
-        card = tk.Frame(parent, bg=colors["surface"], padx=12, pady=12, highlightthickness=1, highlightbackground=colors["border"])
-        card.pack(fill="x", pady=6)
+        card = tk.Frame(parent, bg=colors["surface"], padx=px(12), pady=px(12), highlightthickness=px(1), highlightbackground=colors["border"])
+        card.pack(fill="x", pady=px(6))
         tk.Radiobutton(card, text=title, variable=values["source"], value=source, bg=colors["surface"], fg=colors["text"],
                        selectcolor=colors["field"], activebackground=colors["surface"], activeforeground=colors["text"]).pack(anchor="w")
-        tk.Label(card, text=copy, bg=colors["surface"], fg=colors["secondary"], wraplength=510, justify="left").pack(anchor="w", padx=20)
+        tk.Label(card, text=copy, bg=colors["surface"], fg=colors["secondary"], wraplength=px(510), justify="left").pack(anchor="w", padx=px(20))
         expansions[source] = tk.Frame(card, bg=colors["surface"])
         source_cards[source] = card
     calendar = expansions["ical"]
@@ -58,13 +59,13 @@ def page(app, colors):
         except Exception:
             calendar_status.set("Couldn't save the calendar link. Use an HTTPS read-only calendar link.")
     calendar_entry.bind("<Return>", connect_calendar)
-    ttk.Button(calendar, text="Connect calendar", style="Mac.TButton", command=connect_calendar).pack(anchor="e", pady=6)
-    tk.Label(calendar, textvariable=calendar_status, bg=colors["surface"], fg=colors["secondary"], wraplength=500).pack(fill="x")
+    ttk.Button(calendar, text="Connect calendar", style="Mac.TButton", command=connect_calendar).pack(anchor="e", pady=px(6))
+    tk.Label(calendar, textvariable=calendar_status, bg=colors["surface"], fg=colors["secondary"], wraplength=px(500)).pack(fill="x")
     weekly = expansions["weekly"]
     block_host = tk.Frame(weekly, bg=colors["surface"])
-    block_host.pack(fill="x", pady=10)
+    block_host.pack(fill="x", pady=px(10))
     error = tk.StringVar(parent)
-    tk.Label(weekly, textvariable=error, bg=colors["surface"], fg=colors["red"], wraplength=510, justify="left").pack(fill="x")
+    tk.Label(weekly, textvariable=error, bg=colors["surface"], fg=colors["red"], wraplength=px(510), justify="left").pack(fill="x")
     blocks = json.loads(values["weekly_blocks"].get())
     views = []
     def save():
@@ -80,12 +81,12 @@ def page(app, colors):
         from quality_settings import _window
         from gui import center_window
         window = _window(app, "Choose a time zone", colors, center_window, 440, 420)
-        body = tk.Frame(window, bg=colors["bg"], padx=18, pady=18)
+        body = tk.Frame(window, bg=colors["bg"], padx=px(18), pady=px(18))
         body.pack(fill="both", expand=True)
         query = tk.StringVar(window)
         entry = field(body, "Search time zones", query, colors)
-        listing = tk.Listbox(body, height=13, exportselection=False)
-        listing.pack(fill="both", expand=True, pady=8)
+        listing = tk.Listbox(body, height=px(13, chars=True), exportselection=False)
+        listing.pack(fill="both", expand=True, pady=px(8))
         zones = sorted(available_timezones())
         def search(*_):
             listing.delete(0, "end")
@@ -109,7 +110,7 @@ def page(app, colors):
             child.destroy()
         views.clear()
         for index, block in enumerate(blocks):
-            panel = tk.Frame(block_host, bg=colors["surface"], pady=8)
+            panel = tk.Frame(block_host, bg=colors["surface"], pady=px(8))
             panel.pack(fill="x")
             presets = tk.Frame(panel, bg=colors["surface"])
             presets.pack(fill="x")
@@ -124,9 +125,9 @@ def page(app, colors):
                 if save():
                     render()
             for title, days in PRESETS.items():
-                ttk.Button(presets, text=title, style="Mac.TButton", command=lambda ds=days, fn=preset: fn(ds)).pack(side="right", padx=2)
+                ttk.Button(presets, text=title, style="Mac.TButton", command=lambda ds=days, fn=preset: fn(ds)).pack(side="right", padx=px(2))
             chips = tk.Frame(panel, bg=colors["surface"])
-            chips.pack(fill="x", pady=6)
+            chips.pack(fill="x", pady=px(6))
             day_buttons = {}
             for day in day_order():
                 chosen = day in block["days"]
@@ -140,15 +141,15 @@ def page(app, colors):
                         render()
                 chip = tk.Button(chips, text=DAYS[day][:3], command=toggle_day, bg=colors["blue_bg"] if chosen else colors["surface"],
                     fg=colors["text"] if chosen else colors["secondary"], activebackground=colors["field"], activeforeground=colors["text"],
-                    relief="flat", highlightthickness=1, highlightbackground=colors["blue"] if chosen else colors["border"], padx=8, pady=6,
+                    relief="flat", highlightthickness=px(1), highlightbackground=colors["blue"] if chosen else colors["border"], padx=px(8), pady=px(6),
                     state="disabled" if day in used else "normal")
-                chip.pack(side="left", expand=True, fill="x", padx=2)
+                chip.pack(side="left", expand=True, fill="x", padx=px(2))
                 chip.tooltip = f"Block {used[day]+1} already uses {DAYS[day]}" if day in used else ""
                 if chip.tooltip:
                     def enter(event, button=chip):
                         tip = tk.Toplevel(button)
                         tip.overrideredirect(True)
-                        tk.Label(tip, text=button.tooltip, bg=colors["field"], fg=colors["text"], padx=8, pady=5).pack()
+                        tk.Label(tip, text=button.tooltip, bg=colors["field"], fg=colors["text"], padx=px(8), pady=px(5)).pack()
                         tip.geometry(f"+{button.winfo_rootx()}+{button.winfo_rooty()+button.winfo_height()+4}")
                         button.tip = tip
                     def leave(event, button=chip):
@@ -159,14 +160,14 @@ def page(app, colors):
                     chip.bind("<Leave>", leave)
                 day_buttons[day] = chip
             times = tk.Frame(panel, bg=colors["surface"])
-            times.pack(fill="x", pady=6)
+            times.pack(fill="x", pady=px(6))
             variables = {}
             for key, title in (("start", "From"), ("end", "To")):
                 column = tk.Frame(times, bg=colors["surface"])
-                column.pack(side="left", padx=(0, 12))
+                column.pack(side="left", padx=px((0, 12)))
                 tk.Label(column, text=title, bg=colors["surface"], fg=colors["secondary"]).pack(anchor="w")
                 var = tk.StringVar(parent, value=block[key])
-                combo = ttk.Combobox(column, textvariable=var, values=[f"{h:02d}:{m:02d}" for h in range(24) for m in range(0,60,15)], width=9, style="Dark.TCombobox")
+                combo = ttk.Combobox(column, textvariable=var, values=[f"{h:02d}:{m:02d}" for h in range(24) for m in range(0,60,15)], width=px(9, chars=True), style="Dark.TCombobox")
                 combo.pack()
                 def changed(event=None, v=var, k=key, i=index):
                     try:
@@ -193,7 +194,7 @@ def page(app, colors):
                 variables[key] = (var, combo)
             ttk.Button(times, text="Your PC's time zone\n"+block["timezone"]+" · change", style="Mac.TButton", command=lambda i=index: zone_picker(i)).pack(side="left", fill="x", expand=True)
             summary_var = tk.StringVar(parent, value=summary(block))
-            tk.Label(panel, textvariable=summary_var, bg=colors["surface"], fg=colors["green"], wraplength=510, justify="left", anchor="w").pack(fill="x", pady=6)
+            tk.Label(panel, textvariable=summary_var, bg=colors["surface"], fg=colors["green"], wraplength=px(510), justify="left", anchor="w").pack(fill="x", pady=px(6))
             if index:
                 def remove(i=index):
                     blocks.pop(i)
@@ -211,7 +212,7 @@ def page(app, colors):
         blocks.append(dict(days=remaining, start="09:30", end="18:00", timezone=values["timezone"].get(), title="Different hours"))
         if save():
             render()
-    ttk.Button(weekly, text="+ Different hours on some days", style="Mac.TButton", command=add).pack(anchor="w", pady=6)
+    ttk.Button(weekly, text="+ Different hours on some days", style="Mac.TButton", command=add).pack(anchor="w", pady=px(6))
     app.schedule_add_block = add
     app.schedule_error_var = error
     render()
@@ -220,7 +221,7 @@ def page(app, colors):
             return
         for name, expansion in expansions.items():
             source_cards[name].configure(highlightbackground=colors["blue"] if values["source"].get() == name else colors["border"])
-            expansion.pack(fill="x", padx=20, pady=6) if values["source"].get() == name else expansion.pack_forget()
+            expansion.pack(fill="x", padx=px(20), pady=px(6)) if values["source"].get() == name else expansion.pack_forget()
     values["source"].trace_add("write", source_changed)
     source_changed()
     field(parent, "Start", values["lead_seconds"], colors, (0,60,120,300))
@@ -233,8 +234,8 @@ def page(app, colors):
             values["silence_seconds"].set(600 if "10" in stop.get() else 300)
     stop_combo.bind("<<ComboboxSelected>>", stop_changed)
     for title, key in (("Wait until the meeting app plays audio, so an empty meeting costs nothing", "wait_for_app_audio"), ("Ask me before each start", "ask_before_start")):
-        tk.Checkbutton(parent, text=title, variable=values[key], **{**app._checkbutton_options(), "bg": colors["bg"]}, wraplength=520, justify="left").pack(anchor="w", pady=6)
-    tk.Label(parent, text="Coming up", bg=colors["bg"], fg=colors["text"], font=("Segoe UI Semibold", 10)).pack(anchor="w", pady=12)
+        tk.Checkbutton(parent, text=title, variable=values[key], **{**app._checkbutton_options(), "bg": colors["bg"]}, wraplength=px(520), justify="left").pack(anchor="w", pady=px(6))
+    tk.Label(parent, text="Coming up", bg=colors["bg"], fg=colors["text"], font=("Segoe UI Semibold", 10)).pack(anchor="w", pady=px(12))
     coming = tk.Frame(parent, bg=colors["bg"])
     coming.pack(fill="x")
     def refresh_coming():
@@ -251,9 +252,9 @@ def page(app, colors):
         skipped = {item["id"] for item in json.loads(values["skipped"].get())}
         for event in [e for e in events if e.end > now][:3]:
             row = tk.Frame(coming, bg=colors["bg"])
-            row.pack(fill="x", pady=6)
+            row.pack(fill="x", pady=px(6))
             text = event.start.astimezone().strftime("%a %H:%M") + " – " + event.end.astimezone().strftime("%H:%M") + "  " + event.title
-            tk.Label(row, text=text, bg=colors["bg"], fg=colors["secondary"], wraplength=450).pack(side="left")
+            tk.Label(row, text=text, bg=colors["bg"], fg=colors["secondary"], wraplength=px(450)).pack(side="left")
             enabled = tk.BooleanVar(parent, value=event.id not in skipped)
             def skip(v=enabled, e=event):
                 items = [item for item in json.loads(values["skipped"].get()) if item["id"] != e.id]
@@ -264,4 +265,4 @@ def page(app, colors):
         parent.after(30000, refresh_coming)
     refresh_coming()
     tk.Label(parent, text="Scheduled sessions count toward your monthly budget. With Wait until the meeting app plays audio, a quiet day costs nothing.",
-             bg=colors["bg"], fg=colors["tertiary"], wraplength=540, justify="left").pack(fill="x", pady=12)
+             bg=colors["bg"], fg=colors["tertiary"], wraplength=px(540), justify="left").pack(fill="x", pady=px(12))

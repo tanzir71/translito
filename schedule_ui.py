@@ -1,4 +1,5 @@
 """Schedule controls and tray-resident polling; calendar URLs never enter config."""
+from ui_scale import px, scaled_geometry
 from datetime import datetime, timedelta, timezone
 import json
 import threading
@@ -40,7 +41,7 @@ class ScheduleController:
             var = tk.BooleanVar(app.root) if isinstance(default,bool) else tk.IntVar(app.root) if isinstance(default,int) else tk.StringVar(app.root)
             self.variables[key] = app.preferences.bind(var, "SCHEDULE", key, default)
         app.next_meeting_var = tk.StringVar()
-        tk.Label(app.status_bar, textvariable=app.next_meeting_var, bg=colors["bg"], fg=colors["tertiary"], font=("Segoe UI", 8), anchor="w").grid(row=1,column=1,columnspan=4,sticky="w",pady=(3,0))
+        tk.Label(app.status_bar, textvariable=app.next_meeting_var, bg=colors["bg"], fg=colors["tertiary"], font=("Segoe UI", 8), anchor="w").grid(row=1,column=1,columnspan=4,sticky="w",pady=px((3,0)))
         self.tick()
 
     def app_has_audio(self):
@@ -105,13 +106,13 @@ class ScheduleController:
         window.after_idle(lambda: apply_window_icon(window))
         window.overrideredirect(True)
         window.attributes("-topmost", True)
-        window.configure(bg=self.colors["surface"], padx=14, pady=12)
-        tk.Label(window, text=("" if getattr(event, "download", False) else "Scheduled listening · ")+event.title, bg=self.colors["surface"], fg=self.colors["text"], wraplength=340, justify="left").pack(fill="x")
+        window.configure(bg=self.colors["surface"], padx=px(14), pady=px(12))
+        tk.Label(window, text=("" if getattr(event, "download", False) else "Scheduled listening · ")+event.title, bg=self.colors["surface"], fg=self.colors["text"], wraplength=px(340), justify="left").pack(fill="x")
         actions = tk.Frame(window,bg=self.colors["surface"])
-        actions.pack(fill="x",pady=(8,0))
+        actions.pack(fill="x",pady=px((8,0)))
         ttk.Button(actions,text="Stop",style="Mac.TButton",command=lambda:(self.app.stop(),window.destroy())).pack(side="left")
         ttk.Button(actions,text="Settings",style="Mac.TButton",command=lambda:(self.app.show_settings_from_tray(),self.app.settings_shell.show("Schedule"),window.destroy())).pack(side="right")
-        window.geometry(f"380x110+{max(0,self.app.root.winfo_screenwidth()-400)}+30")
+        window.geometry(f"{px(380)}x{px(110)}+{max(0,self.app.root.winfo_screenwidth()-px(400))}+{px(30)}")
         window.after(12000,window.destroy)
 
 

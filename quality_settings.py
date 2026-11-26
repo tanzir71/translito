@@ -1,4 +1,5 @@
 """Local model setup and Terms editor, using the app's Tk style."""
+from ui_scale import px, scaled_geometry
 from pathlib import Path
 import shutil
 import tempfile
@@ -14,6 +15,7 @@ from engines.glossary import Glossary
 
 
 def _window(app, title, colors, center, width, height):
+    width, height = px((width, height))
     window = tk.Toplevel(app.root)
     from ui_theme import apply_theme
     apply_theme(window, app.style, colors)
@@ -29,28 +31,28 @@ def _window(app, title, colors, center, width, height):
 
 def _entry(parent, label, variable, colors, *, secret=False):
     row = tk.Frame(parent, bg=colors["bg"])
-    row.pack(fill="x", pady=5)
-    tk.Label(row, text=label, bg=colors["bg"], fg=colors["text"], anchor="w", width=17).pack(side="left")
+    row.pack(fill="x", pady=px(5))
+    tk.Label(row, text=label, bg=colors["bg"], fg=colors["text"], anchor="w", width=px(17, chars=True)).pack(side="left")
     field = tk.Entry(row, textvariable=variable, show="•" if secret else "", bg=colors["field"],
                      fg=colors["text"], insertbackground=colors["text"], relief="flat")
-    field.pack(side="left", fill="x", expand=True, ipady=6)
+    field.pack(side="left", fill="x", expand=True, ipady=px(6))
     return field
 
 
 def open_cohere_setup(app, colors, center):
     window = _window(app, "Set up Saudi Arabic recognition", colors, center, 600, 510)
-    body = tk.Frame(window, bg=colors["bg"], padx=18, pady=18)
+    body = tk.Frame(window, bg=colors["bg"], padx=px(18), pady=px(18))
     body.pack(fill="both", expand=True)
     tk.Label(body, text="Cohere Transcribe Arabic", bg=colors["bg"], fg=colors["text"],
              font=("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
     tk.Label(body, text="Recommended for Saudi Arabic and English in the same conversation. "
              "It runs on your PC. Downloading the model does not upload meeting audio.",
-             bg=colors["bg"], fg=colors["secondary"], wraplength=555, justify="left").pack(fill="x", pady=8)
+             bg=colors["bg"], fg=colors["secondary"], wraplength=px(555), justify="left").pack(fill="x", pady=px(8))
     ttk.Button(body, text="1. Review and accept the Hugging Face model conditions", style="Mac.TButton",
-               command=lambda: webbrowser.open(MODEL_TERMS_URL)).pack(anchor="w", pady=5)
+               command=lambda: webbrowser.open(MODEL_TERMS_URL)).pack(anchor="w", pady=px(5))
     accepted = tk.BooleanVar(value=False)
     tk.Checkbutton(body, text="I accepted the model conditions on Hugging Face", variable=accepted,
-                    **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=5)
+                    **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=px(5))
     key, folder, status = tk.StringVar(), tk.StringVar(), tk.StringVar(value="Read tokens are saved only in Windows Credential Manager.")
     cache = load_cohere_cache_dir() or str(CONFIG_FILE.parent / "models" / "cohere")
     # The user sees and can change this path before an explicit download.
@@ -60,7 +62,7 @@ def open_cohere_setup(app, colors, center):
     _entry(body, "2. HF read token", key, colors, secret=True)
     _entry(body, "Model folder", folder, colors)
     buttons = tk.Frame(body, bg=colors["bg"])
-    buttons.pack(fill="x", pady=6)
+    buttons.pack(fill="x", pady=px(6))
 
     def browse():
         selected = filedialog.askdirectory(parent=window, title="Choose model cache folder")
@@ -109,11 +111,11 @@ def open_cohere_setup(app, colors, center):
 
     download_button = ttk.Button(buttons, text="3. Save key and download", style="Primary.TButton", command=download)
     download_button.pack(side="right")
-    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"], wraplength=550,
-             justify="left", anchor="w").pack(fill="x", pady=8)
+    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"], wraplength=px(550),
+             justify="left", anchor="w").pack(fill="x", pady=px(8))
     tk.Label(body, text="Lower-memory alternative: an Arabic/English Whisper model tuned on Egyptian speech. "
              "It needs no Hugging Face token, but may be weaker on Saudi dialects.", bg=colors["bg"],
-             fg=colors["secondary"], wraplength=550, justify="left").pack(fill="x", pady=(10, 5))
+             fg=colors["secondary"], wraplength=px(550), justify="left").pack(fill="x", pady=px((10, 5)))
 
     def download_fallback():
         if app.preview_mode:
@@ -148,12 +150,12 @@ def open_terms_editor(app, colors, center):
     path = Path(tempfile.gettempdir()) / "Translito-preview" / "glossary.json" if app.preview_mode else None
     glossary = Glossary(path)
     window = _window(app, "Terms", colors, center, 800, 560)
-    body = tk.Frame(window, bg=colors["bg"], padx=16, pady=16)
+    body = tk.Frame(window, bg=colors["bg"], padx=px(16), pady=px(16))
     body.pack(fill="both", expand=True)
     tk.Label(body, text="English terms and Arabic spellings", bg=colors["bg"], fg=colors["text"],
              font=("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
     tk.Label(body, text="Terms guide recognition and translation. Disabling a term preserves it in your glossary.",
-             bg=colors["bg"], fg=colors["secondary"], anchor="w").pack(fill="x", pady=(4, 10))
+             bg=colors["bg"], fg=colors["secondary"], anchor="w").pack(fill="x", pady=px((4, 10)))
     table_host = tk.Frame(body, bg=colors["bg"])
     table_host.pack(fill="both", expand=True)
 
@@ -241,9 +243,9 @@ def open_terms_editor(app, colors, center):
             status.set("Term disabled and preserved in the glossary.")
 
     buttons = tk.Frame(body, bg=colors["bg"])
-    buttons.pack(fill="x", pady=8)
+    buttons.pack(fill="x", pady=px(8))
     for text, command in (("Add term", add), ("Save term", save), ("Disable term", disable)):
-        ttk.Button(buttons, text=text, style="Mac.TButton", command=command).pack(side="left", padx=(0, 8))
+        ttk.Button(buttons, text=text, style="Mac.TButton", command=command).pack(side="left", padx=px((0, 8)))
     tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"], anchor="w").pack(fill="x")
     refresh()
     return window

@@ -1,4 +1,5 @@
 """Shared dark input and Windows chrome styling, including readonly states."""
+from ui_scale import px, scaled_geometry
 import sys
 from windows_icons import apply_window_icon
 
@@ -11,7 +12,7 @@ def button_style(style, name, colors, normal, hover, pressed, *, foreground="tex
               ("active", "!disabled", c[hover])]
     style.configure(name, background=c[normal], foreground=c[foreground],
                     bordercolor=c["border"], lightcolor=c[normal], darkcolor=c[normal],
-                    focuscolor=c["blue"], relief="flat", padding=(12, 6), **options)
+                    focuscolor=c["blue"], relief="flat", padding=px((12, 6)), **options)
     style.map(name, **{key: states for key in ("background", "lightcolor", "darkcolor")},
               foreground=[("disabled", c["tertiary"]),
                           ("active", "!disabled", c[hover_foreground or foreground]),
@@ -28,6 +29,8 @@ def apply_theme(root, style, colors):
     except Exception:
         pass
     c = colors
+    from ui_scale import configure_scale
+    configure_scale(root)
     root.option_add("*Font", "{Segoe UI} 10")
     input_styles(root, style, c)
     root.after_idle(lambda: (dark_titlebar(root), apply_window_icon(root)))
@@ -52,12 +55,12 @@ def apply_theme(root, style, colors):
         button_style(style, name, c, "surface", "surface_2", "field", foreground="secondary", hover_foreground="text")
         style.map(name, indicatorbackground=[("disabled", c["surface"]), ("selected", c["blue"]), ("!selected", c["field"])])
     for name in ("Treeview", "Models.Treeview", "Terms.Treeview"):
-        style.configure(name, background=c["field"], fieldbackground=c["field"], foreground=c["text"], rowheight=34)
+        style.configure(name, background=c["field"], fieldbackground=c["field"], foreground=c["text"], rowheight=px(34))
         style.map(name, background=[("selected", c["blue_bg"])], foreground=[("selected", c["text"])])
     for axis in ("Vertical", "Horizontal"):
         for name in (f"{axis}.TScrollbar", f"Dark.{axis}.TScrollbar"):
             button_style(style, name, c, "field", "border", "tertiary")
-            style.configure(name, troughcolor=c["bg"], arrowcolor=c["text"], borderwidth=0, arrowsize=10)
+            style.configure(name, troughcolor=c["bg"], arrowcolor=c["text"], borderwidth=px(0), arrowsize=px(10))
     for name in ("Horizontal.TProgressbar", "Dark.Horizontal.TProgressbar"):
         button_style(style, name, c, "blue", "blue", "blue", foreground="on_accent")
         style.configure(name, troughcolor=c["field"], background=c["blue"], foreground=c["on_accent"],
@@ -75,7 +78,7 @@ def input_styles(root, style, colors):
     for name in ("TEntry", "TCombobox", "TSpinbox", "Dark.TEntry", "Dark.TCombobox"):
         style.configure(name, fieldbackground=colors["field"], background=colors["field"],
             foreground=colors["text"], insertcolor=colors["text"], arrowcolor=colors["secondary"],
-            bordercolor=colors["border"], lightcolor=colors["border"], darkcolor=colors["border"], padding=6)
+            bordercolor=colors["border"], lightcolor=colors["border"], darkcolor=colors["border"], padding=px(6))
         style.map(name,
             background=[("disabled", colors["surface"]), ("!disabled", colors["field"])],
             bordercolor=[("focus", "!disabled", colors["blue"]), ("active", "!disabled", colors["tertiary"]), ("!disabled", colors["border"])],
