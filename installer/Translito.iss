@@ -1,3 +1,4 @@
+#include "app_identity.iss"
 #define MyAppName "Translito"
 #define MyAppExeName "Translito.exe"
 #define MyAppVersion "2.0.0"
@@ -43,8 +44,8 @@ Source: "redist\vbcable\*"; DestDir: "{app}\redist\vbcable"; Flags: ignoreversio
 Source: "vbcable.sha256"; DestDir: "{app}\redist\vbcable"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; AppUserModelID: "{#AppUserModelID}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; AppUserModelID: "{#AppUserModelID}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent

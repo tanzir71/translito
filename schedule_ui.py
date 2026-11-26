@@ -77,6 +77,8 @@ class ScheduleController:
 
     def toast(self, event):
         window = tk.Toplevel(self.app.root)
+        from windows_icons import apply_window_icon
+        window.after_idle(lambda: apply_window_icon(window))
         window.overrideredirect(True)
         window.attributes("-topmost", True)
         window.configure(bg=self.colors["surface"], padx=14, pady=12)

@@ -111,6 +111,8 @@ class SubtitleOverlay:
         self.backend, self.clock = backend or Win32Overlay(), clock
         self.on_hide, self.on_open = on_hide, on_open
         self.window = tk.Toplevel(root)
+        from windows_icons import apply_window_icon
+        self.window.after_idle(lambda: apply_window_icon(self.window))
         self.window.withdraw()
         self.window.overrideredirect(True)
         self.window.attributes("-topmost", True)

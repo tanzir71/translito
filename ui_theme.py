@@ -1,5 +1,6 @@
 """Shared dark input and Windows chrome styling, including readonly states."""
 import sys
+from windows_icons import apply_window_icon
 
 
 def button_style(style, name, colors, normal, hover, pressed, *, foreground="text",
@@ -29,7 +30,8 @@ def apply_theme(root, style, colors):
     c = colors
     root.option_add("*Font", "{Segoe UI} 10")
     input_styles(root, style, c)
-    root.after_idle(lambda: dark_titlebar(root))
+    root.after_idle(lambda: (dark_titlebar(root), apply_window_icon(root)))
+    root.bind("<Map>", lambda event: apply_window_icon(root) if event.widget is root else None, add="+")
     for key, value in (("background", c["field"]), ("foreground", c["text"]),
                        ("selectBackground", c["blue"]), ("selectForeground", c["on_accent"])):
         root.option_add(f"*TCombobox*Listbox.{key}", value)

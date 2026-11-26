@@ -145,6 +145,8 @@ class VirtualMicSetup:
         if self.host.transcriber is not None or self.host.model_setup_busy:
             return
         window = tk.Toplevel(self.host.root)
+        from windows_icons import apply_window_icon
+        window.after_idle(lambda: apply_window_icon(window))
         window.title("Install VB-CABLE by VB-Audio")
         window.configure(bg=self.colors["bg"])
         window.transient(self.host.root)
@@ -191,6 +193,8 @@ class VirtualMicSetup:
 
     def guide(self):
         window = tk.Toplevel(self.host.root)
+        from windows_icons import apply_window_icon
+        window.after_idle(lambda: apply_window_icon(window))
         window.title("Choose your meeting microphone")
         window.configure(bg=self.colors["bg"])
         window.transient(self.host.root)
