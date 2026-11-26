@@ -71,6 +71,8 @@ h3 { font-size: 1.25rem; line-height: 1.4; }
 .feature-points { list-style: none; display: grid; gap: 10px; }
 .feature-points li { display: flex; gap: 10px; align-items: flex-start; }
 .feature-points img { margin-block-start: 5.5px; }
+.settings-crop { position: relative; overflow: hidden; border-radius: 14px; background: var(--ink); }
+.settings-crop::after { content: ""; position: absolute; inset: 0; border: 1px solid var(--line); border-radius: inherit; pointer-events: none; }
 .settings-image { display: block; width: 100%; height: auto; }
 .reply-card { padding: 24px 28px; border-radius: 14px; color: var(--on-ink); background: var(--ink); }
 .reply-card-heading { display: grid; gap: 4px; padding-block-end: 16px; }
@@ -220,6 +222,8 @@ html:is([data-script="han"], [data-script="japanese"]) body { line-break: strict
   .feature-row, .feature.reverse .feature-row { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .feature .feature-copy, .feature.reverse .feature-copy { order: 0; }
   .feature .feature-visual, .feature.reverse .feature-visual { order: 1; }
+  .settings-crop { border-radius: 12px; }
+  .settings-crop::after { display: none; }
   .reply-card { padding: 22px 20px; }
   .reply-row { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }
   .localized-reply { grid-template-columns: 18px minmax(0, 1fr); }

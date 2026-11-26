@@ -19,7 +19,7 @@
 {{ range $features }}
 <section id="{{ .id }}" class="feature{{ if .reverse }} reverse{{ end }}"><div class="container feature-row">
   <div class="feature-copy"><h2>{{ partial "t.html" (printf "feature%dTitle" .number) }}</h2><p>{{ partial "t.html" (printf "feature%dBody" .number) }}</p><ul class="feature-points">{{ $number := .number }}{{ range seq .bullets }}<li><img src="{{ "img/landing/icons/bullet.svg" | relURL }}" alt="" loading="lazy"><span>{{ partial "t.html" (printf "feature%dBullet%d" $number .) }}</span></li>{{ end }}</ul></div>
-  <div class="feature-visual">{{ if .image }}<img class="settings-image" src="{{ printf "img/landing/%s.webp" .image | relURL }}" width="1200" height="{{ .height }}" alt="{{ i18n (printf "feature%dAlt" .number) }}" loading="lazy" decoding="async">{{ else }}{{ partial "reply-card.html" $ }}{{ end }}</div>
+  <div class="feature-visual{{ if .image }} settings-crop{{ end }}">{{ if .image }}<img class="settings-image" src="{{ printf "img/landing/%s.webp" .image | relURL }}" width="1200" height="{{ .height }}" alt="{{ i18n (printf "feature%dAlt" .number) }}" loading="lazy" decoding="async">{{ else }}{{ partial "reply-card.html" $ }}{{ end }}</div>
 </div></section>
 {{ end }}
 <section id="also" class="also"><div class="container"><h2>{{ partial "t.html" "alsoTitle" }}</h2><div class="also-grid">{{ range seq 6 }}<article><h3>{{ partial "t.html" (printf "also%dTitle" .) }}</h3><p>{{ partial "t.html" (printf "also%dBody" .) }}</p></article>{{ end }}</div></div></section>
