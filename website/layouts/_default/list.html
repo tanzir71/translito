@@ -1,0 +1,4 @@
+{{ define "main" }}
+<section class="languages"><div class="container"><div class="section-heading"><h1>{{ partial "t.html" "languagesTitle" }}</h1><p>{{ partial "t.html" "languagesIntro" }}</p></div>{{ partial "language-list.html" (dict "page" . "current" "") }}</div></section>
+{{ partial "downloads.html" . }}
+{{ end }}

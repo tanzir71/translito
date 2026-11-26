@@ -2,6 +2,8 @@
 from html.parser import HTMLParser
 from pathlib import Path
 import os
+import json
+import hashlib
 import re
 import shutil
 import subprocess
@@ -89,3 +91,52 @@ def test_site_never_claims_fifty_languages_or_redirects_by_browser_language(buil
     assert "localStorage" in script and 'event.key === "Escape"' in script
     assert 'root.dataset.siteLocale === "en" && root.dataset.home === "true"' in script
     assert "navigator.language" not in script
+
+
+def test_english_landing_sections_assets_and_language_links(built_site):
+    document = Document(built_site / "index.html")
+    sections = [tag["id"] for tag in document.tags("section") if "id" in tag]
+    assert sections == ["features", "subtitles", "schedule", "replies", "cost", "settings", "also", "languages", "how", "questions", "download"]
+    for image in document.tags("img"):
+        assert image["src"].startswith("/")
+        assert (built_site / image["src"].lstrip("/")).is_file()
+        if image["src"].endswith("-settings.webp"):
+            assert image["loading"] == "lazy"
+            assert image["width"] == "1200"
+    for tag in document.tags("a"):
+        if tag.get("href", "").startswith("/languages/"):
+            assert (built_site / tag["href"].lstrip("/") / "index.html").is_file()
+    for copy in ("Weekly sync is starting", "Subtitles are on, translating into English.",
+                 "Mumkin tiid as-sual?", "Mozhete povtorit vopros?", "Kya aap sawal dohra sakte hain?",
+                 "The features listed under New on Windows are not in the Mac app."):
+        assert copy in document.text
+    assert "Windows 1.0.4" not in document.text
+
+
+def test_supplied_landing_assets_and_svg_roots_remain_unchanged():
+    from PIL import Image
+    receipt = json.loads((SITE / "data/landing_assets.json").read_text())
+    assert (receipt["desktop_width"], receipt["content_width"], receipt["mobile_width"], receipt["mobile_content_width"]) == (1440, 1120, 390, 350)
+    assert len(receipt["files"]) == 14
+    for name, metadata in receipt["files"].items():
+        path = SITE / "static" / name
+        assert path.stat().st_size > 0
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == metadata["sha256"]
+        if path.suffix == ".svg":
+            header = path.read_text().split(">", 1)[0]
+            assert float(re.search(r'width="([\d.]+)"', header)[1]) == metadata["width"]
+            assert float(re.search(r'height="([\d.]+)"', header)[1]) == metadata["height"]
+        else:
+            with Image.open(path) as image:
+                assert image.size == (metadata["width"], metadata["height"])
+
+
+def test_subtitle_scene_scales_to_the_desktop_and_mobile_design():
+    node = shutil.which("node")
+    assert node, "Node is required for the landing JavaScript contract check."
+    script = "const fs=require('fs'),vm=require('vm');const c={document:{addEventListener(){}}};vm.createContext(c);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);console.log(JSON.stringify([c.heroGeometry(1120),c.heroGeometry(350)]));"
+    result = subprocess.run([node, "-e", script, str(SITE / "static/js/main.js")], capture_output=True, text=True, check=True)
+    desktop, mobile = json.loads(result.stdout)
+    assert desktop == dict(scale=1, left=0, top=0)
+    assert mobile["scale"] == pytest.approx(396.46 / 1120)
+    assert mobile["left"] == -46 and mobile["top"] == -102

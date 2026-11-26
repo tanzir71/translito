@@ -1,0 +1,82 @@
+{
+  "design_file": "qHi2n6YF49UURgSJPYb6tB",
+  "desktop_frame": "24:44",
+  "mobile_frame": "28:249",
+  "hero_frame": "30:278",
+  "desktop_width": 1440,
+  "content_width": 1120,
+  "mobile_width": 390,
+  "mobile_content_width": 350,
+  "files": {
+    "img/landing/engine-settings.webp": {
+      "sha256": "120a2debecef1323ebb2a12673ee15fd6b31f76cc51550eb5cf98257509e0b8d",
+      "width": 1200,
+      "height": 1066
+    },
+    "img/landing/hero-meeting.webp": {
+      "sha256": "7068af690c6a46fda08dcd62372f686aee334d2cf267248f18312a056da33d4e",
+      "width": 2560,
+      "height": 1440
+    },
+    "img/landing/icons/brand.svg": {
+      "sha256": "7c83e043e43217252ddd254cbfc4432ef05bd7d6317bb6b7aa78cc8557477508",
+      "width": 32.0,
+      "height": 32.0
+    },
+    "img/landing/icons/bullet.svg": {
+      "sha256": "830b6dffa8018d2004b3b709b77135375fcab105dbba3d8d8b4381e5bbc9dc4e",
+      "width": 6.0,
+      "height": 15.0
+    },
+    "img/landing/icons/chevron.svg": {
+      "sha256": "ffabc70728c95ae2c023020b3a73a0398f35eb2d04c76a48b7eab389e6726458",
+      "width": 12.0,
+      "height": 12.0
+    },
+    "img/landing/icons/close.svg": {
+      "sha256": "14e3d9a0b1da37c57c02ff35b9684d62673d7d05fa8667f57f2a6abbc6890550",
+      "width": 11.375,
+      "height": 11.375
+    },
+    "img/landing/icons/globe.svg": {
+      "sha256": "28cc19c86aa53f12ead031730a3a93e63ba934d5453d71553f473e04983c5ecd",
+      "width": 16.0,
+      "height": 16.0
+    },
+    "img/landing/icons/grip.svg": {
+      "sha256": "73301991276206a2ea6ed19eff11e148748b275f95a21e269353e3ee289209b0",
+      "width": 12.25,
+      "height": 12.25
+    },
+    "img/landing/icons/notice-brand.svg": {
+      "sha256": "8a579b633f3a2a86a09447af9abf27d0d665708317cade86f4caf1c12bf0617f",
+      "width": 14.0,
+      "height": 14.0
+    },
+    "img/landing/icons/open.svg": {
+      "sha256": "a5044189a8646c619043796dfb1feb31ecdef14d2c4add80ed020d0d313cbbcf",
+      "width": 12.25,
+      "height": 12.25
+    },
+    "img/landing/icons/pause.svg": {
+      "sha256": "3b377834d36171b8d1bd2b105dc05cd13094f182c51126fedb1037c6dfb1f061",
+      "width": 12.25,
+      "height": 12.25
+    },
+    "img/landing/languages-settings.webp": {
+      "sha256": "e92b2a670897032ecdc4a15ce044699ac939cd5ef8968bc56c4eadd28cb91bd1",
+      "width": 1200,
+      "height": 684
+    },
+    "img/landing/schedule-settings.webp": {
+      "sha256": "98620960eea6707a202709b9211d3df0718db286b5e053506b1a6250b0ef85e9",
+      "width": 1200,
+      "height": 1140
+    },
+    "img/landing/subtitles-settings.webp": {
+      "sha256": "a54f64ba8a277ba4a238811b6fcb842801393667c65e1e793bb1c1b644584944",
+      "width": 1200,
+      "height": 1066
+    }
+  }
+}

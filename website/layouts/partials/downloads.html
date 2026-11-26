@@ -1,0 +1,16 @@
+{{ $links := partial "download-links.html" . }}
+<section id="download" class="download dark-band">
+  <div class="container">
+    <div class="section-heading"><p class="eyebrow">{{ partial "t.html" "downloadLabel" }}</p><h2>{{ partial "t.html" "downloadTitle" }}</h2></div>
+    <div class="download-grid">
+      <article class="download-card"><h3>Windows</h3><p>{{ partial "t.html" "windowsMeta" }}</p><div class="actions"><a class="btn primary" href="{{ $links.windows }}">{{ partial "t.html" "downloadInstaller" }}</a><a class="btn secondary" href="{{ $links.portable }}">{{ partial "t.html" "downloadPortable" }}</a></div><p>{{ partial "t.html" "windowsNote" }}</p></article>
+      <article class="download-card"><h3>macOS</h3><p>{{ partial "t.html" "macMeta" }}</p><div class="actions"><a class="btn primary" href="{{ $links.mac }}">{{ partial "t.html" "downloadMac" }}</a></div><p>{{ partial "t.html" "macNote" }}</p></article>
+    </div>
+    <details class="first-launch"><summary><span>{{ partial "t.html" "firstLaunchNotice" }}</span><span class="expand-label">{{ partial "t.html" "firstLaunchToggle" }}</span></summary>
+      <div class="first-launch-body"><p>{{ partial "t.html" "firstLaunchIntro" }}</p><div class="first-launch-grid">
+        <div><h3>{{ partial "t.html" "winBlockTitle" }}</h3><ol>{{ range seq 3 }}<li>{{ partial "t.html" (printf "winStep%d" .) }}</li>{{ end }}</ol><a href="https://support.microsoft.com/windows/security/windows-security/app-browser-control-in-the-windows-security-app">{{ partial "t.html" "winGuide" }}</a></div>
+        <div><h3>{{ partial "t.html" "macBlockTitle" }}</h3><ol>{{ range seq 3 }}<li>{{ partial "t.html" (printf "macStep%d" .) }}</li>{{ end }}</ol><a href="https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac">{{ partial "t.html" "macGuide" }}</a></div>
+      </div></div>
+    </details>
+  </div>
+</section>

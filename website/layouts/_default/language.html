@@ -1,0 +1,5 @@
+{{ define "main" }}
+{{ $language := index (where .Site.Data.languages "code" .Params.language) 0 }}
+<section class="language-hero dark-band"><div class="container"><p class="eyebrow">Languages / {{ $language.english_name }}</p><h1>Live subtitles between {{ $language.english_name }} and English.</h1><p class="lead">Translito listens to Zoom, Teams or Meet and shows what is said in {{ $language.english_name }} as English subtitles over any window. It works the other way too, from English into {{ $language.english_name }}.</p><a class="btn primary" href="#download">Download for Windows</a></div></section>
+{{ partial "downloads.html" . }}
+{{ end }}

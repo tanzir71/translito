@@ -1,0 +1,20 @@
+<figure class="hero-shot" dir="ltr" aria-label="{{ i18n "heroImageAlt" }}">
+  <div class="shot-scene">
+    <img class="meeting-image" src="{{ "img/landing/hero-meeting.webp" | relURL }}" alt="{{ i18n "heroImageAlt" }}" width="2560" height="1440" fetchpriority="high">
+    <div class="subtitle-bar" lang="{{ .code }}" dir="{{ if .rtl }}rtl{{ else }}ltr{{ end }}">
+      <p class="previous">{{ .previous }}</p><p class="current">{{ .current }}</p>
+    </div>
+    <div class="subtitle-controls">
+      <button type="button" data-demo-pause aria-pressed="false" aria-label="{{ i18n "controlPause" }}"><img src="{{ "img/landing/icons/pause.svg" | relURL }}" alt=""></button>
+      <button type="button" data-demo-size="-1" aria-label="{{ i18n "controlSmaller" }}">A−</button><button type="button" data-demo-size="1" aria-label="{{ i18n "controlLarger" }}">A+</button>
+      <span title="{{ i18n "controlMove" }}"><img src="{{ "img/landing/icons/grip.svg" | relURL }}" alt=""></span>
+      <a href="#subtitles" aria-label="{{ i18n "controlOpen" }}"><img src="{{ "img/landing/icons/open.svg" | relURL }}" alt=""></a>
+      <button type="button" data-demo-close aria-label="{{ i18n "controlClose" }}"><img src="{{ "img/landing/icons/close.svg" | relURL }}" alt=""></button>
+    </div>
+    <aside class="start-notice" lang="en" dir="ltr">
+      <p class="notice-brand"><img src="{{ "img/landing/icons/notice-brand.svg" | relURL }}" alt="">Translito</p>
+      <p class="notice-title">Weekly sync is starting</p><p>Subtitles are on, translating into {{ .language }}.</p>
+      <div><button type="button" data-demo-dismiss>Stop</button><a href="#schedule">Settings</a></div>
+    </aside>
+  </div>
+</figure>

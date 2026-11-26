@@ -1,0 +1,6 @@
+<div class="language-grid">
+{{ range .page.Site.Data.languages }}{{ if .priority }}
+  {{ $href := "/" }}{{ if .slug }}{{ $href = printf "/languages/%s/" .slug }}{{ end }}
+  <a class="language-row" href="{{ $href | relURL }}" {{ if eq .code $.current }}aria-current="page"{{ end }}><span lang="{{ .bcp47 }}" dir="{{ if .rtl }}rtl{{ else }}ltr{{ end }}">{{ .native_name }}</span>{{ if ne .code "en" }}<span class="language-english" lang="en" dir="ltr">{{ .english_name }}</span>{{ end }}</a>
+{{ end }}{{ end }}
+</div>

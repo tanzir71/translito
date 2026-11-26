@@ -1,9 +1,9 @@
 <div class="language-picker">
   <button type="button" id="locale-toggle" aria-controls="locale-menu" aria-expanded="false" aria-label="{{ i18n "chooseLanguage" }}" hidden>
-    <span aria-hidden="true">◎</span> {{ .Site.Language.Lang | upper }} <span aria-hidden="true">⌄</span>
+    <img src="{{ "img/landing/icons/globe.svg" | relURL }}" alt=""> {{ .Site.Language.Lang | upper }} <img src="{{ "img/landing/icons/chevron.svg" | relURL }}" alt="">
   </button>
   <details id="locale-fallback">
-    <summary aria-label="{{ i18n "chooseLanguage" }}"><span aria-hidden="true">◎</span> {{ .Site.Language.Lang | upper }} <span aria-hidden="true">⌄</span></summary>
+    <summary aria-label="{{ i18n "chooseLanguage" }}"><img src="{{ "img/landing/icons/globe.svg" | relURL }}" alt=""> {{ .Site.Language.Lang | upper }} <img src="{{ "img/landing/icons/chevron.svg" | relURL }}" alt=""></summary>
     <div class="locale-panel" id="locale-menu" aria-labelledby="locale-heading">
       <p id="locale-heading" class="locale-label">{{ i18n "languageLabel" }}</p>
       <ul>

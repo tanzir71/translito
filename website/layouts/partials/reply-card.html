@@ -1,0 +1,13 @@
+<div class="reply-card">
+  <div class="reply-card-heading"><h3>{{ partial "t.html" "replyCardTitle" }}</h3><p>{{ partial "t.html" "replyCardCaption" }}</p></div>
+  {{ if eq .Site.Language.Lang "en" }}
+    {{ range (slice (dict "language" "Arabic" "code" "ar" "spoken" "Mumkin tiid as-sual?" "native" "ممكن تعيد السؤال؟") (dict "language" "Russian" "code" "ru" "spoken" "Mozhete povtorit vopros?" "native" "Можете повторить вопрос?") (dict "language" "Urdu" "code" "ur" "spoken" "Kya aap sawal dohra sakte hain?" "native" "کیا آپ سوال دہرا سکتے ہیں؟") (dict "language" "Spanish" "code" "es" "spoken" "¿Puede repetir la pregunta?" "native" (i18n "replyLatinNote"))) }}
+    <div class="reply-row"><span class="reply-language">{{ .language }}</span><div><p class="reply-spoken" lang="{{ if eq .code "es" }}es{{ else }}en{{ end }}" dir="ltr">{{ .spoken }}</p><p class="reply-native" lang="{{ .code }}" dir="auto">{{ .native }}</p></div></div>
+    {{ end }}
+  {{ else }}
+    {{ range $index, $text := slice "Yes, Thursday is fine" "Give me two days and I will confirm" "Could you repeat the question?" }}
+    <div class="reply-row localized-reply"><span class="reply-language" dir="ltr">{{ add $index 1 }}</span><div><p class="reply-spoken" lang="en" dir="ltr">{{ $text }}</p><p class="reply-native">{{ partial "t.html" (printf "replyMeaning%d" (add $index 1)) }}</p></div></div>
+    {{ end }}
+  {{ end }}
+  <p class="reply-footnote">{{ partial "t.html" "replyFootnote" }}</p>
+</div>

@@ -1,107 +1,64 @@
 <!DOCTYPE html>
 <html lang="{{ .Site.Language.LanguageCode }}" dir="{{ .Site.Language.LanguageDirection | default "ltr" }}" data-site-locale="{{ .Site.Language.Lang }}" data-home="{{ .IsHome }}">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ if .IsHome }}{{ i18n "seoTitle" }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
-    <meta name="description" content="{{ i18n "description" }}">
-    <meta name="author" content="{{ .Site.Params.author }}">
-    
-    <meta name="theme-color" content="#080a09">
-
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ .Permalink }}">
-    <meta property="og:title" content="{{ if .IsHome }}{{ i18n "seoTitle" }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}">
-    <meta property="og:description" content="{{ i18n "description" }}">
-    
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="{{ .Permalink }}">
-    <meta property="twitter:title" content="{{ if .IsHome }}{{ i18n "seoTitle" }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}">
-    <meta property="twitter:description" content="{{ i18n "description" }}">
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="{{ "translito-icon.png" | relURL }}">
-    
-    <!-- Phosphor Icons -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <link rel="canonical" href="{{ .Permalink }}">
-    {{ if .IsHome }}{{ range .Site.Sites }}
-    <link rel="alternate" hreflang="{{ .Language.LanguageCode }}" href="{{ .Home.Permalink }}">
-    {{ end }}{{ end }}
-    <link rel="alternate" hreflang="x-default" href="{{ (index .Site.Sites 0).Home.Permalink }}">
-    <link rel="stylesheet" href="{{ "css/language-picker.css" | relURL }}">
-    <!-- CSS -->
-    <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
-    
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {{ $title := i18n "seoTitle" }}{{ $description := i18n "description" }}
+  {{ if not .IsHome }}{{ $title = .Title }}{{ $description = .Description | default $description }}{{ end }}
+  <title>{{ $title }}</title>
+  <meta name="description" content="{{ $description }}">
+  <meta name="author" content="{{ .Site.Params.author }}">
+  <meta name="theme-color" content="#080a09">
+  <link rel="canonical" href="{{ .Permalink }}">
+  {{ if .IsHome }}{{ range .Site.Sites }}
+  <link rel="alternate" hreflang="{{ .Language.LanguageCode }}" href="{{ .Home.Permalink }}">
+  {{ end }}{{ else }}<link rel="alternate" hreflang="en-US" href="{{ .Permalink }}">{{ end }}
+  <link rel="alternate" hreflang="x-default" href="{{ if .IsHome }}{{ (index .Site.Sites 0).Home.Permalink }}{{ else }}{{ .Permalink }}{{ end }}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ .Permalink }}">
+  <meta property="og:title" content="{{ $title }}">
+  <meta property="og:description" content="{{ $description }}">
+  <meta property="og:image" content="{{ "img/landing/hero-meeting.webp" | absURL }}">
+  <meta property="og:locale" content="{{ replace .Site.Language.LanguageCode "-" "_" }}">
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="{{ .Permalink }}">
+  <meta property="twitter:title" content="{{ $title }}">
+  <meta property="twitter:description" content="{{ $description }}">
+  <meta property="twitter:image" content="{{ "img/landing/hero-meeting.webp" | absURL }}">
+  <link rel="icon" type="image/png" href="{{ "translito-icon.png" | relURL }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
+  <link rel="stylesheet" href="{{ "css/language-picker.css" | relURL }}">
 </head>
 <body>
-    <header class="header">
-        <nav class="nav">
-            <div class="nav-container">
-                <div class="nav-brand">
-                    <a href="{{ "/" | relURL }}" class="brand-link">
-                        <img src="{{ "translito-icon.png" | relURL }}" alt="" class="brand-icon">
-                        <span>Translito</span>
-                    </a>
-                </div>
-                <ul class="nav-menu">
-                    {{ range .Site.Menus.main }}
-                    <li class="nav-item">
-                        <a href="{{ .URL }}" class="nav-link">{{ .Name }}</a>
-                    </li>
-                    {{ end }}
-                </ul>
-                {{ partial "language-picker.html" . }}
-                <a class="nav-download" href="#download">
-                    Download Translito
-                </a>
-            </div>
-        </nav>
-    </header>
-    
-    <main class="main">
-        {{ block "main" . }}{{ end }}
-    </main>
-    
-    <footer class="footer">
-        <div class="footer-container">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <div class="footer-brand">
-                        <img src="{{ "translito-icon.png" | relURL }}" alt="" class="footer-icon">
-                        <h3>{{ .Site.Title }}</h3>
-                    </div>
-                    <p>{{ i18n "description" }}</p>
-                </div>
-                <div class="footer-section">
-                </div>
-                <div class="footer-section">
-                    <h4>Quick Links</h4>
-                    <ul>
-                        <li><a href="#features">Features</a></li>
-                        <li><a href="#setup">Setup</a></li>
-                        <li><a href="#download">Download</a></li>
-                        <li><a href="https://github.com/tanzir71/translito" target="_blank" rel="noopener">GitHub</a></li>
-                    </ul>
-                </div>
-            </div>
-            {{ partial "locale-links.html" . }}
-            <div class="footer-bottom">
-                <p>Built by <a href="https://tanziro.com" target="_blank" rel="noopener">Tanzir</a> in Bangladesh ðŸ‡§ðŸ‡©</p>
-                <p>Windows 1.0.4 Â· macOS 1.0</p>
-            </div>
+  <header class="site-header">
+    <nav class="container nav" aria-label="Translito">
+      <a href="{{ .Site.Home.RelPermalink }}" class="brand"><span class="brand-mark"><img src="{{ "img/landing/icons/brand.svg" | relURL }}" alt=""></span><span>Translito</span></a>
+      <div class="nav-right">
+        <div class="nav-links" id="nav-links">
+          <a href="{{ .Site.Home.RelPermalink }}#features">{{ partial "t.html" "navFeatures" }}</a>
+          <a href="{{ .Site.Home.RelPermalink }}#how">{{ partial "t.html" "navHow" }}</a>
+          <a href="{{ .Site.Home.RelPermalink }}#cost">{{ partial "t.html" "navCost" }}</a>
+          <a href="#download">{{ partial "t.html" "navDownload" }}</a>
         </div>
-    </footer>
-    
-    <!-- JavaScript -->
-    <script src="{{ "js/main.js" | relURL }}"></script>
+        {{ partial "language-picker.html" . }}
+        <a class="btn primary nav-download" href="#download">{{ partial "t.html" "navDownload" }}</a>
+        <button class="mobile-menu" type="button" aria-controls="nav-links" aria-expanded="false">{{ partial "t.html" "navMenu" }}</button>
+      </div>
+    </nav>
+  </header>
+  <main>{{ block "main" . }}{{ end }}</main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <div><a class="brand footer-brand" href="{{ .Site.Home.RelPermalink }}"><span class="brand-mark"><img src="{{ "img/landing/icons/brand.svg" | relURL }}" alt="" loading="lazy"></span>Translito</a><p>{{ partial "t.html" "footerTagline" }} {{ partial "t.html" "footerBuilt" }}</p></div>
+        <div class="footer-links"><a href="{{ .Site.Home.RelPermalink }}#features">{{ partial "t.html" "navFeatures" }}</a><a href="#download">{{ partial "t.html" "navDownload" }}</a><a href="https://github.com/tanzir71/translito">GitHub</a><a href="https://tanziro.com">tanziro.com</a></div>
+      </div>
+      {{ partial "locale-links.html" . }}
+    </div>
+  </footer>
+  <script src="{{ "js/main.js" | relURL }}" defer></script>
 </body>
 </html>

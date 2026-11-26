@@ -64,3 +64,16 @@ Verification: `python -m pytest -q` — 661 tests pass, including real Hugo builds
 into temporary folders and all 14 home/metadata/picker checks. website/public
 and workflows are untouched. New clones need the same Hugo binary in tools/bin
 or PATH (or TRANSLITO_HUGO) before running site tests.
+
+W2: English landing rebuilt from the desktop/mobile Figma responses, with a
+1120px content grid, 600px settings images, the specified type/palette/spacing,
+semantic subtitle/control/toast overlays and a four-language reply card. Exact
+SVGs and WebPs have a dimensions/hash receipt. The hero scene scales/crops to
+the 1440/390 design dimensions; downloads use the existing configured version
+and retain separate macOS scope and expandable first-launch instructions.
+English language-page introductions are scaffolded so all catalog links resolve;
+W4 will add their complete data/examples. Non-English strings remain scaffolded
+pending W3. No manual app/site checks were performed, as requested.
+Verification: `python -m pytest -q` — 664 tests pass; real Hugo build has no
+i18n/layout warnings. Build tests check sections, images, language links, source
+asset hashes/dimensions and JavaScript hero geometry. public/workflows untouched.
