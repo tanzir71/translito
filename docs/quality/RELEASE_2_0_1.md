@@ -1,8 +1,8 @@
-# Translito 2.0.1 source changes
+# Windows 2.0.1
 
 Updated 26 November 2026. This is the implementation of
 `CODEX_HANDOFF_V2_1_FIXES.md` and `CODEX_HANDOFF_V2_1_ADDENDUM_ICON_SCHEDULE.md`.
-The version metadata is 2.0.1. No installer, tag or release was built or published.
+The Windows installer and portable package are version 2.0.1. Packaging evidence and artifact hashes are recorded below.
 
 ## The five reported problems
 
@@ -81,5 +81,32 @@ throughput or visual acceptance on the owner's display.
 The owner can later connect Soniox and test an Arabic meeting, resume the actual
 Whisper Turbo snapshot, download TranslateGemma, inspect the contact sheet and
 check tray/taskbar rendering after installing. A Sun–Thu schedule can then be
-verified at the next workday start. Building and publishing 2.0.1 remains an
-explicit later action.
+verified at the next workday start. The Windows packages below retain existing settings, transcripts and cached models. The macOS DMG is the existing 1.0 build, unchanged.
+
+
+## Packaging verification and artifacts
+
+- Application source: `d3b0632351f5f625680ecc5940bb7333b7d7de70`; the release tag also includes packaging documentation.
+- Merged main-source suite: **803 passed**, one existing Torch deprecation warning.
+- CPU-only Python 3.13 build: Torch 2.13.0+cpu, Transformers 5.22.1 and PyInstaller 6.22.3.
+- The actual frozen EXE passed all **19** dependency checks, including a native CPU tensor calculation, tzlocal and Asia/Dhaka zone data.
+- The windowed EXE's download child passed a real inherited-pipe test using a tiny local fake fetcher. It sent byte progress and exited successfully without opening the GUI or accessing models/credentials.
+- The portable ZIP passed a complete CRC check. App/tray ICO frames, bundled Tcl/Tk and time-zone files, native audio bridge and every engine data file were verified.
+- No owner settings or ASR/translation weights are packaged. The small Silero speech-detection model is intentionally bundled for the local cost gate.
+- A real Hugo production build verified the 2.0.1 installer and portable URLs on all 28 pages containing download links.
+- No installation, physical audio, live API key or provider inference was used for release verification.
+
+Setup upgrades the app; extract the complete portable ZIP into a new empty folder.
+The retained macOS DMG is version 1.0 and does not contain these Windows changes.
+[GitHub release v2.0.1](https://github.com/tanzir71/translito/releases/tag/v2.0.1)
+includes the runtime report, frozen-child report, dependency snapshot and checksums.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| TranslitoSetup-2.0.1.exe | 256,862,688 | `8c41a5b686bbd69a2653d79476cf4b52a656e710b6a19d2839c4db4e49c3eabc` |
+| TranslitoPortable-2.0.1.zip | 374,045,388 | `bbb4817de04708c36408480b8ccea3c8ef5470142f7d8e2e41aa7a7f9ae46696` |
+| Translito.dmg | 6,044,398 | `b8f94af1df5425fc3d3d31c8775e9ac013d7db64ca0364d2d8730e0d1fa4ba73` |
+| runtime-check.json | 1,458 | `945c91f7048e9f76f55781032bfcd8ac9473362bcfec974b56e4c870f90916e9` |
+| frozen-download-check.json | 153 | `b7295b2bd83d54cf3eae24d42e0a31f90c6bbb240012feb2fe2d8481617d5c6f` |
+| build-requirements.txt | 2,193 | `64ca9558fc137fd47f622c5c43e879fcc085fb84afef1ef93bcf35eae880939a` |
+| SHA256SUMS.txt | 538 | `da73060382a7bc46e9f994140b8775b42c1cdb0e6e4edde4760595de94646bd8` |

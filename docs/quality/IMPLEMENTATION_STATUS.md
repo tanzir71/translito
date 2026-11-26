@@ -384,3 +384,15 @@ integration with `codex/v3-languages-landing`. The resolved integration retains
 v3 language support and script rendering alongside the fixes. Only the
 `codex/*` branches were pushed for this handback; main, workflows and releases
 were not changed by this fix task.
+
+
+# Windows 2.0.1 packaging (2026-11-26)
+
+The merged main source passes 803 tests. Windows Setup and the portable ZIP are
+built from d3b0632 in the isolated CPU environment; all 19 frozen runtime checks,
+the real windowed download-child pipe test and the ZIP CRC check pass. Exact icon
+frames, the system-DPI manifest, bundled Tcl/Tk and zone data were verified.
+README, installer documentation and all 28 site download pages target 2.0.1;
+Pages validates the new installer/ZIP URLs. See RELEASE_2_0_1.md for sizes and
+SHA-256 hashes. The macOS 1.0 DMG is retained unchanged in the release assets.
+This packaging record supersedes the earlier source-only handback above.
