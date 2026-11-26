@@ -46,7 +46,7 @@ class EngineSettings:
 
     def resolve(self, source, target):
         values = {key: getattr(self, key) for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")}
-        values.update({"default_" + key: value for key, value in self.pair_overrides.get(f"{source}_{target}", {}).items() if value})
+        values.update({"default_" + key: value for key, value in {k.casefold(): v for k, v in self.pair_overrides.items()}.get(f"{source}_{target}".casefold(), {}).items() if value})
         return values
 
     def provider(self, name):
@@ -91,7 +91,7 @@ def load_engine_settings(path=None):
     defaults = {key: section.get(key, "") for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")}
     overrides = {}
     for key, value in section.items():
-        match = re.fullmatch(r"pair_([a-z]{2,3}_[a-z]{2,3})_(asr_provider|asr_model|mt_provider|mt_model)", key)
+        match = re.fullmatch(r"pair_([a-z]{2,3}(?:-[a-z]{4})?_[a-z]{2,3}(?:-[a-z]{4})?)_(asr_provider|asr_model|mt_provider|mt_model)", key)
         if match:
             overrides.setdefault(match[1], {})[match[2]] = value
     choice = section.get("engine_choice", "")
@@ -114,7 +114,8 @@ def _values(settings):
         values["engine_choice"] = settings.engine_choice
     values.update({key: getattr(settings, key) for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")})
     for pair, overrides in settings.pair_overrides.items():
-        if not re.fullmatch(r"[a-z]{2,3}_[a-z]{2,3}", pair):
+        pair = pair.casefold()
+        if not re.fullmatch(r"[a-z]{2,3}(?:-[a-z]{4})?_[a-z]{2,3}(?:-[a-z]{4})?", pair):
             raise ValueError("Invalid language pair override")
         for key, value in overrides.items():
             if key not in {"asr_provider", "asr_model", "mt_provider", "mt_model"}:

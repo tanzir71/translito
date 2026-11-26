@@ -131,7 +131,8 @@ def test_engine_cards_restore_measured_results_for_the_current_pair_only(app):
     app.listen_source_var.set("Spanish" if source != "es" else "French")
     from engine_ui import refresh_provider_choices
     refresh_provider_choices(app)
-    assert "cohere-api" not in app.engine_provider_widgets["asr"].cget("values")
+    assert "cohere-api" in app.engine_provider_widgets["asr"].cget("values")
+    assert "cohere-api" in app.engine_support_var.get() and "unavailable" in app.engine_support_var.get()
     refresh_measurements(app)
     assert "not measured" in app.engine_card_descriptions["cloud"].get()
     app.listen_source_var.set(app.language_name_for_iso(source))

@@ -100,8 +100,12 @@ class TranslateGemma:
     def _message(text, source, target):
         # Saudi meetings are the primary Arabic locale. Other language choices
         # stay generic, rather than inferring a country from the user's machine.
-        return {"role": "user", "content": [{"type": "text", "source_lang_code": "ar-SA" if source == "ar" else source,
-                 "target_lang_code": "ar-SA" if target == "ar" else target, "text": text}]}
+        from engines.languages import language
+        def code(value):
+            entry = language(value)
+            return entry.default_variety or ("ar-SA" if value == "ar" else value) if entry else value
+        return {"role": "user", "content": [{"type": "text", "source_lang_code": code(source),
+                 "target_lang_code": code(target), "text": text}]}
 
     def _prompt(self, text, source, target, context, instruction):
         messages = []
@@ -145,7 +149,8 @@ class TranslateGemma:
         protected = protect(text, "llm", latin=target == "en" and source not in LATIN_LANGUAGES,
                             other_script=source == "en",
                             terms=[term for term, value in glossary.items() if not value])
-        instruction = "Keep English words and anything inside ⟦ ⟧ unchanged."
+        from engines.language_support import script_instruction
+        instruction = "Keep English words and anything inside ⟦ ⟧ unchanged. " + script_instruction(target)
         with self.lock:
             check_cancelled()
             input_tokens = self.model.tokenize(original_text.encode("utf-8"), add_bos=False)

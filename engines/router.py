@@ -252,8 +252,9 @@ class RecognizerRouter(ProviderRouter):
 
     def transcribe(self, audio, sample_rate, *, hint_language=None, prompt=None, stop_event=None):
         from engines.cancellation import generation_scope
-        if hint_language and "-" in hint_language:
-            hint_language = hint_language.split("-",1)[0]
+        if hint_language:
+            from engines.languages import canonical_code
+            hint_language = canonical_code(hint_language)
         with generation_scope(stop_event):
             return self._invoke("transcribe", Units(audio_seconds=len(audio) / sample_rate),
                                 (audio, sample_rate), {"hint_language": hint_language,

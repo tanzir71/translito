@@ -3,6 +3,7 @@
 The transport callback carries transient input/output text and PCM, never SDK
 errors or credentials. The desktop controller owns rows and Speak/Listen policy.
 """
+from engines.language_support import provider_code, script_instruction
 import asyncio
 import logging
 import os
@@ -30,7 +31,9 @@ def connect_config(target, handle=None, *, resume=True):
     config = types.LiveConnectConfig(
         response_modalities=["AUDIO"], input_audio_transcription=types.AudioTranscriptionConfig(),
         output_audio_transcription=types.AudioTranscriptionConfig(),
-        translation_config=types.TranslationConfig(target_language_code=target, echo_target_language=False))
+        translation_config=types.TranslationConfig(target_language_code=provider_code("gemini-live", target, target=True), echo_target_language=False))
+    if script_instruction(target):
+        config.system_instruction = script_instruction(target)
     if resume:
         config.session_resumption = types.SessionResumptionConfig(handle=handle)
     return config

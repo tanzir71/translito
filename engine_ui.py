@@ -72,11 +72,12 @@ def refresh_provider_choices(app):
     reasons = []
     for kind, widget in getattr(app, "engine_provider_widgets", {}).items():
         candidates = [f for f in factories if f.kind == kind or (kind == "asr" and f.kind == "live")]
-        widget.configure(values=["local"] + [f.name for f in candidates if not f.unavailable_reason(source,target)])
+        widget.configure(values=["local"] + [f.name for f in candidates])
         chosen = app.engine_default_vars[f"default_{kind}_provider"].get()
         factory = next((f for f in candidates if f.name == chosen), None)
         if factory and factory.unavailable_reason(source,target):
             reasons.append(f"{chosen}: {factory.unavailable_reason(source,target)} Choose a supported provider.")
+    reasons.extend(f"{f.name}: {f.unavailable_reason(source,target)}" for f in factories if f.unavailable_reason(source,target))
     if hasattr(app, "engine_support_var"):
         app.engine_support_var.set(" ".join(reasons))
 

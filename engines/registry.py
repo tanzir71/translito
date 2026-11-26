@@ -28,8 +28,12 @@ class ProviderFactory:
     rate: object = None
     rate_checked_on: str = ""
     min_billed_seconds: float = 0
+    language_checked_on: str = ""
+    language_evidence: str = ""
 
     def unavailable_reason(self, source, target):
+        from engines.languages import canonical_code
+        source, target = canonical_code(source), canonical_code(target)
         if self.source_languages and source not in self.source_languages:
             return f"Recognition is unavailable for {source}."
         if self.translates_to and target not in self.translates_to:
@@ -93,7 +97,15 @@ def provider_factories():
             setup_url="https://portal.speechmatics.com/", mixed_speech=True, streaming=True,
             billing_mode="open_stream", models=("melia-1",), rate=Rate(per_audio_hour=Decimal(".20")), rate_checked_on=RATE_CHECKED_ON),
     )
-    return tuple(replace(factory, **metadata.get(factory.name, {})) for factory in factories)
+    from engines.language_support import CHECKED_ON, EVIDENCE, supported_codes
+    result = []
+    for factory in factories:
+        factory = replace(factory, **metadata.get(factory.name, {}))
+        codes = supported_codes(factory.name)
+        result.append(replace(factory, source_languages=codes,
+            translates_to=codes if factory.kind == "mt" or factory.name in {"soniox", "gemini-live"} else (),
+            language_checked_on=CHECKED_ON, language_evidence=EVIDENCE[factory.name]))
+    return tuple(result)
 
 
 

@@ -1,5 +1,5 @@
 {
-  "verified_utc": "2026-11-02",
+  "verified_utc": "2026-11-26",
   "source": "https://huggingface.co/api/models/{repo_id}",
   "pairs": [
     {
@@ -91,6 +91,74 @@
       "target": "ur",
       "repo": "Helsinki-NLP/opus-mt-en-ur",
       "revision": "ceb6e22b680f55eda918c3612200ace766898456"
+    },
+    {
+      "source": "nl",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-nl-en",
+      "revision": "48af999f2c59b10c05ca6e008dcedc07677a9b15"
+    },
+    {
+      "source": "en",
+      "target": "nl",
+      "repo": "Helsinki-NLP/opus-mt-en-nl",
+      "revision": "8aad73b34ff36c090e7fc8a2eb7e2e7cca235d31"
+    },
+    {
+      "source": "pl",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-pl-en",
+      "revision": "7f2bb874fdfb6139f9842b91a9b75c4a6c93401c"
+    },
+    {
+      "source": "sv",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-sv-en",
+      "revision": "202cf6240046bd8b6d08c207ee751ffd630d7ba8"
+    },
+    {
+      "source": "en",
+      "target": "sv",
+      "repo": "Helsinki-NLP/opus-mt-en-sv",
+      "revision": "cec444c9ac08a87fcfcd172f2e6be8e112fda53c"
+    },
+    {
+      "source": "zh-Hans",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-zh-en",
+      "revision": "cf109095479db38d6df799875e34039d4938aaa6"
+    },
+    {
+      "source": "zh-Hant",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-zh-en",
+      "revision": "cf109095479db38d6df799875e34039d4938aaa6"
+    },
+    {
+      "source": "en",
+      "target": "zh-Hans",
+      "repo": "Helsinki-NLP/opus-mt-en-zh",
+      "revision": "408d9bc410a388e1d9aef112a2daba955b945255",
+      "target_token": ">>cmn_Hans<<"
+    },
+    {
+      "source": "en",
+      "target": "zh-Hant",
+      "repo": "Helsinki-NLP/opus-mt-en-zh",
+      "revision": "408d9bc410a388e1d9aef112a2daba955b945255",
+      "target_token": ">>cmn_Hant<<"
+    },
+    {
+      "source": "ja",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-ja-en",
+      "revision": "0770961a39ba6bd66305b149c3f4110bcafca2e6"
+    },
+    {
+      "source": "ko",
+      "target": "en",
+      "repo": "Helsinki-NLP/opus-mt-ko-en",
+      "revision": "e42d1f41b66194e6d10512f8a27bebc1f4f5097e"
     }
   ],
   "unavailable_standard_pairs": [
@@ -113,6 +181,27 @@
     [
       "en",
       "fa"
+    ],
+    [
+      "en",
+      "pl"
+    ],
+    [
+      "en",
+      "ja"
+    ],
+    [
+      "en",
+      "ko"
+    ],
+    [
+      "nb",
+      "en"
+    ],
+    [
+      "en",
+      "nb"
     ]
-  ]
+  ],
+  "metadata_note": "Public metadata only. Missing/inaccessible repositories are unavailable; no model inference was run."
 }

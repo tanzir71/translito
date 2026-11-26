@@ -4,6 +4,7 @@ No sockets, credential access, audio capture or paid calls occur on import or
 construction. A separately authorized runner must own transport and accounting.
 Server examples in the tests are synthetic contract fixtures, not live results.
 """
+from engines.language_support import provider_code, script_instruction
 import base64
 from dataclasses import dataclass
 import math
@@ -88,16 +89,19 @@ class SonioxProtocol:
         return {"Authorization": "Bearer " + provider_key(credentials, self.name)}
 
     def start(self):
-        translation = ({"type": "two_way", "language_a": "en", "language_b": self.other} if self.two_way else
-                       {"type": "one_way", "target_language": self.target})
+        translation = ({"type": "two_way", "language_a": "en", "language_b": provider_code(self.name, self.other)} if self.two_way else
+                       {"type": "one_way", "target_language": provider_code(self.name, self.target, target=True)})
         value = {"model": self.model, "audio_format": "pcm_s16le", "sample_rate": 16000, "num_channels": 1,
-                "language_hints": list(self.languages), "language_hints_strict": True,
+                "language_hints": list(dict.fromkeys(provider_code(self.name, code) for code in self.languages)), "language_hints_strict": True,
                 "enable_language_identification": True, "enable_speaker_diarization": True,
                 "enable_endpoint_detection": True, "translation": translation,
                 "context": {"terms": list(self.terms),
                             "translation_terms": [{"source": term, "target": term} for term in self.terms]}}
         if getattr(self,"variety",""):
             value["context"]["general"] = [{"key":"spoken variety","value":self.variety}]
+        instruction = script_instruction(self.other if self.two_way else self.target)
+        if instruction:
+            value["context"].setdefault("general", []).append({"key": "translation writing system", "value": instruction})
         return value
 
     def audio(self, pcm):
@@ -148,7 +152,10 @@ class SpeechmaticsProtocol:
         return {"Authorization": "Bearer " + provider_key(credentials, self.name)}
 
     def start(self):
-        config = {"model": self.model, "language": "ar_en" if self.model == "enhanced" else "multi",
+        codes = tuple(dict.fromkeys(provider_code(self.name, code) for code in self.languages))
+        packs = {frozenset(("ar", "en")): "ar_en", frozenset(("cmn", "en")): "cmn_en"}
+        selected = packs.get(frozenset(codes), next((code for code in codes if code != "en"), "en"))
+        config = {"model": self.model, "language": selected if self.model == "enhanced" else "multi",
                   "enable_partials": True, "max_delay": .7, "diarization": "speaker"}
         if self.model == "enhanced":
             config["additional_vocab"] = list(self.terms)
@@ -156,7 +163,7 @@ class SpeechmaticsProtocol:
         else:
             # Melia rejects Enhanced's conversation_config; the runner must use
             # local VAD and ForceEndOfUtterance for the low-latency comparison.
-            config["language_hints"] = list(self.languages)
+            config["language_hints"] = list(codes)
         return {"message": "StartRecognition", "audio_format": {"type": "raw", "encoding": "pcm_s16le", "sample_rate": 16000},
                 "transcription_config": config}
 
@@ -192,7 +199,10 @@ class ElevenLabsProtocol:
         params = [("model_id", self.model), ("audio_format", "pcm_16000"), ("commit_strategy", "vad"),
                   ("vad_silence_threshold_secs", "0.6"), ("include_timestamps", "true"),
                   ("include_language_detection", "true"), ("multilang_mode", "true")]
-        params.extend(("secondary_languages", language) for language in self.languages)
+        codes = tuple(dict.fromkeys(provider_code(self.name, language) for language in self.languages))
+        if codes:
+            params.append(("language_code", codes[0]))
+        params.extend(("secondary_languages", language) for language in codes[1:])
         params.extend(("keyterms", term) for term in self.terms)
         self.endpoint = "wss://api.elevenlabs.io/v1/speech-to-text/realtime?" + urlencode(params)
 

@@ -79,7 +79,7 @@ def result(text, language, duration, provider, *, avg_logprob=None, no_speech_pr
     if not isinstance(text, str):
         raise ProviderError()
     cleaned = postprocess(text).text
-    return AsrResult(cleaned, language, None, language_tag(cleaned, acoustic_language=language),
+    return AsrResult(cleaned, language, None, language_tag(cleaned, other=language if language != "en" else "ar", acoustic_language=language),
                      latin_ratio(cleaned), avg_logprob, no_speech_prob, duration, provider)
 
 

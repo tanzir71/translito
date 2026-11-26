@@ -1,4 +1,5 @@
 """Azure Translator v3 standard text API, with HTML span preservation."""
+from engines.language_support import provider_code, script_instruction
 from engines.cloud_http import CloudHttp, provider_key
 from engines.mt_cloud import CloudText, MarkupTranslator
 from engines.provider import ProviderBinding, ProviderError
@@ -19,8 +20,8 @@ class AzureTranslator(MarkupTranslator):
         if self.region and self.region != "global":
             headers["Ocp-Apim-Subscription-Region"] = self.region
         metering = {}
-        response = self.http.post(self.endpoint, params={"api-version": "3.0", "from": source,
-                                 "to": target, "textType": "html"}, headers=headers, json=[{"Text": text}], capture_headers=metering)
+        response = self.http.post(self.endpoint, params={"api-version": "3.0", "from": provider_code(self.name, source),
+                                 "to": provider_code(self.name, target, target=True), "textType": "html"}, headers=headers, json=[{"Text": text}], capture_headers=metering)
         try:
             count = metering.get("x-metered-usage", "")
             return CloudText(response[0]["translations"][0]["text"], Units(characters=int(count)) if count.isdigit() else None)

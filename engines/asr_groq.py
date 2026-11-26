@@ -1,4 +1,5 @@
 """Groq Whisper transcription with verbose scores and local quota protection."""
+from engines.language_support import provider_code, script_instruction
 from engines.asr_cloud import CloudRecognizer, number, result
 from engines.cancellation import generation_scope
 from engines.cloud_http import provider_key
@@ -20,7 +21,7 @@ class GroqRecognizer(CloudRecognizer):
             self.quota.take(duration)
             data = {"model": self.model, "response_format": "verbose_json", "temperature": "0"}
             if hint_language:
-                data["language"] = hint_language
+                data["language"] = provider_code(self.name, hint_language)
             if prompt:
                 # A UTF-8 byte ceiling is conservative for Whisper's 224-token
                 # prompt limit and never splits a Unicode character.

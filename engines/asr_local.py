@@ -3,6 +3,7 @@ from dataclasses import replace
 from functools import lru_cache
 
 from engines.asr_cohere_local import CohereAccessRequired, CohereLocalRecognizer
+from engines.languages import canonical_code, whisper_code
 from engines.lid import PairLanguageDetector, decode_with_script_check, language_tag, latin_ratio
 from engines.postprocess import postprocess
 from engines.types import AsrResult
@@ -45,8 +46,8 @@ class LocalOneWayRecognizer:
     def transcribe(self, audio, sample_rate, *, hint_language=None, prompt=None, stop_event=None):
         with generation_scope(stop_event):
             check_cancelled()
-            language = (hint_language or self.language).split("-")[0]
-            text = self.decode(audio, hint_language=language) if self.accepts_language_hint else self.decode(audio)
+            language = canonical_code(hint_language or self.language)
+            text = self.decode(audio, hint_language=whisper_code(language)) if self.accepts_language_hint else self.decode(audio)
             check_cancelled()
             if language == "ar" and self.glossary:
                 text = self.glossary.restore_english(text)[0]
@@ -136,7 +137,7 @@ class LocalConversationRecognizer:
                 raise ProviderError()
             if self.other_language == "ar":
                 self._hint_fallback()
-            options = dict(language=language, stop_event=stop_event,
+            options = dict(language=whisper_code(language), stop_event=stop_event,
                            initial_prompt="بنراجع ال dashboard وال API في ال meeting بكرة" if language == "ar" else None,
                            hotwords=self.glossary.hotwords() if self.glossary else None)
             if callable(getattr(type(self.whisper), "transcribe_result", None)):

@@ -10,10 +10,14 @@ from engines.cancellation import check_cancelled, current_stop_event
 from engines.lid import LATIN_LANGUAGES
 from engines.protect import translate_opus, apply_preferred_terms
 from engines.types import MtResult
+from engines.languages import canonical_code, language
 
 
 _MANIFEST = json.loads((Path(__file__).parent / "data" / "opus_pairs.json").read_text(encoding="utf-8"))
 KNOWN_PAIRS = {(entry["source"], entry["target"]): entry["repo"] for entry in _MANIFEST["pairs"]}
+REVISIONS = {entry["repo"]: entry["revision"] for entry in _MANIFEST["pairs"]}
+TARGET_TOKENS = {(entry["source"], entry["target"]): entry["target_token"]
+                 for entry in _MANIFEST["pairs"] if entry.get("target_token")}
 
 
 class UnsupportedPairError(ValueError):
@@ -51,16 +55,18 @@ def _repo_exists(repo, offline):
 
 
 def resolve_local_mt(source, target, *, offline=True, repo_exists=None):
+    source, target = canonical_code(source), canonical_code(target)
     if source == target:
         return LocalMtPlan(source, target, ())
-    if not re.fullmatch(r"[a-z]{2,3}", source) or not re.fullmatch(r"[a-z]{2,3}", target):
+    if not language(source) or not language(target):
         raise UnsupportedPairError("Use ISO language codes for local translation")
     exists = repo_exists or (lambda repo: _repo_exists(repo, offline))
-    direct = f"Helsinki-NLP/opus-mt-{source}-{target}"
+    direct = KNOWN_PAIRS.get((source, target), f"Helsinki-NLP/opus-mt-{source}-{target}")
     if exists(direct):
         return LocalMtPlan(source, target, (direct,))
     if source != "en" and target != "en":
-        pivot = (f"Helsinki-NLP/opus-mt-{source}-en", f"Helsinki-NLP/opus-mt-en-{target}")
+        pivot = (KNOWN_PAIRS.get((source, "en"), f"Helsinki-NLP/opus-mt-{source}-en"),
+                 KNOWN_PAIRS.get(("en", target), f"Helsinki-NLP/opus-mt-en-{target}"))
         if all(exists(repo) for repo in pivot):
             return LocalMtPlan(source, target, pivot)
     raise UnsupportedPairError(
@@ -86,8 +92,11 @@ class LocalOpusPipeline:
             self.tokenizer = None
             return
         for repo in model_id.split("|"):
-            tokenizer = AutoTokenizer.from_pretrained(repo, local_files_only=offline_only, token=False)
-            model = AutoModelForSeq2SeqLM.from_pretrained(repo, local_files_only=offline_only, token=False)
+            options = dict(local_files_only=offline_only, token=False)
+            if repo in REVISIONS:
+                options["revision"] = REVISIONS[repo]
+            tokenizer = AutoTokenizer.from_pretrained(repo, **options)
+            model = AutoModelForSeq2SeqLM.from_pretrained(repo, **options)
             model.to(self.device).eval()
             self.steps.append((tokenizer, model))
         self.tokenizer = self.steps[0][0]
@@ -96,6 +105,7 @@ class LocalOpusPipeline:
         import torch
         from transformers import StoppingCriteria, StoppingCriteriaList
         truncation = kwargs.pop("truncation", True)
+        target_token = kwargs.pop("target_token", "")
         event = current_stop_event()
         if event is not None and "stopping_criteria" not in kwargs:
             class Cancelled(StoppingCriteria):
@@ -104,8 +114,9 @@ class LocalOpusPipeline:
             kwargs["stopping_criteria"] = StoppingCriteriaList([Cancelled()])
         with self.lock:
             check_cancelled()
-            for tokenizer, model in self.steps:
-                encoded = tokenizer(text, return_tensors="pt", truncation=truncation, max_length=512)
+            for index, (tokenizer, model) in enumerate(self.steps):
+                value = target_token + " " + text if target_token and index == len(self.steps) - 1 else text
+                encoded = tokenizer(value, return_tensors="pt", truncation=truncation, max_length=512)
                 encoded = {key: value.to(self.device) for key, value in encoded.items()}
                 with torch.inference_mode():
                     output = model.generate(**encoded, **kwargs)
@@ -151,7 +162,9 @@ class OpusTranslator:
         def decode(value):
             tokenizer = getattr(model, "tokenizer", None)
             tokens = len(tokenizer.encode(value)) if tokenizer else max(1, len(value.split()) * 2)
-            return model(value, num_beams=self.beam_size, max_new_tokens=max(32, min(512, 3 * tokens)),
+            token = TARGET_TOKENS.get((source, target), TARGET_TOKENS.get(("en", target), ""))
+            options = {"target_token": token} if token else {}
+            return model(value, **options, num_beams=self.beam_size, max_new_tokens=max(32, min(512, 3 * tokens)),
                          do_sample=False, truncation=True)[0]["translation_text"]
 
         # Arabic/Persian/etc. → English: protect Latin spans. English → Arabic:

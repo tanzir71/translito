@@ -1,4 +1,5 @@
 """DeepL API Free, XML exclusions and immutable, cached v3 glossaries."""
+from engines.language_support import provider_code, script_instruction
 from contextlib import closing
 import hashlib
 import json
@@ -96,11 +97,11 @@ class DeepLTranslator(MarkupTranslator):
             raise ProviderError() from None
 
     def request(self, text, source, target, *, context, glossary):
-        data = {"text": [text], "source_lang": source.upper(), "target_lang": {"en": "EN-US", "pt": "PT-PT"}.get(target, target.upper()),
+        data = {"text": [text], "source_lang": provider_code(self.name, source), "target_lang": provider_code(self.name, target, target=True),
                 "tag_handling": "xml", "tag_handling_version": "v2", "ignore_tags": ["x"]}
         if context:
             data["context"] = "\n".join(src + "\n" + tgt for src, tgt in context[-2:])
-        resource = self._glossary(source, target, glossary)
+        resource = self._glossary(provider_code(self.name, source).lower(), provider_code(self.name, target).lower(), glossary)
         if resource:
             data["glossary_id"] = resource
         response = self.http.post(self.endpoint + "/v2/translate", headers=self.headers(), json=data)

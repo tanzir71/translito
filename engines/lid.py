@@ -4,7 +4,7 @@ import math
 import unicodedata
 
 
-from engines.languages import LATIN_CODES
+from engines.languages import LATIN_CODES, canonical_code
 LATIN_LANGUAGES = LATIN_CODES
 
 
@@ -44,7 +44,7 @@ class PairLanguageDetector:
         self.previous = None
 
     def restrict(self, probabilities):
-        probabilities = dict(probabilities)
+        probabilities = {canonical_code(k, preferred=self.other): v for k, v in dict(probabilities).items()}
         def probability(language):
             value = float(probabilities.get(language, 0.0))
             return max(0.0, value) if math.isfinite(value) else 0.0
@@ -67,10 +67,10 @@ class PairLanguageDetector:
 
     def detect_any(self, audio):
         language, probability, probabilities = self.model.detect_language(audio=audio)
-        probabilities = dict(probabilities)
+        probabilities = {canonical_code(k, preferred=self.other): v for k, v in dict(probabilities).items()}
         values = sorted(probabilities.values(), reverse=True)
         margin = values[0] - values[1] if len(values) > 1 else probability
-        return LanguageDecision(language, probability, margin, probabilities)
+        return LanguageDecision(canonical_code(language, preferred=self.other), probability, margin, probabilities)
 
 
 def decode_language(decision, other="ar"):

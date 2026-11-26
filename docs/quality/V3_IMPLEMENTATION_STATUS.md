@@ -13,3 +13,13 @@ Portuguese default to Mexican and Brazilian varieties; saved explicit varieties
 are retained for the pair. `tools/site_languages.py` generates the site data.
 Verification: `python -m pytest -q` â€” 524 tests pass. Consumer/export drift tests
 cover ordering, legacy aliases, Chinese script identity and Norwegian `no`/`nb`.
+
+A2: dated capability references for all ten providers; complete ISO-639-3 mapping;
+Norwegian Whisper aliases and Chinese script-aware routing, preferences and
+translation requests. Enhanced Speechmatics selects a verified bilingual pack
+or one source language; Melia uses individual hints. Verified new OPUS metadata
+is pinned by revision, including Mandarin target tokens for Hans/Hant; unverified
+standard directions remain unavailable. TranslateGemma coverage follows the
+official model card code map. No inference/quality claims were made.
+Verification: `python -m pytest -q` — 573 tests pass. The shared Tcl fixture
+retries only the runner's transient shared-script read error, matching the UI fixture.

@@ -7,8 +7,34 @@
   "sha256": "81200d03e843d2ec1ece6eeafe7d13cb6e5211e1fcd336ade55790b683a08330",
   "template_sha256": "5e85514635b80a62b64c9982810bfdfbdd482be9a59ed12c25ded2bf3aabddaf",
   "license_url": "https://ai.google.dev/gemma/terms",
-  "supported_languages": ["ar", "en", "fr", "es", "de", "it", "pt", "ru", "tr", "fa", "ur"],
-  "verified_utc": "2026-11-02",
-  "language_evidence": "https://huggingface.co/datasets/google/wmt24pp",
-  "verified_subsets": ["en-ar_EG", "en-ar_SA", "en-fa_IR", "en-ur_PK"]
+  "supported_languages": [
+    "en",
+    "de",
+    "es",
+    "fr",
+    "nl",
+    "nb",
+    "pl",
+    "pt",
+    "sv",
+    "ar",
+    "zh-Hans",
+    "zh-Hant",
+    "ja",
+    "ko",
+    "it",
+    "ru",
+    "tr",
+    "fa",
+    "ur"
+  ],
+  "verified_utc": "2026-11-26",
+  "language_evidence": "https://huggingface.co/google/translategemma-4b-it",
+  "verified_subsets": [
+    "en-ar_EG",
+    "en-ar_SA",
+    "en-fa_IR",
+    "en-ur_PK"
+  ],
+  "evidence_note": "Supported-code map embedded in the official model card/chat template; coverage is not a per-language quality claim."
 }

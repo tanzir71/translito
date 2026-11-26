@@ -170,7 +170,8 @@ class LiveConversationPipeline:
         entry["source_text"] = (self.fallback.glossary.restore_english(state["raw_source"])[0]
                                 if self.fallback.glossary else state["raw_source"])
         entry["arabic_text"] = entry["source_text"]
-        entry["source_language"] = (data.get("language") or entry["source_language"] or "").split("-")[0] or None
+        from engines.languages import canonical_code
+        entry["source_language"] = canonical_code(data.get("language") or entry["source_language"] or "", preferred=self.conversation.other_language) or None
         state["updated"] = self.clock()
         ended = _offset(data.get("end_offset"))
         if ended is not None:

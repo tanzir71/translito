@@ -1,4 +1,5 @@
 """Cloud Translation Basic v2 NMT, with keys in headers rather than URLs."""
+from engines.language_support import provider_code, script_instruction
 from decimal import Decimal
 
 from engines.cloud_http import CloudHttp, provider_key
@@ -18,7 +19,7 @@ class GoogleTranslator(MarkupTranslator):
 
     def request(self, text, source, target, **kwargs):
         response = self.http.post(self.endpoint, headers={"X-Goog-Api-Key": provider_key(self.credentials, self.name)},
-                                  json={"q": [text], "source": source, "target": target, "format": "html", "model": "nmt"})
+                                  json={"q": [text], "source": provider_code(self.name, source), "target": provider_code(self.name, target, target=True), "format": "html", "model": "nmt"})
         try:
             return CloudText(response["data"]["translations"][0]["translatedText"], Units(characters=len(text)))
         except (TypeError, KeyError, IndexError):

@@ -81,7 +81,7 @@ def test_streaming_recognizers_support_pair_hints_and_emit_partial_and_final(pro
     protocol = ElevenLabsProtocol(languages=("es", "en")) if provider == "elevenlabs" else SpeechmaticsProtocol(model="melia-1", languages=("es", "en"))
     if provider == "elevenlabs":
         assert "model_id=scribe_v3_live" in protocol.endpoint and "multilang_mode=true" in protocol.endpoint
-        assert "secondary_languages=es" in protocol.endpoint
+        assert "language_code=spa" in protocol.endpoint and "secondary_languages=eng" in protocol.endpoint
         partial = protocol.parse({"message_type": "partial_transcript", "text": "Hola"})
         final = protocol.parse({"message_type": "committed_transcript", "text": "Hola."})
     else:

@@ -41,8 +41,8 @@ def test_direct_model_adapter_passes_offline_flag_and_generation_options(monkeyp
     pipeline = LocalOpusPipeline("Helsinki-NLP/opus-mt-ar-en", offline_only=True)
     assert pipeline("مرحبا", num_beams=4, max_new_tokens=32, truncation=True) == [
         {"translation_text": "Hello"}]
-    assert load_model.call_args.kwargs == {"local_files_only": True, "token": False}
-    assert load_tokenizer.call_args.kwargs == {"local_files_only": True, "token": False}
+    assert load_model.call_args.kwargs == {"local_files_only": True, "token": False, "revision": "c5b2a50db78d6be98ae207223f8d4f63bc7a0ff1"}
+    assert load_tokenizer.call_args.kwargs == {"local_files_only": True, "token": False, "revision": "c5b2a50db78d6be98ae207223f8d4f63bc7a0ff1"}
     assert model.generate.call_args.kwargs["num_beams"] == 4
     assert model.generate.call_args.kwargs["max_new_tokens"] == 32
     assert "truncation" not in model.generate.call_args.kwargs

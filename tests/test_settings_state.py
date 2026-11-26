@@ -6,7 +6,16 @@ from settings_state import CONTROL_VARIABLES, SettingsState
 
 @pytest.fixture(scope="module")
 def tcl():
-    return tk.Tcl()
+    # Windows can briefly deny reads of the shared Python Tcl scripts, as in
+    # the UI fixture. Retry only that host error; settings failures still fail.
+    import time
+    for attempt in range(4):
+        try:
+            return tk.Tcl()
+        except tk.TclError as error:
+            if "Can't find a usable" not in str(error) or attempt == 3:
+                raise
+            time.sleep(.1)
 
 
 @pytest.mark.parametrize("control", CONTROL_VARIABLES)

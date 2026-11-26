@@ -13,6 +13,7 @@ import time
 from uuid import uuid4
 import warnings
 
+from engines.languages import whisper_code
 from native_tls import configure_native_tls
 
 configure_native_tls()
@@ -199,13 +200,14 @@ class ArabicAudioTranscriber:
 
         self.offline_only = os.environ.get("OFFLINE_ONLY", "0").strip() == "1"
         self.asr_language = (asr_language or os.environ.get("ASR_LANGUAGE", "ar-AR")).strip() or "ar-AR"
-        self.whisper_language = self.asr_language.split("-")[0].strip().lower() or "ar"
+        from engines.languages import canonical_code
+        self.whisper_language = canonical_code(self.asr_language) or "ar"
         self.audio_debug = os.environ.get("AUDIO_DEBUG", "0").strip() == "1"
         self.translation_model_name = (
             translation_model or os.environ.get("TRANSLATION_MODEL", "Helsinki-NLP/opus-mt-ar-en")
         ).strip()
         self.translation_target_language = (
-            (target_language or translation_target_from_model(self.translation_model_name)).split("-")[0].lower()
+            canonical_code(target_language or translation_target_from_model(self.translation_model_name))
         )
         self.speech_output_device_name = speech_output_device_name or ""
         self.speech_voice = speech_voice or "Automatic"
@@ -429,14 +431,14 @@ class ArabicAudioTranscriber:
         if hasattr(self.asr, "transcribe"):
             text = self.asr.transcribe(
                 audio_array.astype(np.float32),
-                language=(hint_language or self.whisper_language or "ar"),
+                language=whisper_code(hint_language or self.whisper_language or "ar"),
                 stop_event=getattr(self, "_stop_event", None),
             )
             return postprocess(text).text
         duration = len(audio_array) / self.sample_rate
         generate_kwargs = {
             "task": "transcribe",
-            "language": (hint_language or self.whisper_language or "ar"),
+            "language": whisper_code(hint_language or self.whisper_language or "ar"),
             "num_beams": 1,
             "do_sample": False,
             "use_cache": True,
