@@ -1,6 +1,6 @@
 {{ $text := i18n . }}
 {{ if eq site.Language.Lang "ar" }}
   {{ $text = htmlEscape $text }}
-  {{ $text = replaceRE `\b(Windows|macOS|API|Zoom|Teams|Meet|Translito|GitHub|ZIP|Speak|Listen|PC|Ctrl|Alt)\b` `<bdi>$1</bdi>` $text | safeHTML }}
+  {{ $text = replaceRE `\b(Windows|macOS|API|Zoom|Teams|Meet|Translito|GitHub|ZIP|Speak|Listen|PC|Ctrl|Alt|Apple silicon|Intel|Mac|Tanzir|Smart App Control)\b` `<bdi lang="en" dir="ltr">$1</bdi>` $text | safeHTML }}
 {{ end }}
 {{ return $text }}

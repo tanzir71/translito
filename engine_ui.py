@@ -66,6 +66,18 @@ def restore_scope(app):
     refresh_provider_choices(app)
 
 
+def standard_pair_reason(source, target, model=""):
+    if model == "translategemma":
+        return ""
+    from engines.mt_local import resolve_local_mt, UnsupportedPairError
+    try:
+        resolve_local_mt(source, target, offline=True)
+    except UnsupportedPairError:
+        return (f"Standard translation {source} → {target} needs a cloud engine for this pair. "
+                "TranslateGemma is another local option in Models.")
+    return ""
+
+
 def refresh_provider_choices(app):
     factories = provider_factories()
     source, target = pair(app)
@@ -78,6 +90,9 @@ def refresh_provider_choices(app):
         if factory and factory.unavailable_reason(source,target):
             reasons.append(f"{chosen}: {factory.unavailable_reason(source,target)} Choose a supported provider.")
     reasons.extend(f"{f.name}: {f.unavailable_reason(source,target)}" for f in factories if f.unavailable_reason(source,target))
+    local_reason = standard_pair_reason(source, target, app.engine_default_vars["default_mt_model"].get())
+    if local_reason:
+        reasons.append(local_reason)
     if hasattr(app, "engine_support_var"):
         app.engine_support_var.set(" ".join(reasons))
 
@@ -148,6 +163,7 @@ def pages(app, colors):
                     selected_model.set("")
         variable.trace_add("write", refresh)
         variable.trace_add("write", lambda *_: refresh_provider_choices(app))
+        app.engine_default_vars[f"default_{kind}_model"].trace_add("write", lambda *_: refresh_provider_choices(app))
         refresh()
     app.engine_support_var = tk.StringVar(app.root)
     tk.Label(engine, textvariable=app.engine_support_var, bg=colors["bg"], fg=colors["orange"],

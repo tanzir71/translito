@@ -166,6 +166,28 @@ h3 { font-size: 1.25rem; line-height: 1.4; }
 .on-paper { margin-block-start: 16px; border: 1px solid var(--line); background: var(--surface-raised); }
 .other-languages { padding-block: 56px 72px; background: var(--surface-raised); }
 .other-languages .language-grid { margin-block-start: 20px; }
+:lang(ar), :lang(fa), :lang(ur) { font-family: "Janna LT", "Noto Sans Arabic", Tahoma, sans-serif; }
+:lang(zh-CN) { font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; }
+:lang(zh-TW) { font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif; }
+:lang(ja) { font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif; }
+:lang(ko) { font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; word-break: keep-all; overflow-wrap: anywhere; }
+:lang(ru) { font-family: Inter, system-ui, sans-serif; }
+.brand, .brand bdi { font-family: "Funnel Display", system-ui, sans-serif; }
+.shot-scene [lang^="en"] { font-family: "Segoe UI", system-ui, sans-serif; }
+html[data-script="arabic"] body { font-size: 18px; line-height: 32px; }
+html[data-script="arabic"] :is(h1, h2, h3) { letter-spacing: 0; }
+html[data-script="arabic"] h1 { font-size: 46px; line-height: 72px; }
+html[data-script="arabic"] :is(h2, h3) { line-height: 1.55; }
+html[data-script="arabic"] :is(.hero-copy .lead, .feature-copy > p, .feature-points li, .overview-grid p, .also-grid p, .steps p, .faq-grid p, .section-heading > p:not(.eyebrow)) { font-size: 18px; line-height: 32px; }
+html[data-script="arabic"] .hero-small { line-height: 24px; }
+html[data-script="arabic"] .eyebrow { font-size: 14px; line-height: 20px; font-weight: 500; }
+html[data-script="arabic"] .btn { font-weight: 500; line-height: 22px; }
+html:is([data-script="han"], [data-script="japanese"], [data-script="hangul"]) body { line-height: 1.8; }
+html:is([data-script="han"], [data-script="japanese"], [data-script="hangul"]) :is(h1, h2, h3) { font-weight: 500; line-height: 1.43; letter-spacing: 0; }
+html:is([data-script="han"], [data-script="japanese"], [data-script="hangul"]) h1 { font-size: 42px; }
+html:is([data-script="han"], [data-script="japanese"], [data-script="hangul"]) :is(.hero-copy .lead, .feature-copy > p, .feature-points li, .overview-grid p, .also-grid p, .steps p, .faq-grid p, .section-heading > p:not(.eyebrow), .hero-small, .footer-top p, .accuracy-note) { line-height: 1.8; }
+html:is([data-script="han"], [data-script="japanese"], [data-script="hangul"]) .eyebrow { font-size: 14px; line-height: 20px; font-weight: 500; }
+html:is([data-script="han"], [data-script="japanese"]) body { line-break: strict; overflow-wrap: anywhere; }
 @media (max-width: 1050px) {
   .nav-links, .nav-right { gap: 20px; }
   .overview-grid { gap: 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -223,5 +245,9 @@ h3 { font-size: 1.25rem; line-height: 1.4; }
   .language-replies { padding-block: 24px 32px; }
   .language-reply-grid { grid-template-columns: 1fr; gap: 16px; }
   .language-quality, .other-languages { padding-block: 32px 44px; }
+  html[data-script="arabic"] h1 { font-size: 34px; line-height: 1.565; }
+  html[data-script="arabic"] h2 { font-size: 26px; }
+  html:is([data-script="han"], [data-script="japanese"], [data-script="hangul"]) h1 { font-size: 34px; }
+  html:is([data-script="han"], [data-script="japanese"], [data-script="hangul"]) h2 { font-size: 26px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

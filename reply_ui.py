@@ -50,7 +50,7 @@ class ReplyController:
             self.context[-1] = identity,text
         marker = identity,text
         if (self.options["enabled"].get() and self.options["trigger"].get() == "question" and not entry.get("translation_pending")
-                and not entry.get("pass_through") and text.rstrip().endswith(("?","؟")) and marker != self.suggested):
+                and not entry.get("pass_through") and text.rstrip().endswith(("?","؟","？")) and marker != self.suggested):
             self.suggested = marker
             self.request()
 

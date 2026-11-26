@@ -178,3 +178,22 @@ translation, and every start notice says translating into English.
 Verification: `python -m pytest -q` — 694 tests pass, including all 13 pages,
 SEO, source/output language tags, short replies, generator drift, source assets
 and the Figma language-page hero crop. No deployment or manual checks.
+
+W5: catalog-driven script metadata selects the specified Arabic/CJK font stacks.
+Arabic alone requests Noto Sans Arabic; CJK pages download no webfonts. Funnel
+Display requests only 400/500/600; public metadata and CSS confirm Latin Extended
+coverage. Arabic hero type is 46/72, CJK 42 at 500 with 1.43 leading and zero
+tracking; mobile uses 34px hero and 26px section headings with full-width actions.
+Logical layout properties mirror Arabic layout without mirroring screenshots,
+and Latin terms are isolated with bdi. Korean keeps words together.
+Final QA also surfaces unavailable Standard pairs before Start, marks the Live
+preview's English-pair restriction, and triggers CJK replies on full-width ？.
+Verification: `python -m pytest -q` — 719 tests pass. Real Hugo 0.121.0 extended
+builds 14 homes and 13 English language pages with no missing i18n/layout warnings;
+Node checks scene geometry, and asset hashes/dimensions remain intact. Catalog
+export and JavaScript syntax checks pass. No manual checks or physical devices.
+
+All V3 milestones are implemented on the draft branch. Native review of every
+translation, example and reply remains pending; see V3_NATIVE_REVIEW.md. Domain
+choice and merging/deploying remain owner tasks. No V3 installers, releases,
+workflow changes or deployments were made. Remote main remains 74287b9.

@@ -34,6 +34,8 @@ class ProviderFactory:
     def unavailable_reason(self, source, target):
         from engines.languages import canonical_code
         source, target = canonical_code(source), canonical_code(target)
+        if self.name == "gemini-live" and source != "en" and target != "en":
+            return "This preview needs English in the language pair."
         if self.source_languages and source not in self.source_languages:
             return f"Recognition is unavailable for {source}."
         if self.translates_to and target not in self.translates_to:

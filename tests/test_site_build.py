@@ -241,3 +241,45 @@ def test_spanish_language_page_uses_the_reference_examples():
     assert [row["native"] for row in data["samples"]] == ["Vamos a revisar el presupuesto del trimestre.",
         "El deployment se retrasó dos días por un problema con la API.", "¿Podemos mantener la entrega del jueves?"]
     assert [row["native"] for row in data["replies"]] == ["Sí, el jueves está bien", "Deme dos días y le confirmo", "¿Puede repetir la pregunta?"]
+
+
+@pytest.mark.parametrize("entry", PRIORITY, ids=lambda entry: entry.site_locale)
+def test_script_metadata_fonts_and_rtl_isolation(built_site, entry):
+    document = Document(built_site / ("" if entry.code == "en" else entry.site_locale) / "index.html")
+    root = document.tags("html")[0]
+    assert root["data-script"] == entry.script and root["data-language"] == entry.code
+    fonts = [tag["href"] for tag in document.tags("link") if "fonts.googleapis.com/css" in tag.get("href", "")]
+    if entry.script in {"han", "japanese", "hangul"}:
+        assert not fonts
+    else:
+        assert any("Funnel+Display:wght@400;500;600&" in url for url in fonts)
+        assert all("700" not in url and "800" not in url for url in fonts)
+    assert any("Noto+Sans+Arabic" in url for url in fonts) == (entry.code == "ar")
+    if entry.code == "ar":
+        assert root["dir"] == "rtl"
+        assert len([tag for tag in document.tags("bdi") if tag.get("lang") == "en" and tag.get("dir") == "ltr"]) > 10
+        assert document.tags("figure")[0]["dir"] == "ltr"
+
+
+def test_typography_contract_and_logical_mobile_layout():
+    css = (SITE / "static/css/style.css").read_text(encoding="utf-8")
+    picker = (SITE / "static/css/language-picker.css").read_text(encoding="utf-8")
+    for stack in ('"Janna LT", "Noto Sans Arabic", Tahoma, sans-serif',
+                  '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif',
+                  '"PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
+                  '"Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif',
+                  '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif'):
+        assert stack in css
+    assert "font-size: 46px; line-height: 72px" in css
+    assert "font-weight: 500; line-height: 1.43; letter-spacing: 0" in css
+    assert "font-size: 42px" in css and "line-height: 1.8" in css
+    assert "word-break: keep-all" in css
+    assert "scaleX(-1)" not in css + picker and "rotateY" not in css + picker
+    assert "margin-inline" in css and "padding-inline" in css and "inset-inline-end" in picker
+    mobile = css.split("@media (max-width: 767px)")[1]
+    assert "font-size: 34px" in mobile and "font-size: 26px" in mobile
+    assert ".actions > .btn { width: 100%; }" in mobile
+    assert 'transform: scale(.875)' in css and 'transform: scale(.75)' in css
+    evidence = json.loads((SITE / "data/typography.json").read_text())
+    assert evidence["funnel_display"]["weights_requested"] == [400, 500, 600]
+    assert "latin-ext" in evidence["funnel_display"]["subsets_verified"]

@@ -31,6 +31,22 @@ def test_cloud_reply_prompt_names_romanization_system(code, system):
     assert system.casefold() in prompt.casefold() and "Plain ASCII" in prompt
 
 
+@pytest.mark.parametrize("code,text", [("zh-Hans", "可以重复问题吗？"), ("zh-Hant", "可以重複問題嗎？"),
+                                     ("ja", "質問をもう一度お願いできますか？"), ("ko", "질문을 다시 말씀해 주시겠어요？")])
+def test_cjk_questions_trigger_one_reply_request_after_the_final_row(code, text):
+    from reply_ui import ReplyController
+    controller = SimpleNamespace(current_id=None, replies=(), generation=0, context=[], suggested=None,
+        render=Mock(), request=Mock(), options={"enabled": SimpleNamespace(get=lambda: True),
+                                              "trigger": SimpleNamespace(get=lambda: "question")})
+    entry = dict(id="question", source_language=code, target_language="en", source_text=text, translation_pending=True)
+    ReplyController.accept(controller, entry)
+    controller.request.assert_not_called()
+    entry["translation_pending"] = False
+    ReplyController.accept(controller, entry)
+    ReplyController.accept(controller, entry)
+    controller.request.assert_called_once()
+
+
 def test_romanization_is_readable_ascii_and_latin_scripts_use_native_phrase():
     replies = parse_replies({"replies":[{"native":"شكرا","romanized":"Shukrán","meaning":"Thank you"},
         {"native":"Gracias","meaning":"Thank you"}]})

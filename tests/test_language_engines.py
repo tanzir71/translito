@@ -77,3 +77,25 @@ def test_script_pair_preferences_survive_configparser_lowercase(tmp_path):
     path = tmp_path / "settings.ini"
     save_engine_settings(settings, path)
     assert load_engine_settings(path).resolve("en", "zh-Hant")["default_mt_provider"] == "azure"
+
+
+@pytest.mark.parametrize("source,target", [("nb", "en"), ("en", "pl"), ("en", "ja"), ("en", "ko")])
+def test_unavailable_standard_pairs_have_a_visible_cloud_reason(source, target):
+    from engine_ui import standard_pair_reason
+    assert "needs a cloud engine" in standard_pair_reason(source, target, "opus")
+    assert not standard_pair_reason(source, target, "translategemma")
+
+
+def test_engine_page_surfaces_local_pair_unavailability_before_start(monkeypatch):
+    from types import SimpleNamespace
+    import engine_ui
+    monkeypatch.setattr(engine_ui, "pair", lambda _: ("nb", "en"))
+    app = SimpleNamespace(engine_provider_widgets={}, engine_default_vars={"default_mt_model": SimpleNamespace(get=lambda: "opus")}, engine_support_var=Mock())
+    engine_ui.refresh_provider_choices(app)
+    assert "needs a cloud engine" in app.engine_support_var.set.call_args.args[0]
+
+
+def test_live_preview_marks_unsupported_non_english_pairs_unavailable():
+    preview = next(factory for factory in provider_factories() if factory.name == "gemini-live")
+    assert "needs English" in preview.unavailable_reason("fr", "ja")
+    assert not preview.unavailable_reason("ja", "en")

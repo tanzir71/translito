@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<html lang="{{ .Site.Language.LanguageCode }}" dir="{{ .Site.Language.LanguageDirection | default "ltr" }}" data-site-locale="{{ .Site.Language.Lang }}" data-home="{{ .IsHome }}">
+{{ $locale := index (where .Site.Data.languages "site_locale" .Site.Language.Lang) 0 }}
+{{ $cjk := or (eq $locale.script "han") (eq $locale.script "japanese") (eq $locale.script "hangul") }}
+<html lang="{{ .Site.Language.LanguageCode }}" dir="{{ .Site.Language.LanguageDirection | default "ltr" }}" data-site-locale="{{ .Site.Language.Lang }}" data-home="{{ .IsHome }}" data-script="{{ $locale.script }}" data-language="{{ $locale.code }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -26,16 +28,19 @@
   <meta property="twitter:description" content="{{ $description }}">
   <meta property="twitter:image" content="{{ "img/landing/hero-meeting.webp" | absURL }}">
   <link rel="icon" type="image/png" href="{{ "translito-icon.png" | relURL }}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600&display=swap" rel="stylesheet">
+  {{ if not $cjk }}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    {{ if eq $locale.script "arabic" }}<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">{{ end }}
+  {{ end }}
   <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
   <link rel="stylesheet" href="{{ "css/language-picker.css" | relURL }}">
 </head>
 <body>
   <header class="site-header">
     <nav class="container nav" aria-label="Translito">
-      <a href="{{ .Site.Home.RelPermalink }}" class="brand"><span class="brand-mark"><img src="{{ "img/landing/icons/brand.svg" | relURL }}" alt=""></span><span>Translito</span></a>
+      <a href="{{ .Site.Home.RelPermalink }}" class="brand"><span class="brand-mark"><img src="{{ "img/landing/icons/brand.svg" | relURL }}" alt=""></span><bdi lang="en">Translito</bdi></a>
       <div class="nav-right">
         <div class="nav-links" id="nav-links">
           <a href="{{ .Site.Home.RelPermalink }}#features">{{ partial "t.html" "navFeatures" }}</a>
@@ -53,7 +58,7 @@
   <footer class="site-footer">
     <div class="container">
       <div class="footer-top">
-        <div><a class="brand footer-brand" href="{{ .Site.Home.RelPermalink }}"><span class="brand-mark"><img src="{{ "img/landing/icons/brand.svg" | relURL }}" alt="" loading="lazy"></span>Translito</a><p>{{ partial "t.html" "footerTagline" }} {{ partial "t.html" "footerBuilt" }}</p></div>
+        <div><a class="brand footer-brand" href="{{ .Site.Home.RelPermalink }}"><span class="brand-mark"><img src="{{ "img/landing/icons/brand.svg" | relURL }}" alt="" loading="lazy"></span><bdi lang="en">Translito</bdi></a><p>{{ partial "t.html" "footerTagline" }} {{ partial "t.html" "footerBuilt" }}</p></div>
         <div class="footer-links"><a href="{{ .Site.Home.RelPermalink }}#features">{{ partial "t.html" "navFeatures" }}</a><a href="#download">{{ partial "t.html" "navDownload" }}</a><a href="https://github.com/tanzir71/translito">GitHub</a><a href="https://tanziro.com">tanziro.com</a></div>
       </div>
       {{ partial "locale-links.html" . }}

@@ -1,0 +1,14 @@
+{
+  "checked_on": "2026-11-26",
+  "funnel_display": {
+    "weights_requested": [400, 500, 600],
+    "subsets_verified": ["latin", "latin-ext"],
+    "metadata_source": "https://raw.githubusercontent.com/google/fonts/main/ofl/funneldisplay/METADATA.pb",
+    "css_source": "https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600&display=swap",
+    "latin_extended_range": "U+0100-02BA",
+    "fallback": "Inter, system-ui, sans-serif"
+  },
+  "arabic_webfont": "Noto Sans Arabic; requested only on Arabic locale pages",
+  "cjk_webfonts": false,
+  "verification": "Public font metadata and CSS only; no manual app/site checks."
+}
