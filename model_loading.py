@@ -227,8 +227,6 @@ class ModelLoadManager:
                 "fraction": None,
             },
         )
-        from transformers import pipeline
-
         if fast_model:
             from faster_whisper import WhisperModel
 
@@ -247,6 +245,7 @@ class ModelLoadManager:
             if whisper_model == CODESWITCH_REPO:
                 asr.provider = "arabic-codeswitch-ct2"
         else:
+            from transformers import pipeline
             asr_kwargs = {"model": fast_model_path, "device": torch_device, "local_files_only": True}
             if torch_dtype is not None:
                 asr_kwargs["torch_dtype"] = torch_dtype

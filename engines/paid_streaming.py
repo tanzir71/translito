@@ -121,9 +121,10 @@ class PaidStreamingInterpreter:
             excluded_languages=(output_language,),
             fallback_on_budget=self.settings.fallback_on_budget, emit=self.emit,
             skip_non_speech=config.getboolean("COSTGUARD", "skip_non_speech", fallback=True),
-            skip_other_languages=config.getboolean("COSTGUARD", "skip_other_languages", fallback=True),
+            skip_other_languages=self.lid is not None and config.getboolean("COSTGUARD", "skip_other_languages", fallback=True),
             close_idle_seconds=config.getfloat("COSTGUARD", "close_idle_seconds", fallback=8))
         self.guard.budget_warn_percent = self.settings.budget_warn_percent
+        self.guard.language_filter_requested = config.getboolean("COSTGUARD", "skip_other_languages", fallback=True)
 
     def _update(self, update, generation):
         if self.name != "soniox" or not getattr(self, "native_translation", True):

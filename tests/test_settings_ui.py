@@ -573,6 +573,31 @@ def test_repeated_stop_does_not_overlap_shutdown_or_save(desktop):
     child.save_transcript.assert_called_once()
 
 
+@pytest.mark.parametrize('failure_stage', ['cleanup', 'save'])
+def test_stop_cleanup_failure_always_returns_control_and_retains_transcript(desktop, failure_stage):
+    import threading
+    from unittest.mock import Mock
+    create, _ = desktop
+    app = create()
+    child = Mock(last_saved_path=None, _stop_event=threading.Event())
+    if failure_stage == 'cleanup':
+        child.stop_background.side_effect = OSError('Simulated cleanup failure')
+    else:
+        child.save_transcript.side_effect = RuntimeError('Simulated COM save failure')
+    child.save_transcript.return_value = None
+    app.transcriber = child
+    app.stop()
+    assert child._stop_event.is_set()
+    end = time.monotonic() + 2
+    while app.transcriber is not None and time.monotonic() < end:
+        app.root.update()
+        time.sleep(.01)
+    assert not app._stopping and app.transcriber is None
+    assert app.last_transcriber is child
+    assert 'transcript is retained' in app.hint_var.get() or 'Transcript kept in memory' in app.hint_var.get()
+    child.save_transcript.assert_called_once()
+
+
 def test_speak_selects_available_cable_and_only_shows_setup_when_needed(desktop, monkeypatch):
     from device_utils import OutputDeviceChoice
     from engines.virtual_mic import CableTestResult

@@ -176,7 +176,9 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
                    fallback_on_budget=settings.fallback_on_budget, budget_warn_percent=settings.budget_warn_percent)
     for kind in ("asr", "mt"):
         chosen = defaults.get("default_" + kind + "_provider", "")
-        if chosen and chosen != "local" and not any(binding.name == chosen for binding in selected[kind]):
+        live_asr = kind == "asr" and any(f.name == chosen and f.kind == "live" for f in factories)
+        native_mt = kind == "mt" and chosen == "soniox" and defaults.get("default_asr_provider") == "soniox"
+        if chosen and chosen != "local" and not live_asr and not native_mt and not any(binding.name == chosen for binding in selected[kind]):
             emit("hint", f"{chosen}: The selected default needs a supported model and tested key. Continuing with available engines.")
     from engines.asr_local import (LocalConversationRecognizer, LocalCohereCandidate,
                                     LocalWhisperCandidate, RoutedConversationRecognizer)

@@ -60,6 +60,25 @@ class LocalOneWayRecognizer:
                              None, None, len(audio) / sample_rate, self.name)
 
 
+class DeferredConversationRecognizer:
+    """Load the local fallback only when it is actually needed."""
+    name = "local"
+    requires_network = False
+
+    def __init__(self, load):
+        self.load, self.engine, self.lid = load, None, None
+
+    def transcribe(self, *args, **kwargs):
+        if self.engine is None:
+            self.engine = self.load()
+            self.lid = self.engine.lid
+        return self.engine.transcribe(*args, **kwargs)
+
+    def reset(self):
+        if self.engine is not None:
+            self.engine.reset()
+
+
 class LocalConversationRecognizer:
     name = "local"
     requires_network = False

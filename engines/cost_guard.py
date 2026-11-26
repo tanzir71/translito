@@ -173,8 +173,7 @@ class CostGuard:
                 self.provider.close_stream()
         finally:
             self.active = False
-            for token in self.reservations:
-                self.ledger.settle(token)  # Uncertain invoices retain reservations.
+            self.ledger.settle_reserved_batch(self.reservations)  # Uncertain invoices retain their cost.
             self.reservations.clear()
 
     def stop(self):

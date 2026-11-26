@@ -79,7 +79,9 @@ except Exception as exc:
     np = None
     record_dependency_error("numpy", exc)
 try:
-    from transformers import pipeline as _transformers_pipeline  # noqa: F401
+    from importlib.util import find_spec
+    if find_spec("transformers") is None:
+        raise ImportError("The local model runtime is not installed")
 except Exception as exc:
     record_dependency_error("transformers", exc)
 
@@ -292,10 +294,12 @@ class ArabicAudioTranscriber:
 
         self.asr = None
         self.translator = None
+        self.loaded_translator_engine = None
+        self.cloud_asr = bool(session_plan and session_plan.asr != "local")
         self.whisper_model = whisper_model or os.environ.get("WHISPER_MODEL", "openai/whisper-small").strip()
 
         try:
-            loaded_models = GLOBAL_MODEL_MANAGER.load_models(
+            loaded_models = None if self.cloud_asr else GLOBAL_MODEL_MANAGER.load_models(
                 whisper_model=self.whisper_model,
                 translation_model=self.translation_model_name,
                 torch_device=self.torch_device,
@@ -303,12 +307,12 @@ class ArabicAudioTranscriber:
                 offline_only=self.offline_only,
                 on_event=self.emit,
             )
-            self.asr = loaded_models.asr
+            self.asr = loaded_models.asr if loaded_models is not None else None
             if hasattr(self.asr, "beam_size"):
                 self.asr.beam_size = {"fast": 1, "balanced": 3, "best": 5}.get(self.asr_preset, 3)
-            self.translator = loaded_models.translator
+            self.translator = loaded_models.translator if loaded_models is not None else None
             self.loaded_translator_engine = getattr(loaded_models, "translator_engine", None)
-            print("Offline models ready.")
+            print("Cloud route ready." if self.cloud_asr else "Offline models ready.")
         except Exception:
             raise
 
@@ -320,16 +324,18 @@ class ArabicAudioTranscriber:
             )
 
         if conversation is not None and not getattr(conversation, "one_way", False):
-            from engines.asr_local import LocalConversationRecognizer
+            from engines.asr_local import LocalConversationRecognizer, DeferredConversationRecognizer
             from engines.conversation_pipeline import ConversationPipeline
             from engines.glossary import Glossary
             from engines.mt_quality import LocalQualityTranslator
             glossary = glossary or Glossary()
-            recognizer = recognizer or LocalConversationRecognizer(
-                self.asr, other_language=conversation.other_language, offline_only=self.offline_only,
-                glossary=glossary, on_event=self.emit,
-                device="cpu" if self.torch_device == -1 else f"cuda:{self.torch_device}",
-            )
+            def local_recognizer():
+                self.ensure_local_asr()
+                return LocalConversationRecognizer(
+                    self.asr, other_language=conversation.other_language, offline_only=self.offline_only,
+                    glossary=glossary, on_event=self.emit,
+                    device="cpu" if self.torch_device == -1 else f"cuda:{self.torch_device}")
+            recognizer = recognizer or (DeferredConversationRecognizer(local_recognizer) if self.cloud_asr else local_recognizer())
             translator_engine = translator_engine or self.loaded_translator_engine or LocalQualityTranslator(
                 offline_only=self.offline_only, device=self.torch_device,
                 on_hint=lambda text: self.emit("hint", text))
@@ -392,7 +398,7 @@ class ArabicAudioTranscriber:
                 from engines.conversation_pipeline import ConversationPipeline
                 from engines.live_pipeline import LiveConversationPipeline
                 other = next((code for code in (self.whisper_language,self.translation_target_language) if code != "en"),self.whisper_language)
-                lid = PairLanguageDetector(getattr(self.asr,"model",self.asr),other)
+                lid = PairLanguageDetector(getattr(self.asr,"model",self.asr),other) if self.asr is not None else None
                 interpreter.lid, interpreter.translator = lid, self.translation_router
                 interpreter.variety = self.variety
                 policy = FixedPair(self.whisper_language,self.translation_target_language,
@@ -440,7 +446,19 @@ class ArabicAudioTranscriber:
             return self.glossary.restore_english(text)[0] if self.whisper_language == "ar" else text
         return self._recognize_speech_local(audio_array)
 
+    def ensure_local_asr(self, *, notify=True):
+        if self.asr is None and getattr(self, "cloud_asr", False):
+            loaded = GLOBAL_MODEL_MANAGER.load_models(
+                whisper_model=self.whisper_model,
+                translation_model=f"cloud:{self.whisper_language}:{self.translation_target_language}",
+                torch_device=self.torch_device, torch_dtype=self.torch_dtype,
+                offline_only=True, on_event=self.emit if notify else None)
+            self.asr = loaded.asr
+            if hasattr(self.asr, "beam_size"):
+                self.asr.beam_size = {"fast": 1, "balanced": 3, "best": 5}.get(self.asr_preset, 3)
+
     def _recognize_speech_local(self, audio_array, *, hint_language=None):
+        self.ensure_local_asr()
         if not self.asr:
             raise RuntimeError("Offline ASR is not initialized")
         if hasattr(self.asr, "transcribe"):
@@ -772,6 +790,31 @@ class ArabicAudioTranscriber:
             translation = self.translator(source_text, **kwargs)
         return translation[0]["translation_text"]
 
+    def prepare_optional_cloud_filter(self):
+        if not self.cloud_asr or self.live_pipeline is None:
+            return
+        pipeline = self.live_pipeline
+        def prepare():
+            from engines.model_files import Ready, inspect_model, whisper_spec
+            from engines.lid import PairLanguageDetector
+            while not self._stop_event.is_set():
+                if isinstance(inspect_model(whisper_spec(self.whisper_model)), Ready):
+                    try:
+                        self.ensure_local_asr(notify=False)
+                        other = next(code for code in (self.whisper_language, self.translation_target_language) if code != "en")
+                        detector = PairLanguageDetector(getattr(self.asr, "model", self.asr), other)
+                        if not self._stop_event.is_set():
+                            pipeline.interpreter.lid = pipeline.lid = detector
+                            guard = getattr(pipeline.interpreter, "guard", None)
+                            if guard is not None:
+                                guard.skip_other_languages = getattr(guard, "language_filter_requested", False)
+                    except Exception:
+                        pass  # Optional filtering cannot stop a working cloud session.
+                    return
+                if self._stop_event.wait(2):
+                    return
+        threading.Thread(target=prepare, daemon=True, name="Prepare optional speech filter").start()
+
     def start_background(self, enable_keyboard_shortcuts=False):
         if self.running:
             return
@@ -787,6 +830,7 @@ class ArabicAudioTranscriber:
             self.speech_player.start()
         if getattr(self, "live_pipeline", None):
             self.live_pipeline.start()
+            self.prepare_optional_cloud_filter()
         if enable_keyboard_shortcuts and self.interactive:
             self.setup_keyboard_shortcuts()
         self._capture_thread = threading.Thread(target=self.capture_audio, daemon=True)
@@ -797,15 +841,17 @@ class ArabicAudioTranscriber:
     def stop_background(self):
         self.running = False
         self._stop_event.set()
-        if getattr(self, "live_pipeline", None):
-            self.live_pipeline.stop()
-        while True:
-            try:
-                self.audio_queue.get_nowait()
-            except queue.Empty:
-                break
-        if self.speech_player:
-            self.speech_player.stop()
+        try:
+            if getattr(self, "live_pipeline", None):
+                self.live_pipeline.stop()
+        finally:
+            while True:
+                try:
+                    self.audio_queue.get_nowait()
+                except queue.Empty:
+                    break
+            if self.speech_player:
+                self.speech_player.stop()
 
     def join_background(self, timeout_capture=2, timeout_process=5):
         if self._capture_thread:

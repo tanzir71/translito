@@ -23,7 +23,15 @@ def available(spec):
     return Ready(Path("fake"))
 
 
-def test_native_cloud_needs_filter_but_not_optional_lite():
+def test_native_cloud_starts_without_any_local_models():
+    plan = resolve_plan(cloud(), ("ar", "en"), inspect=lambda _: Missing())
+    assert plan.asr == plan.mt == "soniox"
+    assert not plan.required_resources and plan.backup_resources
+    assert readiness(plan).can_start
+    assert any("whisper" in s.repo.lower() for s in plan.backup_resources)
+
+
+def test_native_cloud_uses_available_filter_without_requiring_lite():
     plan = resolve_plan(cloud(), ("ar", "en"), inspect=lambda spec: available(spec) if "whisper" in spec.repo.lower() else Missing())
     assert plan.asr == plan.mt == "soniox"
     assert not plan.required_resources and plan.backup_resources

@@ -7,6 +7,7 @@ import re
 
 
 PROVIDERS = ("azure", "deepl", "google", "gemini", "cohere-api", "groq", "gemini-live", "soniox", "elevenlabs", "speechmatics")
+PRIMARY_MODELS = {"soniox": "stt-rt-v6", "elevenlabs": "scribe_v3_live", "speechmatics": "melia-1"}
 PROFILES = {"free", "offline", "custom", "booster", "live-preview"}
 
 
@@ -49,6 +50,8 @@ class EngineSettings:
     def resolve(self, source, target):
         values = {key: getattr(self, key) for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")}
         values.update({"default_" + key: value for key, value in {k.casefold(): v for k, v in self.pair_overrides.items()}.get(f"{source}_{target}".casefold(), {}).items() if value})
+        if values["default_asr_provider"] in PRIMARY_MODELS:
+            values["default_asr_model"] = PRIMARY_MODELS[values["default_asr_provider"]]
         return values
 
     def provider(self, name):

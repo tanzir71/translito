@@ -65,7 +65,7 @@ def restore_scope(app):
     app._loading_engine_scope = True
     settings = load_engine_settings(app.preferences.path)
     for key, variable in app.engine_default_vars.items():
-        variable.set(getattr(settings, key) if app.engine_scope_var.get() == "all" else settings.resolve(*pair(app))[key])
+        variable.set(settings.resolve("", "")[key] if app.engine_scope_var.get() == "all" else settings.resolve(*pair(app))[key])
     app._loading_engine_scope = False
     refresh_provider_choices(app)
 
@@ -183,7 +183,7 @@ def pages(app, colors):
     factory = next((f for f in provider_factories() if f.name == chosen), None)
     rate = factory.display_hourly_rate if factory else Decimal(".18")
     for value, title, description, price in (
-        ("cloud", "Cloud, pay as you go", "Most accurate. Sends only speech in your languages.", f"${rate:.2f} per hour"),
+        ("cloud", "Cloud, pay as you go", "Starts with your connected provider. Local backup prepares in the background.", f"${rate:.2f} per hour"),
         ("local", "On this PC", "Free and private. Nothing leaves this computer.", "Free · no limit"),
         ("free", "Free cloud allowances", "Free tiers with limits. Some providers reuse your data.", "Free · limited")):
         card = tk.Frame(engine, bg=colors["surface"], highlightthickness=px(1), highlightbackground=colors["border"], padx=px(12), pady=px(10))
@@ -255,6 +255,8 @@ def pages(app, colors):
     field(cost, "Warn at", app.budget_warning_var, colors, ("50", "75", "80", "90", "100"))
     for title, variable in (("Skip silence, music and noise", app.skip_non_speech_var), ("Skip speech outside the selected languages", app.skip_other_languages_var)):
         tk.Checkbutton(cost, text=title, variable=variable, **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=px(6))
+    tk.Label(cost, text="Cloud starts with speech detection. Local language filtering turns on when its optional model is ready.",
+             bg=colors["bg"], fg=colors["secondary"], wraplength=px(540), justify="left").pack(anchor="w", pady=px((0, 8)))
     field(cost, "Close idle connections after seconds (8–10)", app.close_idle_var, colors, ("8", "9", "10"))
     app.provider_totals_var = tk.StringVar()
     tk.Label(cost, textvariable=app.provider_totals_var, bg=colors["bg"], fg=colors["secondary"], anchor="w", justify="left").pack(fill="x", pady=px(16))

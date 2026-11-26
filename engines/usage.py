@@ -322,6 +322,28 @@ class UsageLedger:
             self._write(data)
             return token
 
+    def settle_reserved_batch(self, reservations):
+        """Close a stream's conservative reservations in one disk transaction."""
+        reservations = tuple(reservations)
+        if not reservations:
+            return
+        with self._locked():
+            data = self._read()
+            if any(token.id not in data["reservations"] for token in reservations):
+                raise UsageUnavailable("The usage reservation could not be found.")
+            changed = False
+            now = self.clock().isoformat()
+            for token in reservations:
+                record = data["reservations"][token.id]
+                if record["settled"]:
+                    continue
+                record.update(settled=True, outcome="completed", released=False)
+                data["events"].append({"event": "settled", "id": token.id, "outcome": "completed",
+                    "released": False, "at": now, "actual_units": None, "actual_estimated_usd": None})
+                changed = True
+            if changed:
+                self._write(data)
+
     def settle(self, reservation, *, known_not_billed=False, outcome="completed", actual=None):
         if outcome not in {"completed", "auth", "quota", "network", "cancelled", "failed"}:
             raise ValueError("Unknown usage outcome")

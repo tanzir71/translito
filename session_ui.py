@@ -102,9 +102,10 @@ class SessionController:
                     manager.reconcile_setup(self.plan.required_resources, self.plan.backup_resources,
                         context=f"{mode.title()} · {pair[0]} → {pair[1]}", enabled=auto)
                 except (OSError, ValueError) as error:
-                    self.state = ReadinessState("setup_required", str(error), "models")
-                    self.render()
-                    return self.status()
+                    if self.plan.required_resources:
+                        self.state = ReadinessState("setup_required", str(error), "models")
+                        self.render()
+                        return self.status()
             self.state = readiness(self.plan, jobs=manager.jobs, blocked=app.offline_only_var.get())
             if self.checking and not self.plan.blockers:
                 self.state = ReadinessState("preparing", "Checking saved connection", "engine")

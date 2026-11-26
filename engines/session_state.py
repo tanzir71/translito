@@ -168,8 +168,9 @@ def resolve_plan(settings, pair, *, mode="listen", preferred_whisper="openai/whi
         blockers.append(issue)
     if mt == "local" and local_issue:
         blockers.append(local_issue)
-    required = speech_missing + (local_missing if mt == "local" else ())
-    backup = local_missing if mt != "local" and local_issue is None and settings.fallback_on_budget == "local" else ()
+    required = (speech_missing if asr == "local" else ()) + (local_missing if mt == "local" else ())
+    backup = ((speech_missing if asr != "local" else ()) +
+              (local_missing if mt != "local" and local_issue is None else ())) if settings.fallback_on_budget == "local" else ()
     return SessionPlan(mode, pair, choice, asr, mt, speech, translation, required, backup,
                        local_ready, issue.message if issue else mt_issue.message if mt_issue else "", tuple(blockers))
 

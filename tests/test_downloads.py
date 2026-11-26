@@ -84,6 +84,50 @@ def test_complete_cache_does_not_require_disk_space_probe(tmp_path, monkeypatch)
     assert downloads._check_cached_files(tmp_path, [{"name": "model.bin", "size": 6}], "") == (6, False)
 
 
+@pytest.mark.skipif(__import__('os').name != 'nt', reason='Windows RedirectionGuard')
+def test_snapshot_is_readable_with_redirectionguard_enforced(tmp_path):
+    import subprocess, sys
+    repo = tmp_path / 'models--test--guard'
+    folder = repo / 'snapshots' / ('a' * 40)
+    folder.mkdir(parents=True)
+    blob = repo / 'blobs' / ('b' * 64)
+    blob.parent.mkdir()
+    blob.write_bytes(b'model bytes')
+    pointer = folder / 'model.bin'
+    pointer.symlink_to(Path('../../blobs') / blob.name)
+    code = '''import ctypes,sys
+from pathlib import Path
+from ctypes import wintypes
+from engines.downloads import _file_size
+api=ctypes.WinDLL('kernel32',use_last_error=True)
+api.GetCurrentProcess.restype=ctypes.c_void_p
+api.GetProcessMitigationPolicy.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_void_p,ctypes.c_size_t]
+flags=wintypes.DWORD(1)
+assert api.SetProcessMitigationPolicy(16,ctypes.byref(flags),ctypes.sizeof(flags))
+p=Path(sys.argv[1])
+try:
+    p.stat()
+except OSError as error:
+    assert error.winerror == 448
+else:
+    raise AssertionError('Expected Windows to block the user-created link')
+assert _file_size(p)==11 and not p.is_symlink()
+assert api.GetProcessMitigationPolicy(api.GetCurrentProcess(),16,ctypes.byref(flags),ctypes.sizeof(flags))
+assert flags.value & 1
+'''
+    result = subprocess.run([sys.executable, '-c', code, str(pointer)], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert blob.read_bytes() == pointer.read_bytes() == b'model bytes'
+
+
+def test_untrusted_mount_point_is_not_retried_forever():
+    from engines.downloads import _setup_failure
+    error = OSError(22, 'blocked link')
+    error.winerror = 448
+    result = _setup_failure(error, 'check_cache')
+    assert not result.get('retryable') and 'Windows blocked a link' in result['error']
+
+
 def test_transient_cache_failure_retries_before_pausing(tmp_path, fake_job, monkeypatch):
     from dataclasses import asdict
     from engines import downloads
@@ -328,7 +372,7 @@ def test_atomic_file_rename_cannot_move_visible_progress_backwards(tmp_path):
     for count in (0, 90, 0, 100):
         manager.events.put(("child", {"bytes": count, "total": 100}))
     manager.poll()
-    assert seen == [80, 90, 90, 100]
+    assert seen == [100] and job.bytes == 100
     manager.close()
 
 
@@ -340,6 +384,23 @@ def test_next_file_returns_to_downloading_after_verifying_previous_file(tmp_path
     manager.events.put(("child", {"file": "model.bin", "bytes": 20, "total": 1000}))
     manager.poll()
     assert job.state == "Downloading" and job.bytes == 20
+    manager.close()
+
+
+def test_verification_burst_persists_once_per_ui_frame(tmp_path, monkeypatch):
+    from unittest.mock import Mock
+    manager = DownloadManager(directory=tmp_path / 'jobs')
+    job = DownloadJob('burst', 'fake/burst', 'Burst', str(tmp_path), state='Downloading')
+    manager.active, manager.generation = job, 'child'
+    saved, changed = Mock(), Mock()
+    monkeypatch.setattr(manager, 'save', saved)
+    manager.on_change = changed
+    for _ in range(100):
+        manager.events.put(('child', {'stage':'Verifying'}))
+    manager.poll()
+    assert job.state == 'Verifying'
+    saved.assert_called_once_with(job)
+    changed.assert_called_once_with(job)
     manager.close()
 
 

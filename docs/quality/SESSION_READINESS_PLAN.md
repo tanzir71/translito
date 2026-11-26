@@ -12,8 +12,10 @@ model preparation and temporary recovery are presented as setup progress.
   pair. Reuse compatible cached speech and quality translation models; honor
   pair-specific speech overrides and an explicit Lite selection. Larger models
   and models requiring license acceptance remain explicit downloads.
-- For cloud, prepare the small local speech filter first. Native cloud translation
-  can start without Lite; Lite is a lower priority local backup.
+- For cloud, start the connected recognizer without waiting for local models.
+  Speech detection is available immediately. Optional language filtering and
+  local fallback prepare in the background; their download failures cannot block
+  a ready cloud route. Explicit local translation still requires its translator.
 - Recompute required files when the user changes either language, switches
   Listen/Speak, changes an engine override, or changes network policy.
 - Share files across pairs. Deduplicate by repository, retain partial files, and
@@ -50,6 +52,9 @@ model preparation and temporary recovery are presented as setup progress.
 - Retry transient cache filesystem errors before pausing. Complete cached files
   need no free-space query. Retain the cache operation and Windows error number
   in safe diagnostics if bounded retries fail.
+- On Windows, materialize validated Hugging Face snapshot links as regular files
+  compatible with inherited RedirectionGuard. Keep model blobs and SHA verification.
+  Worker creation and repeated progress persistence must not block Tk.
 - Language and engine edits during capture apply to the next session. The
   running route retains its original snapshot while the new pair can prepare.
 - Internet blocking stops active/background transfers immediately. Automatic

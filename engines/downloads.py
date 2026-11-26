@@ -88,6 +88,7 @@ class DownloadManager:
         self.last_child_bytes = 0
         self.retry_at, self.closed, self.timer = 0, False, None
         self.generation = ""
+        self._process_lock = threading.RLock()
         for path in sorted(self.directory.glob("*.json")):
             try:
                 job = DownloadJob(**json.loads(path.read_text(encoding="utf-8")))
@@ -180,38 +181,50 @@ class DownloadManager:
         command = ([sys.executable] if getattr(sys, "frozen", False) else
                    [sys.executable, str(Path(__file__).resolve().parents[1] / "gui.py")])
         flags = (subprocess.CREATE_NO_WINDOW | subprocess.BELOW_NORMAL_PRIORITY_CLASS) if os.name == "nt" else 0
-        try:
-            self.process = self.spawn(command + ["--download-job", str(self.directory / f"{job.id}.json")],
-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", creationflags=flags)
-        except OSError:
-            job.state, job.error, job.pause_reason = "Paused", "Couldn't start the download. Try again.", "failure"
-            self.save(job)
-            self.on_change(job)
-            return
-        self.active, self.last_progress = job, self.clock()
+        with self._process_lock:
+            self.active, self.last_progress = job, self.clock()
+            self.generation = generation = uuid4().hex
         self.last_child_bytes = 0
         _locks.add(job.repo)
-        process = self.process
-        self.generation = generation = uuid4().hex
-        def read():
+        def launch():
+            try:
+                process = self.spawn(command + ["--download-job", str(self.directory / f"{job.id}.json")],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", creationflags=flags)
+            except OSError:
+                self.events.put((generation, {"startup_error": True}))
+                return
+            with self._process_lock:
+                accepted = not self.closed and self.active is job and self.generation == generation
+                if accepted:
+                    self.process = process
+            if not accepted:
+                process.terminate()
+                process.wait()
+                return
+            threading.Thread(target=read, args=(process,), daemon=True, name="Model download progress").start()
+        def read(process):
             for line in process.stdout:
                 try:
                     self.events.put((generation, json.loads(line)))
                 except (ValueError, TypeError):
                     continue
             self.events.put((generation, {"exit": process.wait()}))
-        threading.Thread(target=read, daemon=True, name="Model download progress").start()
+        if self.root is None:
+            launch()
+        else:
+            threading.Thread(target=launch, daemon=True, name="Start model download").start()
         self.on_change(job)
 
     def _stop(self):
-        if self.process is not None and self.process.poll() is None:
-            self.process.terminate()
+        with self._process_lock:
+            process, active = self.process, self.active
+            self.active, self.process, self.generation = None, None, ""
+        if process is not None and process.poll() is None:
+            process.terminate()
             # Reap off the Tk thread; terminate keeps all SDK partial files.
-            process = self.process
             threading.Thread(target=process.wait, daemon=True).start()
-        if self.active:
-            _locks.discard(self.active.repo)
-        self.active, self.process = None, None
+        if active:
+            _locks.discard(active.repo)
 
     def pause(self, job, *, state="Paused", reason="user"):
         if self.active is job:
@@ -250,7 +263,7 @@ class DownloadManager:
         self.save(job)
         self.on_change(job)
 
-    def _retry(self, job):
+    def _retry(self, job, *, notify=True):
         self._stop()
         job.bytes_per_s = 0
         if job.retries >= 3:
@@ -259,12 +272,14 @@ class DownloadManager:
             self.retry_at = self.clock() + (10, 30, 60)[job.retries]
             job.retries += 1
             job.state = "Stalled · retrying"
-        self.save(job)
-        self.on_change(job)
+        if notify:
+            self.save(job)
+            self.on_change(job)
 
     def poll(self):
         if self.closed:
             return
+        changed = {}
         while True:
             try:
                 identity, data = self.events.get_nowait()
@@ -273,6 +288,9 @@ class DownloadManager:
             job = self.active
             if job is None or self.generation != identity:
                 continue
+            if data.get("startup_error"):
+                job.state, job.error, job.pause_reason = "Paused", "Couldn't start the download. Try again.", "failure"
+                self._stop()
             if "bytes" in data:
                 if "file" in data:
                     job.state = "Downloading"
@@ -296,12 +314,17 @@ class DownloadManager:
                 job.error = data["error"]
                 job.error_code = data.get("error_code", "")
                 if data.get("retryable"):
-                    self._retry(job)
+                    self._retry(job, notify=False)
                 else:
                     job.state, job.pause_reason = "Paused", "failure"
                     self._stop()
             elif "exit" in data:
-                self._retry(job)
+                self._retry(job, notify=False)
+            changed[job.id] = job
+        # Hash verification can emit dozens of messages in one UI frame.
+        # Persist and render the latest state once, rather than blocking Tk
+        # on a separate atomic disk write for every queued heartbeat.
+        for job in changed.values():
             self.save(job)
             self.on_change(job)
         if self.active and self.clock() - self.last_progress >= 60:
@@ -444,9 +467,41 @@ def _progress_class(report):
     return DownloadProgress
 
 
+def _materialize_cache_link(path):
+    """Use regular HF snapshot files under Windows RedirectionGuard."""
+    if os.name != "nt" or path.parent.parent.name != "snapshots" or not path.is_symlink():
+        return
+    import re
+    repository = path.parent.parent.parent
+    if not repository.name.startswith("models--"):
+        raise ValueError("The cached model has an unexpected folder layout.")
+    try:
+        link_target = path.readlink()
+    except OSError:
+        if not path.is_symlink():  # Another progress/fetch thread materialized it.
+            return
+        raise
+    target = Path(os.path.abspath(path.parent / link_target))
+    blobs = repository / "blobs"
+    if target.parent != blobs or not re.fullmatch(r"[a-fA-F0-9]{40,64}", target.name) or target.is_symlink():
+        raise ValueError("The cached model link does not point to a model blob.")
+    # HF blobs are immutable, content-addressed files. A hard link avoids
+    # following a user-created reparse point, without weakening Windows policy.
+    temporary = path.with_name(".translito-" + uuid4().hex + ".tmp")
+    try:
+        try:
+            os.link(target, temporary)
+        except OSError:
+            shutil.copyfile(target, temporary)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _file_size(path):
     # The SDK renames temporary files atomically while progress is sampled.
     try:
+        _materialize_cache_link(path)
         return path.stat().st_size
     except FileNotFoundError:
         return 0
@@ -468,6 +523,8 @@ def _remote_failure(error):
 
 
 def _retryable_cache_error(error):
+    if getattr(error, "winerror", None) == 448:
+        return False
     if getattr(error, "winerror", None) in {32, 33, 121, 995, 1460}:
         return True
     return (isinstance(error, OSError) and not isinstance(error, (PermissionError, FileNotFoundError))
@@ -476,7 +533,9 @@ def _retryable_cache_error(error):
 
 def _setup_failure(error, phase):
     """Keep useful failure diagnostics without SDK URLs, tokens or raw paths."""
-    if isinstance(error, PermissionError):
+    if getattr(error, "winerror", None) == 448:
+        message = "Windows blocked a link in the model cache. Choose another model folder in Models."
+    elif isinstance(error, PermissionError):
         message = ("Windows blocked saving model setup. Check access to Translito's app data folder."
                    if phase == "register_model" else
                    "Windows blocked access to the model folder. Choose another folder in Models.")
@@ -603,6 +662,7 @@ def download_child(path):
                         result.append(hf_hub_download(job.repo, name, revision=revision,
                             **({"cache_dir": job.cache_dir} if job.cache_dir else {"local_dir": folder}),
                             token=token, force_download=repair, tqdm_class=progress))
+                    _materialize_cache_link(Path(result[-1]))
                 except Exception as error:
                     errors.append(error)
                 finally:

@@ -2222,14 +2222,22 @@ class TranslatorGUI:
         self._stopping = True
         self.set_status("Stopping")
         self.update_action_button(running=True, loading=True)
-        transcriber.stop_background()
+        transcriber.running = False
+        stopped = getattr(transcriber, "_stop_event", None)
+        if stopped is not None:
+            stopped.set()
 
         def finalize():
-            transcriber.join_background()
             save_error = ""
+            stop_error = ""
+            try:
+                transcriber.stop_background()
+                transcriber.join_background()
+            except Exception:
+                stop_error = "Session stopped. Some cleanup could not finish; your transcript is retained."
             try:
                 saved_path = transcriber.save_transcript()
-            except (OSError, ValueError) as error:
+            except Exception as error:
                 saved_path, save_error = None, str(error)
 
             def done():
@@ -2249,6 +2257,8 @@ class TranslatorGUI:
                 self.update_action_button(running=False)
                 if save_error:
                     self.show_hint("Transcript kept in memory. Save it again after checking the folder: " + save_error)
+                elif stop_error:
+                    self.show_hint(stop_error)
                 if callable(after):
                     after()
 

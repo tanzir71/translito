@@ -64,3 +64,18 @@ def test_zero_budget_blocks_before_open_or_upload(tmp_path):
     provider.open_stream.assert_not_called()
     provider.push_audio.assert_not_called()
     assert ledger.snapshot()["providers"] == {}
+
+
+def test_stream_stop_settles_all_frames_in_one_write_without_releasing_cost(tmp_path, monkeypatch):
+    instance, provider, ledger = guard(tmp_path, "audio_sent", [GateDecision(.99, "es")])
+    for _ in range(50):
+        assert instance.feed(np.ones(1600, np.float32))
+    before = ledger.snapshot()["providers"]["paid"]["estimated_usd"]
+    write = Mock(wraps=ledger._write)
+    monkeypatch.setattr(ledger, "_write", write)
+    instance.close()
+    assert write.call_count == 1 and not instance.reservations
+    assert ledger.snapshot()["providers"]["paid"]["estimated_usd"] == before
+    assert all(record["settled"] for record in ledger._read()["reservations"].values())
+    instance.close()
+    assert write.call_count == 1
