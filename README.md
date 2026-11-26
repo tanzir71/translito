@@ -13,8 +13,15 @@ Windows 2.0 implements `CODEX_HANDOFF_V2_SPEED_COST_UX`. Listen now has a visibl
 last source. A default meeting app only applies to App audio; choosing Device
 keeps that device selected, including when starting Listen or after a restart.
 
+Windows 2.0.3 shares one readiness plan between setup and Start. New installs
+default to On this PC and prepare basic models automatically. Changing languages
+reprioritizes downloads, reuses partial files, and preserves Pause/Cancel choices.
+Progress and Pause/Resume/Cancel are available in the main window, Models and tray.
+Saved cloud preferences remain selected during local fallback and recovery.
+
 - Dark 800×640 main window and 820×680 Settings with Languages, Engine, Cost & usage,
-  Subtitles, Schedule, Audio, Models and General. Controls save immediately;
+  Subtitles, Schedule, Audio, Models and General. Controls save automatically;
+  spending limits apply only after a valid edit is committed, and survive recovery;
   existing main-window geometry is retained.
 - Engine → Cloud enables gated Soniox recognition/translation, or ElevenLabs and
   Speechmatics recognition followed by the selected text translator. Manage keys
@@ -38,14 +45,15 @@ physical audio and visual acceptance remain unmeasured. See
 
 ## Downloads
 
-**Model management:** Settings → **Manage models…** lists available and downloaded
+**Model management:** Settings → **Models** shows current downloads and controls.
+Choose **Remove…** for storage management, which lists available and downloaded
 speech/translation models, disk use and cache locations. Choose **Downloaded**,
 select a model and click **Delete model…** above the list to review and remove
 that cached copy. Download and Open folder are alongside it. Model changes
 require an idle session; gated models retain their
 terms/token setup. See [model-manager details](docs/quality/MODEL_MANAGER.md).
 
-- **Windows 2.0.1:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.1/TranslitoSetup-2.0.1.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.1/TranslitoPortable-2.0.1.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.1/SHA256SUMS.txt). Adds resumable background model downloads, validated settings with save feedback, inline cloud setup, sharper icons, workday scheduling and DPI scaling. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_1.md).
+- **Windows 2.0.3:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.3/TranslitoSetup-2.0.3.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.3/TranslitoPortable-2.0.3.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.3/SHA256SUMS.txt). Adds language-aware setup downloads, unified cloud readiness, validated live budgets and safer startup/recovery. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_3.md).
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 For the portable build, extract the entire ZIP into a new empty folder before
@@ -59,7 +67,7 @@ The Windows GUI now includes Speak Mode and the native macOS parity work:
 
 - **Speak Mode**: speak into a real microphone, translate your speech, and play the translated voice to a selected playback device.
 - **VB-Cable routing**: choose `CABLE Input (VB-Audio Virtual Cable)` as the app output, then choose `CABLE Output (VB-Audio Virtual Cable)` as the microphone in Slack, Zoom, Teams, or Meet. Use headphones.
-- **Model preload and progress**: the GUI starts loading the selected Whisper and translation models after launch, shows download/preparing status, and reuses the same load if Start is pressed mid-preload.
+- **Model setup and progress**: the GUI prepares the files required for the selected route after launch. Download progress stays visible with Pause/Resume/Cancel; Start loads the ready session models.
 - **Lower latency**: chunks emit early when speech is followed by a pause, while steady room noise still waits for the normal window.
 - **Live results**: recognized speech appears before translation completes. Speech boundaries assemble complete thoughts; waiting speech is retained with a lag indicator when processing falls behind. Stop cancels generation and clears the stopped session's pending audio.
 - **Mic noise gate**: the Settings area includes an RMS gate slider from Off to High; it applies only to real microphones, never loopback or virtual sources.
