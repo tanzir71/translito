@@ -122,6 +122,7 @@ def test_gui_refresh_retains_silent_app_instead_of_broadening_to_all_apps(monkey
     host.listen_choices, host.speak_mic_choices, host.output_choices = [choice], [], []
     host.listen_combo, host.speak_mic_combo, host.speak_output_combo = Combo(0), Combo(), Combo()
     host.listen_source_type_var = SimpleNamespace(get=lambda: "App audio")
+    host.mode_var = SimpleNamespace(get=lambda: "listen")
     from settings_state import SettingsState
     host.preferences = SettingsState(tmp_path/"config.ini")
     host.default_app_var = SimpleNamespace(get=lambda:"")

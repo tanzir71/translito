@@ -40,14 +40,19 @@ class VirtualMicSetup:
         self.confirmed_app = config.get("VIRTUAL_MIC", "confirmed_app", fallback="")
         if self.meeting_app not in GUIDES:
             self.meeting_app = "Other"
-        self.frame = tk.Frame(host.root, bg=colors["yellow_bg"], padx=px(12), pady=px(8))
+        self.frame = tk.Frame(host.root, bg=colors["surface"], padx=px(12), pady=px(12),
+                              highlightbackground=colors["border"], highlightthickness=px(1))
+        self.heading = tk.Label(self.frame, text="Speak Mode setup", bg=colors["surface"], fg=colors["text"],
+                                anchor="w", font=("Segoe UI Semibold", 10))
+        self.heading.pack(fill="x", pady=px((0, 6)))
         self.steps = tk.StringVar()
-        tk.Label(self.frame, textvariable=self.steps, bg=colors["yellow_bg"], fg=colors["text"],
-                 anchor="w", justify="left", font=("Segoe UI Semibold", 9)).pack(fill="x")
-        self.label = tk.Label(self.frame, text="", bg=colors["yellow_bg"], fg=colors["secondary"],
+        self.steps_label = tk.Label(self.frame, textvariable=self.steps, bg=colors["surface"], fg=colors["secondary"],
+                 anchor="w", justify="left", font=("Segoe UI", 8))
+        self.steps_label.pack(fill="x")
+        self.label = tk.Label(self.frame, text="", bg=colors["surface"], fg=colors["secondary"],
                               anchor="w", justify="left", wraplength=px(700), font=("Segoe UI", 9))
-        self.label.pack(fill="x", pady=px((4, 6)))
-        actions = tk.Frame(self.frame, bg=colors["yellow_bg"])
+        self.label.pack(fill="x", pady=px((6, 10)))
+        actions = self.actions = tk.Frame(self.frame, bg=colors["surface"])
         actions.pack(fill="x")
         self.install_button = ttk.Button(actions, text="Install virtual mic", style="Mac.TButton", command=self.consent)
         self.install_button.pack(side="left", padx=px((0, 6)))
@@ -65,23 +70,31 @@ class VirtualMicSetup:
         selected = bool(output and "cable input" in output.name.lower())
         passed = selected and self.tested_name == output.name and not self.failed
         confirmed = self.confirmed_app == self.meeting_app
+        background = self.colors["yellow_bg"] if self.failed else self.colors["surface"]
+        for widget in (self.frame, self.heading, self.steps_label, self.label, self.actions):
+            widget.configure(bg=background)
+        self.heading.configure(text="Check your virtual microphone" if self.failed else "Speak Mode setup")
         mark = lambda value: "✓" if value else "○"
         self.steps.set(f"{mark(installed)} 1. Install virtual mic     {mark(passed)} 2. Test     {mark(confirmed)} 3. Pick it in your meeting app")
         if self.restart_needed and not installed:
             text = "Restart Windows to finish installing the virtual mic. Save your work before restarting."
         elif not installed:
-            text = "Speak Mode sends translated speech to VB-CABLE by VB-Audio (donationware). Install it once, then test the route."
+            text = "Add a virtual microphone to send your translated voice into calls. VB-CABLE by VB-Audio is included with Translito and only needs to be installed once."
         elif not selected:
             text = "Select CABLE Input under Speak to, then test. Your meeting app uses CABLE Output as its microphone."
         elif self.failed:
             text = "The virtual-mic test failed. Check CABLE Input / Output mute and levels in Windows Sound settings, then test again."
         elif not passed:
-            text = "Test the virtual microphone, then select CABLE Output in your meeting app. Use headphones."
+            text = "Your virtual microphone is ready. Choose CABLE Output as the microphone in your meeting app. Translito checks the route when you press Start."
         else:
             text = "Virtual microphone passed. Finish step 3 in your meeting app, then confirm it below."
         self.label.configure(text=text)
         idle = self.host.transcriber is None and not self.host.model_setup_busy
         self.install_button.configure(state="normal" if idle and not installed else "disabled")
+        if installed:
+            self.install_button.pack_forget()
+        else:
+            self.install_button.pack(side="left", before=self.test_button, padx=px((0, 6)))
         self.test_button.configure(state="normal" if idle and selected else "disabled")
         self.guide_button.configure(state="normal" if idle else "disabled")
         if self.restart_needed and not installed:
@@ -89,7 +102,7 @@ class VirtualMicSetup:
         else:
             self.restart_button.pack_forget()
         self.restart_button.configure(state="normal" if idle else "disabled")
-        if self.host.mode_var.get() == "speak" and (self.force_visible or not (installed and passed and confirmed)):
+        if self.host.mode_var.get() == "speak" and (self.force_visible or not installed or not selected or self.failed):
             self.frame.grid(row=3, column=0, sticky="ew")
         else:
             self.frame.grid_remove()
@@ -103,11 +116,8 @@ class VirtualMicSetup:
             pass
 
     def _place(self, window):
-        window.update_idletasks()
-        root = self.host.root
-        x = max(0, root.winfo_rootx() + (root.winfo_width() - window.winfo_reqwidth()) // 2)
-        y = max(0, root.winfo_rooty() + (root.winfo_height() - window.winfo_reqheight()) // 2)
-        window.geometry(f"+{x}+{y}")
+        from gui import center_window
+        center_window(window, self.host.root)
 
     def _work(self, work, finished, status):
         host = self.host

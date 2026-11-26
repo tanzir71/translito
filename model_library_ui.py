@@ -17,11 +17,13 @@ class ModelManagerWindow:
         self.library = library or ModelLibrary(session_active=lambda: app.transcriber is not None,
                                                offline=lambda: app.offline_only_var.get())
         self.rows, self.busy, self.scanning = {}, False, False
-        self.window = tk.Toplevel(app.root)
+        from gui import dialog_parent
+        parent = dialog_parent(app)
+        self.window = tk.Toplevel(parent)
         self.window.title("Manage models")
         self.window.configure(bg=colors["bg"])
         self.window.minsize(px(680), px(400))
-        self.window.transient(app.root)
+        self.window.transient(parent)
         body = tk.Frame(self.window, bg=colors["bg"], padx=px(18), pady=px(16))
         body.pack(fill="both", expand=True)
         body.columnconfigure(0, weight=1)
@@ -73,7 +75,7 @@ class ModelManagerWindow:
         self.status = tk.StringVar(value="Listing models uses no network.")
         tk.Label(body, textvariable=self.status, bg=colors["bg"], fg=colors["secondary"],
                  wraplength=px(620), anchor="w", justify="left").grid(row=6, column=0, sticky="ew", pady=px((10, 0)))
-        center(self.window, app.root,
+        center(self.window, parent,
                width=min(900, max(680, self.window.winfo_vrootwidth() - 48)),
                height=min(580, max(400, self.window.winfo_vrootheight() - 96)))
         if auto_refresh:

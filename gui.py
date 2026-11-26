@@ -177,11 +177,48 @@ def app_resource_path(filename):
     return Path(__file__).resolve().parent / "installer" / filename
 
 
+def dialog_parent(app):
+    """Use the visible settings window as the owner of its child dialogs."""
+    settings = getattr(app, "settings_window", None)
+    try:
+        if settings is not None and settings.winfo_exists() and settings.winfo_viewable():
+            return settings
+    except tk.TclError:
+        pass
+    return app.root
+
+
+def window_work_area(window, parent=None):
+    """Return the selected monitor's usable area, excluding the taskbar."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            class MonitorInfo(ctypes.Structure):
+                _fields_ = [("size", wintypes.DWORD), ("monitor", wintypes.RECT),
+                            ("work", wintypes.RECT), ("flags", wintypes.DWORD)]
+            user32 = ctypes.windll.user32
+            user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+            user32.MonitorFromWindow.restype = wintypes.HANDLE
+            user32.GetMonitorInfoW.argtypes = [wintypes.HANDLE, ctypes.POINTER(MonitorInfo)]
+            user32.GetMonitorInfoW.restype = wintypes.BOOL
+            owner = parent if parent is not None else window
+            monitor = user32.MonitorFromWindow(owner.winfo_id(), 2)
+            info = MonitorInfo()
+            info.size = ctypes.sizeof(info)
+            if monitor and user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+                return info.work.left, info.work.top, info.work.right, info.work.bottom
+        except (AttributeError, OSError, tk.TclError):
+            pass
+    left, top = window.winfo_vrootx(), window.winfo_vrooty()
+    return left, top, left + window.winfo_vrootwidth(), top + window.winfo_vrootheight()
+
+
 def center_window(window, parent=None, width=None, height=None):
     """Center a Tk window over its visible parent, or over the current screen."""
     window.update_idletasks()
-    width = int(px(width) if width is not None else window.winfo_width() or window.winfo_reqwidth())
-    height = int(px(height) if height is not None else window.winfo_height() or window.winfo_reqheight())
+    width = int(px(width) if width is not None else window.winfo_width() if window.winfo_width() > 1 else window.winfo_reqwidth())
+    height = int(px(height) if height is not None else window.winfo_height() if window.winfo_height() > 1 else window.winfo_reqheight())
 
     parent_is_visible = False
     if parent is not None:
@@ -191,6 +228,7 @@ def center_window(window, parent=None, width=None, height=None):
         except tk.TclError:
             parent_is_visible = False
 
+    screen_left, screen_top, screen_right, screen_bottom = window_work_area(window, parent if parent_is_visible else None)
     if parent_is_visible:
         # Top-level geometry coordinates refer to the decorated window frame,
         # while winfo_root* points at the client area below the title bar.
@@ -198,12 +236,8 @@ def center_window(window, parent=None, width=None, height=None):
         x = parent.winfo_x() + (parent.winfo_width() - width) // 2
         y = parent.winfo_y() + (parent.winfo_height() - height) // 2
     else:
-        x = window.winfo_vrootx() + (window.winfo_vrootwidth() - width) // 2
-        y = window.winfo_vrooty() + (window.winfo_vrootheight() - height) // 2
-    screen_left = window.winfo_vrootx()
-    screen_top = window.winfo_vrooty()
-    screen_right = screen_left + window.winfo_vrootwidth()
-    screen_bottom = screen_top + window.winfo_vrootheight()
+        x = screen_left + (screen_right - screen_left - width) // 2
+        y = screen_top + (screen_bottom - screen_top - height) // 2
     # A larger dialog centered over a parent near a screen edge can otherwise
     # start outside the desktop, hiding its controls even when its size fits.
     x = max(screen_left, min(x, screen_right - width))
@@ -431,6 +465,7 @@ class TranslatorGUI:
         self.listen_source_type_var = tk.StringVar(value="Device")
         self.speak_mic_var = tk.StringVar(value=speak_config.mic_name)
         self.speak_output_var = tk.StringVar(value=speak_config.output_device_name)
+        self._auto_select_speak_output = True
         self.listen_source_var = tk.StringVar(value=self.language_name_for_iso(language_config.source))
         self.listen_target_var = tk.StringVar(value=self.language_name_for_iso(language_config.target))
         self.speak_source_var = tk.StringVar(value=self.language_name_for_iso(speak_config.source))
@@ -539,6 +574,7 @@ class TranslatorGUI:
         from download_ui import initialize as initialize_downloads
         initialize_downloads(self, COLORS)
         self._initializing = False
+        center_window(self.root)
         if not self.preview_mode:
             self.root.after(350, self.preload_current_models)
             self.root.after(3000, self.auto_refresh_devices)
@@ -939,8 +975,13 @@ class TranslatorGUI:
         self.empty_measurements_var = tk.StringVar(value="")
         tk.Label(self.empty_state, textvariable=self.empty_measurements_var, bg=COLORS["bg"], fg=COLORS["tertiary"],
                  wraplength=px(460), justify="center", font=("Segoe UI", 9)).pack(pady=px((12, 0)))
-        ttk.Button(self.empty_state, text="Set up cloud", command=self.open_cloud_setup, style="Mac.TButton").pack(pady=px(10))
-        ttk.Button(self.empty_state, text="Keep using this PC", command=lambda: self.engine_choice_var.set("local"), style="Mac.TButton").pack()
+        actions = tk.Frame(self.empty_state, bg=COLORS["bg"])
+        actions.pack(pady=px((12, 0)))
+        actions.columnconfigure((0, 1), weight=1, uniform="empty-state-actions")
+        ttk.Button(actions, text="Set up cloud", command=self.open_cloud_setup, style="Mac.TButton").grid(
+            row=0, column=0, sticky="nsew", padx=px((0, 4)))
+        ttk.Button(actions, text="Keep using this PC", command=lambda: self.engine_choice_var.set("local"), style="Mac.TButton").grid(
+            row=0, column=1, sticky="nsew", padx=px((4, 0)))
 
     def _build_bottom_bar(self):
         bar = tk.Frame(self.root, bg=COLORS["bg"], padx=px(12), pady=px(12))
@@ -1368,7 +1409,7 @@ class TranslatorGUI:
         )
         self.speak_mic_combo.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
         self.speak_output_combo.bind(
-            "<<ComboboxSelected>>", lambda _event: (self.update_routing_banner(), self.persist_settings())
+            "<<ComboboxSelected>>", lambda event: (self.speak_output_selected(event), self.persist_settings())
         )
         self.listen_source_combo.bind("<<ComboboxSelected>>", lambda _event: self.apply_language_pair())
         self.listen_target_combo.bind("<<ComboboxSelected>>", lambda _event: self.apply_language_pair())
@@ -1639,6 +1680,19 @@ class TranslatorGUI:
             output_name,
             first_virtual_output(self.output_choices),
         )
+        self.select_virtual_mic_output()
+        self.update_routing_banner()
+
+    def select_virtual_mic_output(self):
+        if self.mode_var.get() != "speak" or not getattr(self, "_auto_select_speak_output", False):
+            return
+        from engines.virtual_mic import cable_output
+        output = cable_output(self.output_choices)
+        if output is not None:
+            self.select_combo_by_name(self.speak_output_combo, self.output_choices, output.name)
+
+    def speak_output_selected(self, _event=None):
+        self._auto_select_speak_output = False
         self.update_routing_banner()
 
     def select_combo_by_name(self, combo, choices, name, fallback=None):
@@ -1690,6 +1744,8 @@ class TranslatorGUI:
         if self.model_setup_busy or (self.transcriber is not None and not force):
             return
         mode = mode if mode in {"listen", "speak"} else "listen"
+        if mode == "speak" and (force or self.mode_var.get() != "speak"):
+            self._auto_select_speak_output = True
         self.mode_var.set(mode)
         self.listen_mode_button.configure(
             style="SegmentActive.TButton" if mode == "listen" else "SegmentInactive.TButton"
@@ -1698,6 +1754,7 @@ class TranslatorGUI:
             style="SegmentActive.TButton" if mode == "speak" else "SegmentInactive.TButton"
         )
         if mode == "speak":
+            self.select_virtual_mic_output()
             self.listen_frame.grid_remove()
             self.speak_frame.grid(row=0, column=0, sticky="ew")
         else:
@@ -2521,6 +2578,9 @@ class TranslatorGUI:
         from model_library_ui import ModelManagerWindow
         existing = getattr(self, "model_manager", None)
         if existing is not None and existing.window.winfo_exists():
+            parent = dialog_parent(self)
+            existing.window.transient(parent)
+            center_window(existing.window, parent)
             existing.window.lift()
             existing.selection_changed()
             return
@@ -2739,6 +2799,7 @@ class TranslatorGUI:
 
     def show_main_window(self):
         self.root.deiconify()
+        center_window(self.root)
         self.root.lift()
         self.root.focus_force()
 

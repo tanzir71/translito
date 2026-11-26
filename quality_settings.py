@@ -15,17 +15,18 @@ from engines.glossary import Glossary
 
 
 def _window(app, title, colors, center, width, height):
-    width, height = px((width, height))
-    window = tk.Toplevel(app.root)
+    from gui import dialog_parent
+    parent = dialog_parent(app)
+    window = tk.Toplevel(parent)
     from ui_theme import apply_theme
     apply_theme(window, app.style, colors)
     window.title(title)
     window.configure(bg=colors["bg"])
-    window.transient(app.root)
-    window.minsize(width, height)
+    window.transient(parent)
+    window.minsize(px(width), px(height))
     from ui_theme import dark_titlebar
     window.after_idle(lambda: dark_titlebar(window) if window.winfo_exists() else None)
-    center(window, app.settings_window or app.root, width=width, height=height)
+    center(window, parent, width=width, height=height)
     return window
 
 

@@ -1,7 +1,7 @@
 # Windows virtual microphone
 
-Included since Windows 1.1.0; the current public Windows release is 1.1.1.
-Windows 1.1.3 is installed locally; public-release publication is pending. See the installation follow-up below.
+Included since Windows 1.1.0. Windows 2.0.2 simplifies Speak setup as described
+below; older installation evidence is retained in the follow-up sections.
 Listen Mode uses loopback and never needs VB-CABLE.
 
 ## Speak setup
@@ -15,15 +15,20 @@ Listen Mode uses loopback and never needs VB-CABLE.
    it and saves the Speak output. If it is missing, restart Windows when ready.
    The app never restarts automatically; Restart requires a button click and a
    second confirmation.
-3. Run **Test virtual mic**, then use **Pick meeting mic** for Zoom, Teams, Slack,
+3. Entering Speak Mode selects an available CABLE Input automatically. If the
+   cable appears during device refresh, it is selected then too. A subsequent
+   manual output selection is retained during polling. Use **Pick meeting mic** for Zoom, Teams, Slack,
    Meet, Discord or another app. Choose CABLE Output as the meeting microphone and
    keep headphones as the meeting speaker. Keep your real microphone in Translito.
    Confirm step 3 only after changing the meeting app yourself.
 
-The card disappears once installation, the current run's routing test, and the
-meeting-app confirmation are complete. **Virtual-mic setup** opens it again.
-A routing test also runs before every Speak session, before loading models or
-starting capture. A failed test leaves capture stopped and shows the setup card.
+Normal onboarding uses a neutral **Speak Mode setup** card. It stays hidden once
+the cable is present and selected; installation, test and meeting-app instructions
+remain available through **Virtual-mic setup**. Completed installation no longer
+leaves a disabled Install button in the card. **Test virtual mic** is available
+there as an optional check. A routing test runs automatically before every Speak
+session, before loading models or starting capture. A failed test leaves capture
+stopped and shows a warning card with recovery actions.
 
 ## Local test and device lifecycle
 

@@ -190,12 +190,67 @@ def test_inline_connect_status_and_remove_during_background_download(desktop, mo
         assert "Connected to Soniox" in app.cloud_connection_status.get()
         assert "Key ending 7f3a" in app.cloud_connection_status.get()
         assert app.cloud_key_var.get() == ""
+        assert app.cloud_connect_button.cget("text") == "Check connection"
+        assert app.cloud_remove_button.winfo_manager() == "pack"
         assert len(requests) == 1 and not requests[0].content
         assert not app.model_setup_busy
         assert str(app.listen_action_button.cget("state")) == "normal"
         assert app.engine_var.get() == "On this PC · needs a monthly budget"
         app.cloud_remove()
         assert not keys
+        assert app.cloud_connect_button.cget("text") == "Connect"
+        assert not app.cloud_remove_button.winfo_manager()
+
+
+def test_empty_state_actions_share_one_row_and_equal_size(desktop):
+    create, _ = desktop
+    app = create()
+    app.root.deiconify()
+    app.root.update()
+    actions = {widget.cget("text"): widget for widget in widgets(app.empty_state)
+               if widget.winfo_class() == "TButton"}
+    cloud, local = actions["Set up cloud"], actions["Keep using this PC"]
+    assert cloud.master is local.master
+    assert cloud.winfo_y() == local.winfo_y()
+    assert cloud.winfo_width() == local.winfo_width() > 1
+    assert cloud.winfo_height() == local.winfo_height() > 1
+    assert cloud.winfo_x() + cloud.winfo_width() < local.winfo_x()
+
+
+def test_speak_selects_available_cable_and_only_shows_setup_when_needed(desktop, monkeypatch):
+    from device_utils import OutputDeviceChoice
+    from engines.virtual_mic import CableTestResult
+    outputs = [OutputDeviceChoice("Speakers", 0, False)]
+    monkeypatch.setattr(gui, "query_output_devices", lambda: outputs)
+    create, _ = desktop
+    app = create()
+    app.set_mode("speak")
+    setup = app.virtual_mic_setup
+    assert setup.frame.winfo_manager() == "grid"
+    assert setup.frame.cget("bg") == gui.COLORS["surface"]
+    outputs.append(OutputDeviceChoice("CABLE Input", 1, True))
+    app.refresh_devices()
+    assert app.selected_output_choice().name == "CABLE Input"
+    assert not setup.frame.winfo_manager()
+    # An explicit selection is retained during device polling.
+    app.speak_output_combo.current(0)
+    app.speak_output_selected()
+    app.refresh_devices()
+    assert app.selected_output_choice().name == "Speakers"
+    app.set_mode("listen")
+    app.set_mode("speak")
+    assert app.selected_output_choice().name == "CABLE Input"
+    assert not setup.frame.winfo_manager()
+    app.show_virtual_mic_setup()
+    assert setup.frame.winfo_manager() == "grid"
+    assert setup.frame.cget("bg") == gui.COLORS["surface"]
+    assert not setup.install_button.winfo_manager()
+    setup.force_visible = False
+    setup.test_result(outputs[1], CableTestResult(False, -70, "Test route failed"))
+    assert setup.frame.winfo_manager() == "grid"
+    assert setup.frame.cget("bg") == gui.COLORS["yellow_bg"]
+    setup.test_result(outputs[1], CableTestResult(True, -15, "Virtual microphone passed."))
+    assert not setup.frame.winfo_manager()
 
 
 def test_workday_chips_times_validation_and_restart(desktop, monkeypatch):
