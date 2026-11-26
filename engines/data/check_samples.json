@@ -1,4 +1,344 @@
 {
-  "special_sets": [{"source":"ar","target":"en","label":"Perle public Saudi-English · MIT · 30 pinned clips","base":"https://huggingface.co/datasets/Perle-ai/ASR_Code_Switch/resolve/1cc5950241e02500c43e39e8f37cce93c2dca5fb/data/saudi_arabic_english"}],
-  "fleurs_configs": {"ar":"ar_eg","en":"en_us","es":"es_419","fr":"fr_fr","de":"de_de","it":"it_it","pt":"pt_br","ru":"ru_ru","tr":"tr_tr","fa":"fa_ir","ur":"ur_pk"}
+  "special_sets": [
+    {
+      "source": "ar",
+      "target": "en",
+      "label": "Perle public Saudi-English · MIT · 30 pinned clips",
+      "base": "https://huggingface.co/datasets/Perle-ai/ASR_Code_Switch/resolve/1cc5950241e02500c43e39e8f37cce93c2dca5fb/data/saudi_arabic_english"
+    }
+  ],
+  "fleurs": {
+    "dataset": "google/fleurs",
+    "revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd",
+    "license": "CC BY 4.0",
+    "source": "https://huggingface.co/datasets/google/fleurs",
+    "checked_on": "2026-11-26",
+    "reference_note": "Mandarin references are published in Simplified Chinese, including when reusing these clips for the Traditional choice.",
+    "subsets": {
+      "nl_nl": {
+        "split": "test",
+        "endpoint": "rows",
+        "clips": [
+          {
+            "row_index": 0,
+            "clip_id": 1927,
+            "source_filename": "10042455874761876908.wav",
+            "sha256": "4cfe25af0596ee2c709a9a375e1ac456d9821d91a067f7bfbf63ab07ba89e9cf",
+            "bytes": 414778,
+            "split": "test",
+            "reference": "volgens angel 2006 kunnen organisaties beter presteren met een aanpak op basis van het continuümmodel",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 1,
+            "clip_id": 1762,
+            "source_filename": "1004717084892689357.wav",
+            "sha256": "e6de7da42b63e1f341752053f63dee45be5f1d64402b57b831dfc92c3b1e0f9d",
+            "bytes": 280378,
+            "split": "test",
+            "reference": "varkens dragen de ziekte bij zich en dragen het via muggen over op mensen",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 2,
+            "clip_id": 1823,
+            "source_filename": "10152288169439514825.wav",
+            "sha256": "3c9c8cbe9a14dac13d98578b0b75d87f9d5549e7efa8474a8a4c5a5a96204e3e",
+            "bytes": 618298,
+            "split": "test",
+            "reference": "bij een verkeersstroom wordt gekeken naar de bewegingen van individuele bestuurders en voertuigen tussen twee punten en de interacties die plaatsvinden tussen de individuen",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          }
+        ]
+      },
+      "nb_no": {
+        "split": "test",
+        "endpoint": "rows",
+        "clips": [
+          {
+            "row_index": 0,
+            "clip_id": 1855,
+            "source_filename": "10009208613112238545.wav",
+            "sha256": "7ad88661c45a938f5517314cd8b23a78d4ef2a61f3a93a07c557bd76edec28e7",
+            "bytes": 1044538,
+            "split": "test",
+            "reference": "en løveflokk oppfører seg mye på samme måte som en ulve- eller hundeflokk dyr som har overraskende mye til felles med oppførselen til løver men ikke med andre store kattedyr. de er også livsfarlige for sine byttedyr",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 1,
+            "clip_id": 1886,
+            "source_filename": "10079345942595448902.wav",
+            "sha256": "3c389337c4c9b480a719e975a1238f259df7bf5d53ec62b23fd8198233b8b3d0",
+            "bytes": 645178,
+            "split": "test",
+            "reference": "det begynte med at gamle kulturer og stammer beholdte dem for lett tilgang til melk hår kjøtt og skinn",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 2,
+            "clip_id": 1926,
+            "source_filename": "10127119633288296536.wav",
+            "sha256": "6f91bfe54c1887086ccdda5ac65d52a7d933cfdf557f13cef209a1d20e613063",
+            "bytes": 529978,
+            "split": "test",
+            "reference": "aristoteles syn på alt som handlet om vitenskap inkludert psykologi ble godtatt",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          }
+        ]
+      },
+      "pl_pl": {
+        "split": "validation",
+        "endpoint": "rows",
+        "clips": [
+          {
+            "row_index": 0,
+            "clip_id": 1525,
+            "source_filename": "10018492969996036091.wav",
+            "sha256": "af28195df5b6e1b8ce62c234dc78638783eee6d5e63677a3310cc4c48b30f920",
+            "bytes": 1447738,
+            "split": "validation",
+            "reference": "szerokie bulwary przeszklone fronty budynków i nowoczesne galerie handlowe współistnieją z tradycyjnymi dachami krytymi czerwonymi dachówkami rynkiem z xviii wieku i starymi meczetami i kościołami choć w mieście panuje atmosfera przywołująca bardziej śródziemnomorską europę niż tradycyjną turcję",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 1,
+            "clip_id": 1657,
+            "source_filename": "10288018704489549018.wav",
+            "sha256": "fd8209363a49d8896517f99b88d473a0656d51bd043cbc946a7c077f1db1ad6d",
+            "bytes": 506938,
+            "split": "validation",
+            "reference": "jakiekolwiek korekty lub żądania powinny trafiać najpierw do biura podróży a nie bezpośrednio do hotelu",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 2,
+            "clip_id": 1651,
+            "source_filename": "10359318086249592912.wav",
+            "sha256": "335d8e46d31892e94cb46346265d78ff5ff76bed8f6c1cb0b6b5fc17b96e5c9b",
+            "bytes": 491578,
+            "split": "validation",
+            "reference": "wśród osób które planują roczną przerwę opcje podróży i nauki cieszą się coraz większą popularnością",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          }
+        ]
+      },
+      "sv_se": {
+        "split": "validation",
+        "endpoint": "rows",
+        "clips": [
+          {
+            "row_index": 0,
+            "clip_id": 1557,
+            "source_filename": "10092490857974171934.wav",
+            "sha256": "5029d6cb66d356378ba496644679034fbcffec704bc90acce859be743bfeb830",
+            "bytes": 695098,
+            "split": "validation",
+            "reference": "efter att ha sett krigens skräck och grymheter under första världskriget ville länder undvika att en sådan situation upprepades i framtiden",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 1,
+            "clip_id": 1628,
+            "source_filename": "10112081224660951024.wav",
+            "sha256": "2e98186f670fa187321fe2fca1b43884e96b42c8bc9259e08e94290b9a4d28fe",
+            "bytes": 652858,
+            "split": "validation",
+            "reference": "hantverksprodukter kan definieras som antikviteter fast de inte är lika gamla som liknande massproducerade varor",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 2,
+            "clip_id": 1587,
+            "source_filename": "10203567529405446063.wav",
+            "sha256": "f3f1acf6e4e76551fe80786d6e988a4d371e2e51c4a3291ff263eceb3d0ab7c3",
+            "bytes": 625978,
+            "split": "validation",
+            "reference": "de första fallen av sjukdomen under den här säsongen rapporterades i slutet av juli",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          }
+        ]
+      },
+      "cmn_hans_cn": {
+        "split": "validation",
+        "endpoint": "rows",
+        "clips": [
+          {
+            "row_index": 0,
+            "clip_id": 1579,
+            "source_filename": "10116334326946811387.wav",
+            "sha256": "f3e12a114bedbc867e06bfb7aceb2721701aa729685b9e4be39f2b98305b72ab",
+            "bytes": 1176378,
+            "split": "validation",
+            "reference": "报 告 警 告 称 没 有 人 能 保 证 目 前 在 伊 拉 克 采 取 的 任 何 行 动 能 够 阻 止 宗 派 战 争 不 断 增 长 的 暴 力 或 走 向 混 乱",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 1,
+            "clip_id": 1605,
+            "source_filename": "10149760684641961155.wav",
+            "sha256": "577a635c2261680c61dda5fecbc4f83bff6f37f453665b8d9d1a68f210f57c0a",
+            "bytes": 476218,
+            "split": "validation",
+            "reference": "因 为 远 离 大 陆 哺 乳 动 物 无 法 长 途 跋 涉 而 来 使 得 巨 龟 成 为 科 隆 群 岛 主 要 的 食 草 动 物",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 2,
+            "clip_id": 1581,
+            "source_filename": "10291819997967779677.wav",
+            "sha256": "8234c830aba9500be3c32dab1f91e72599b9bb03c36f962ae8b6bfc174ca13f0",
+            "bytes": 483898,
+            "split": "validation",
+            "reference": "亚 马 逊 河 也 是 地 球 上 最 宽 的 河 流 有 些 河 段 的 宽 度 可 达 6 英 里",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          }
+        ]
+      },
+      "ja_jp": {
+        "split": "validation",
+        "endpoint": "rows",
+        "clips": [
+          {
+            "row_index": 0,
+            "clip_id": 1519,
+            "source_filename": "10009621509886822059.wav",
+            "sha256": "9627b8f5d46806e1a433b443d692fdfb24f26a35c1a47eba26291475fc643d7b",
+            "bytes": 710458,
+            "split": "validation",
+            "reference": "多くの場合 海外のギャップイヤーコースに入学することで 帰国後に実際に大学に進学しやすくなります",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 1,
+            "clip_id": 1608,
+            "source_filename": "10282008873026289596.wav",
+            "sha256": "9d3eace69bccc6acd08bc42626d86946cd2b39d037f714aac46f167c142799e1",
+            "bytes": 1463098,
+            "split": "validation",
+            "reference": "私は妹やその友人とはぐれてしまったのですが 途中で車椅子に乗った障害者が2人いて 飛び越えて車椅子を押している人たちがいました とアルマン ヴェルサーチさんは語っています",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 2,
+            "clip_id": 1607,
+            "source_filename": "10339149383603832153.wav",
+            "sha256": "88391f365cdecc51a56ef5f9322c441c0107ab8d0c6f7a3a09f2334ffe8c56ff",
+            "bytes": 510778,
+            "split": "validation",
+            "reference": "興味をそそられる村を30分ほど散策するのは価値があります",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          }
+        ]
+      },
+      "ko_kr": {
+        "split": "validation",
+        "endpoint": "rows",
+        "clips": [
+          {
+            "row_index": 0,
+            "clip_id": 1616,
+            "source_filename": "10030969252796176788.wav",
+            "sha256": "4e661e3d857e1fc982cbdd3642de80e02704144183c50a4913d98f4652dddcc9",
+            "bytes": 675898,
+            "split": "validation",
+            "reference": "이제 과학적 데이터가 거대한 규모의 이 탄소 경제는 지난 이백만 년 동안 인류의 진화를 도왔던 안정적인 상태에서 생물권을 몰아냈음을 보여줍니다",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 1,
+            "clip_id": 1648,
+            "source_filename": "10171268745771502507.wav",
+            "sha256": "90f4ab01258b2cc1004c2eb2323d87e9cd22e2ca9997b4b4bd2bea26a1dbb4ce",
+            "bytes": 299578,
+            "split": "validation",
+            "reference": "가나안에는 큰 숲이 없었기 때문에 나무가 무척 비쌌다",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 2,
+            "clip_id": 1631,
+            "source_filename": "10256584584225062541.wav",
+            "sha256": "e056e29675619e6d2aba59cc274453cae78302d5ae510e056cad4aa69df470bd",
+            "bytes": 986938,
+            "split": "validation",
+            "reference": "고대 신왕국 이집트인들은 조상의 기념비적인 건축물을 보고 경탄했고 이것은 그 당시 기준으로 1000년은 족히 넘은 건축물이었습니다",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          }
+        ]
+      },
+      "es_419": {
+        "split": "test",
+        "endpoint": "filter",
+        "clips": [
+          {
+            "row_index": 0,
+            "clip_id": 2001,
+            "source_filename": "1001146817223348054.wav",
+            "sha256": "861ceedc4d50fbe52fc89b6d0c0fa740b9cd6fa668388e754064847386af0faf",
+            "bytes": 821818,
+            "split": "test",
+            "reference": "se recomienda enfáticamente a los viajeros que se informen sobre cualquier riesgo de clima extremo en el área que visitan dado que ello puede afectar sus planes de viaje",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 1,
+            "clip_id": 1852,
+            "source_filename": "10050510856477907332.wav",
+            "sha256": "5b0fcf5b42064d33a36d26dab527cb230b4751587b4066ef11157ea603586d8d",
+            "bytes": 1367098,
+            "split": "test",
+            "reference": "el uso adecuado de los blogs «puede empoderar a los alumnos para que sean más analíticos y críticos a través de la respuesta activa a los contenidos de internet pueden definir sus posturas en el contexto de los escritos de otros además de establecer sus perspectivas sobre temas específicos» oravec 2002",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 2,
+            "clip_id": 1764,
+            "source_filename": "1008205615316519958.wav",
+            "sha256": "0576e73da35ef17b6ce6396d31b32830b7ab19cea98f9f5db68de3756dc3d4fc",
+            "bytes": 622138,
+            "split": "test",
+            "reference": "fue tanta la cantidad de gente que se concentró que no todos pudieron acceder al funeral en la plaza de san pedro",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          }
+        ]
+      },
+      "pt_br": {
+        "split": "validation",
+        "endpoint": "rows",
+        "clips": [
+          {
+            "row_index": 0,
+            "clip_id": 1565,
+            "source_filename": "10021311324523185658.wav",
+            "sha256": "36fe5f6b7c9e613d467797c7ffdd2b473898d784250bdb37fcacbb99dd68ceaf",
+            "bytes": 756538,
+            "split": "validation",
+            "reference": "o objetivo principal da ciência é entender como o mundo funciona através do método científico é esse método que orienta as pesquisas científicas",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 1,
+            "clip_id": 1550,
+            "source_filename": "10114312680249610589.wav",
+            "sha256": "200f56e8a83626644ed55a447d776313da575a1e00d2931113a8bcaadba55203",
+            "bytes": 933178,
+            "split": "validation",
+            "reference": "esquiar é uma atividade importante na viagem para muitos entusiastas ocasionalmente conhecidos como ski bums que planejam férias inteiras só para esquiarem em um local específico",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          },
+          {
+            "row_index": 2,
+            "clip_id": 1578,
+            "source_filename": "10165966771567591302.wav",
+            "sha256": "4700972646bc2cbe176fbc95105938816da60160d7ee9422878b54c1538daef3",
+            "bytes": 426298,
+            "split": "validation",
+            "reference": "então lakkha singh tomou a frente para cantar os bhajans",
+            "dataset_revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
+          }
+        ]
+      }
+    }
+  }
 }

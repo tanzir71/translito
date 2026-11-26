@@ -46,6 +46,7 @@ class CheckSample:
     variety: str = ""
     label: str = "Recording"
     english_terms: tuple[str, ...] | None = None
+    reference_script: str = ""
 
     @property
     def seconds(self):
@@ -114,8 +115,9 @@ class CheckRunner:
 
 class SampleCatalog:
     """Downloads public audio/reference data only, never weights or credentials."""
-    def __init__(self, *, fetch=None):
+    def __init__(self, *, fetch=None, manifest=None):
         self.fetch = fetch or self._fetch
+        self.manifest = manifest
 
     @staticmethod
     def _fetch(url):
@@ -136,7 +138,9 @@ class SampleCatalog:
         return CheckSample(audio, 16000, source, target, reference, variety)
 
     def public(self, source, target, *, variety="", full=False):
-        manifest = json.loads((Path(__file__).parent / "data/check_samples.json").read_text(encoding="utf-8"))
+        from engines.languages import canonical_code
+        source, target = canonical_code(source), canonical_code(target)
+        manifest = self.manifest or json.loads((Path(__file__).parent / "data/check_samples.json").read_text(encoding="utf-8"))
         spec = next((s for s in manifest["special_sets"] if s["source"] == source and s["target"] == target), None)
         if spec:
             base = spec["base"]
@@ -159,6 +163,10 @@ class SampleCatalog:
         config = entry.fleurs_config if entry else None
         if not config:
             raise ValueError("No public sample for this language. Use a recording.")
+        pinned = manifest.get("fleurs", {})
+        subset = pinned.get("subsets", {}).get(config)
+        if subset:
+            return self._pinned_fleurs(source, target, entry, pinned, subset, variety)
         url = "https://datasets-server.huggingface.co/rows?" + urlencode(dict(dataset="google/fleurs", config=config, split="test", offset=0, length=3))
         rows = json.loads(self.fetch(url))["rows"]
         samples = []
@@ -168,6 +176,37 @@ class SampleCatalog:
             url = audio[0]["src"] if isinstance(audio, list) else audio["src"]
             sample = self.recording(io.BytesIO(self.fetch(url)), source, target, reference=row["transcription"], variety=variety)
             sample.label = "Google FLEURS · CC BY 4.0"
+            samples.append(sample)
+        return samples
+
+    def _pinned_fleurs(self, source, target, entry, manifest, subset, variety):
+        clips, revision = subset["clips"], manifest["revision"]
+        params = dict(dataset=manifest["dataset"], config=entry.fleurs_config,
+                      split=subset["split"], revision=revision, offset=0, length=len(clips))
+        if subset["endpoint"] == "filter":
+            # This subset exceeds the viewer's row-scan byte limit. Its text
+            # index can select the same first rows without scanning all audio.
+            params["where"] = '"id">0'
+        url = "https://datasets-server.huggingface.co/" + subset["endpoint"] + "?" + urlencode(params)
+        rows = {item["row_idx"]: item["row"] for item in json.loads(self.fetch(url))["rows"]}
+        samples = []
+        for clip in clips:
+            row = rows.get(clip["row_index"], {})
+            if row.get("id") != clip["clip_id"] or row.get("transcription") != clip["reference"]:
+                raise ValueError("Public sample metadata changed. Use a recording until the catalog is updated.")
+            audio = row["audio"]
+            url = audio[0]["src"] if isinstance(audio, list) else audio["src"]
+            if "/--/" + revision + "/--/" not in url:
+                raise ValueError("Public sample dataset revision changed.")
+            data = self.fetch(url)
+            if len(data) != clip["bytes"] or hashlib.sha256(data).hexdigest() != clip["sha256"]:
+                raise ValueError("Public sample integrity check failed")
+            sample = self.recording(io.BytesIO(data), source, target,
+                                    reference=clip["reference"], variety=variety or entry.default_variety)
+            sample.label = "Google FLEURS · CC BY 4.0 · pinned clips"
+            if entry.base_code == "zh":
+                sample.reference_script = "Hans"
+                sample.label += " · published Simplified Chinese reference"
             samples.append(sample)
         return samples
 

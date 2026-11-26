@@ -36,3 +36,12 @@ phrases and ASCII Pinyin, Hepburn and Revised Romanization. Cloud reply prompts
 name the catalog romanization system and Chinese target script.
 Verification: `python -m pytest -q` — 607 tests pass, including all phrasebooks
 against every audience language and the eight-word/readability constraints.
+
+A5: 27 public FLEURS clips pinned across nine subsets (Dutch, Norwegian, Polish,
+Swedish, Mandarin, Japanese, Korean, Latin American Spanish and Brazilian
+Portuguese), with dataset revision, clip IDs, published references and SHA-256.
+Traditional Chinese reuses Mandarin and labels its published Hans reference.
+The loader rejects revision, metadata, length and hash drift before inference.
+Only temporary evaluation audio was fetched; no audio was added to Git.
+Verification: `python -m pytest -q` — 621 tests pass; pinned-loader tests cover
+all ten app choices and integrity failures using synthetic bytes.
