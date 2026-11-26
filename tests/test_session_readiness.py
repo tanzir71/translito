@@ -93,6 +93,14 @@ def test_cached_pair_specific_speech_model_overrides_the_main_preference():
     assert plan.whisper_model == "openai/whisper-large-v3-turbo"
 
 
+@pytest.mark.parametrize("chosen", ["local", "groq"])
+def test_free_profile_respects_explicit_recognition_stage(chosen):
+    pref = ProviderSettings(enabled=True, account_kind="free", tested_signature="a"*64, training_consent=True)
+    settings = EngineSettings(engine_choice="free", default_asr_provider=chosen,
+        providers={"groq":pref,"cohere-api":replace(pref,account_kind="trial")})
+    assert resolve_plan(settings,("ar","en"),inspect=available).asr == chosen
+
+
 def test_ready_cached_quality_translator_does_not_force_an_extra_lite_download(monkeypatch):
     monkeypatch.setattr("engines.mt_translategemma.enough_ram", lambda: True)
     inspect = lambda spec: available(spec) if spec.format == "gguf" or "whisper" in spec.repo.lower() else Missing()

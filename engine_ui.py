@@ -295,6 +295,13 @@ def apply_budget(app):
     if guard:
         guard.total_monthly_cap, guard.fallback_on_budget, guard.budget_warn_percent = cap, fallback, warning
         guard.monthly_cap = committed.provider(interpreter.name).monthly_cap
+        # A recovered transport must inherit live budget edits too.
+        from dataclasses import replace, is_dataclass
+        if is_dataclass(getattr(interpreter, "settings", None)):
+            interpreter.settings = replace(interpreter.settings, monthly_cap=cap,
+                fallback_on_budget=fallback, budget_warn_percent=warning)
+        if is_dataclass(getattr(interpreter, "preference", None)):
+            interpreter.preference = replace(interpreter.preference, monthly_cap=guard.monthly_cap)
         spent = sum(Decimal(v["estimated_usd"]) for v in guard.ledger.snapshot()["providers"].values())
         if cap <= spent and not guard.paused:
             guard.paused = True

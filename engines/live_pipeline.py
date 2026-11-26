@@ -354,7 +354,8 @@ class LiveConversationPipeline:
         for state in self.pending:
             if state["entry"]["translation_pending"]:
                 self._commit(state, interrupted=True)
-        policy = getattr(getattr(self.interpreter, "settings", None), "fallback_on_budget", "local")
+        policy = getattr(getattr(self.interpreter, "guard", None), "fallback_on_budget",
+                         getattr(getattr(self.interpreter, "settings", None), "fallback_on_budget", "local"))
         ready = getattr(self.interpreter, "local_fallback_ready", lambda: True)
         if policy == "stop" or not ready():
             self.retry_at = None

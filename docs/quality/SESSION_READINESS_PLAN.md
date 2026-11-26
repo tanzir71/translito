@@ -2,6 +2,7 @@
 
 The desktop uses one session plan for the active Listen or Speak language pair.
 The preferred route is retained separately from the route actually running.
+Explicit per-stage recognition choices win over automatic Free-mode selection.
 Cloud setup is requested only when a required connection is missing or rejected;
 model preparation and temporary recovery are presented as setup progress.
 
@@ -38,6 +39,7 @@ model preparation and temporary recovery are presented as setup progress.
 Validated pending money edits commit on debounce, Enter, blur or Start. Partial
 or invalid text never changes the live spending cap. Presentation and valid
 budget edits apply live; source, engine and language changes apply next session.
+Recovered transports retain the latest global/provider caps and fallback policy.
 Stop invalidates pending startup callbacks. Scheduled capture owns only its
 own session and becomes active only after capture starts. Model notifications
 open Models or dismiss; they cannot stop a meeting. Disconnected saved devices

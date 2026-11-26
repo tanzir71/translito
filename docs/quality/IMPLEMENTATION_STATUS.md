@@ -5,7 +5,7 @@ Automatic setup prioritizes required files for language changes, reuses cached
 models and partial files, and preserves manual Pause/Cancel. The main window and
 tray expose download controls. Cloud routing, validated live budgets, pending
 startup cancellation, scheduled-session ownership and temporary stream recovery
-are covered by the final **843 passing tests**. Native rendering retains dark
+are covered by the final **847 passing tests**. Native rendering retains dark
 controls at 800×640 and 820×680. See [the updated plan](SESSION_READINESS_PLAN.md)
 and [Windows 2.0.3 notes](RELEASE_2_0_3.md) for behavior and verification details.
 

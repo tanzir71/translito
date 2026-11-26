@@ -159,7 +159,8 @@ def test_budget_edits_update_active_routers_and_zero_cap_stops_the_live_policy(t
     events = []
     router = ProviderRouter([],total_monthly_cap=5)
     guard = SimpleNamespace(total_monthly_cap=5,fallback_on_budget="local",ledger=ledger,paused=False)
-    interpreter = SimpleNamespace(name="soniox",guard=guard,emit=lambda k,v:events.append((k,v)))
+    interpreter = SimpleNamespace(name="soniox",guard=guard,emit=lambda k,v:events.append((k,v)),
+        settings=EngineSettings(monthly_cap=Decimal(5)), preference=ProviderSettings(monthly_cap=Decimal(5)))
     fallback = SimpleNamespace(recognizer=router,translator=router)
     pipeline = SimpleNamespace(fallback=fallback,interpreter=interpreter)
     variable = lambda value:SimpleNamespace(get=lambda:value)
@@ -175,6 +176,8 @@ def test_budget_edits_update_active_routers_and_zero_cap_stops_the_live_policy(t
     preferences.set("ENGINES", "monthly_cap_usd", "0")
     apply_budget(app)
     assert router.total_monthly_cap == guard.total_monthly_cap == 0
+    assert interpreter.settings.monthly_cap == interpreter.preference.monthly_cap == 0
+    assert interpreter.settings.fallback_on_budget == "stop"
     assert guard.paused and events == [("budget",dict(action="stop",message="Monthly budget reached."))]
     stop = threading.Event()
     live = LiveConversationPipeline.__new__(LiveConversationPipeline)

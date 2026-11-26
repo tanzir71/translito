@@ -108,7 +108,7 @@ def resolve_plan(settings, pair, *, mode="listen", preferred_whisper="openai/whi
 
     requested = defaults["default_asr_provider"] or ("soniox" if choice == "cloud" else "local")
     mt_requested = defaults["default_mt_provider"]
-    if choice == "free":
+    if choice == "free" and not defaults["default_asr_provider"]:
         requested = next((f.name for f in factories if f.kind == "asr"
             and settings.provider(f.name).account_kind != "paid" and not provider_problem(
                 settings, f.name, pair, factories, usage=usage, credentials=credentials)), "local")

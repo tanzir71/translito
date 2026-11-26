@@ -82,6 +82,15 @@ def test_recognition_only_stream_does_not_claim_to_be_the_translator():
     assert stages == {"asr":"speechmatics", "fallback":False}
 
 
+@pytest.mark.parametrize("current,startup,stopped", [("local", "stop", False), ("stop", "local", True)])
+def test_fallback_uses_the_live_budget_policy(current, startup, stopped):
+    item = setup()
+    item.interpreter.settings = SimpleNamespace(fallback_on_budget=startup)
+    item.interpreter.guard = SimpleNamespace(fallback_on_budget=current)
+    item.pipeline._fallback("Monthly budget reached.")
+    assert item.stop.is_set() is stopped
+
+
 def test_listen_english_is_source_only_and_never_translated_or_spoken():
     item = setup()
     item.event("input_transcription", text="The API works.", language="en", finished=True)
