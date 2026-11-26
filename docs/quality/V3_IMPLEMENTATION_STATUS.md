@@ -53,3 +53,14 @@ voices show the requested hint and a Windows speech-settings link in Audio.
 Stale asynchronous voice results cannot overwrite a new audience choice.
 Verification: `python -m pytest -q` — 645 tests pass with fake voice lists only.
 No voices or models were installed, and no physical audio devices were used.
+
+W1: 14 ordered Hugo locales with draft review flags, language/direction metadata,
+14 hreflang alternates plus x-default, locale links and a progressively enhanced
+picker. Plain links/native details work without JS; Escape/outside click close
+the enhanced menu, and storage is guarded. Only a remembered choice redirects
+the English home; browser language is never used. Locale text is scaffolded in
+English pending W3. Exact Hugo 0.121.0 extended is in ignored tools/bin.
+Verification: `python -m pytest -q` — 661 tests pass, including real Hugo builds
+into temporary folders and all 14 home/metadata/picker checks. website/public
+and workflows are untouched. New clones need the same Hugo binary in tools/bin
+or PATH (or TRANSLITO_HUGO) before running site tests.

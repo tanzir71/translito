@@ -1,9 +1,12 @@
 baseURL = 'https://localarabic.com'
-languageCode = 'en-us'
+languageCode = 'en-US'
+defaultContentLanguage = 'en'
+defaultContentLanguageInSubdir = false
+disableKinds = ['taxonomy', 'term']
 title = 'Translito'
 
 [params]
-  seoTitle = 'Translito: Arabic, Spanish, French & 50+ Language Voice Translator'
+  seoTitle = 'Translito: live meeting subtitles in 18 languages for Windows and macOS'
   description = 'A native macOS and Windows app that translates system audio, microphones, and your spoken voice in real time with on-device intelligence.'
   author = 'Translito'
   version = '1.1.5'
@@ -30,3 +33,102 @@ title = 'Translito'
     name = 'Download'
     url = '#download'
     weight = 40
+
+[languages.en]
+  languageName = "English"
+  languageCode = "en-US"
+  weight = 1
+  [languages.en.params]
+    reviewed = false
+
+[languages.de]
+  languageName = "Deutsch"
+  languageCode = "de-DE"
+  weight = 2
+  [languages.de.params]
+    reviewed = false
+
+[languages.es-mx]
+  languageName = "Español (México)"
+  languageCode = "es-MX"
+  weight = 3
+  [languages.es-mx.params]
+    reviewed = false
+
+[languages.fr]
+  languageName = "Français"
+  languageCode = "fr-FR"
+  weight = 4
+  [languages.fr.params]
+    reviewed = false
+
+[languages.nl]
+  languageName = "Nederlands"
+  languageCode = "nl-NL"
+  weight = 5
+  [languages.nl.params]
+    reviewed = false
+
+[languages.nb]
+  languageName = "Norsk"
+  languageCode = "nb-NO"
+  weight = 6
+  [languages.nb.params]
+    reviewed = false
+
+[languages.pl]
+  languageName = "Polski"
+  languageCode = "pl-PL"
+  weight = 7
+  [languages.pl.params]
+    reviewed = false
+
+[languages.pt-br]
+  languageName = "Português (Brasil)"
+  languageCode = "pt-BR"
+  weight = 8
+  [languages.pt-br.params]
+    reviewed = false
+
+[languages.sv]
+  languageName = "Svenska"
+  languageCode = "sv-SE"
+  weight = 9
+  [languages.sv.params]
+    reviewed = false
+
+[languages.ar]
+  languageName = "العربية"
+  languageCode = "ar-SA"
+  weight = 10
+  languageDirection = "rtl"
+  [languages.ar.params]
+    reviewed = false
+
+[languages.zh-cn]
+  languageName = "简体中文"
+  languageCode = "zh-CN"
+  weight = 11
+  [languages.zh-cn.params]
+    reviewed = false
+
+[languages.zh-tw]
+  languageName = "繁體中文"
+  languageCode = "zh-TW"
+  weight = 12
+  [languages.zh-tw.params]
+    reviewed = false
+
+[languages.ja]
+  languageName = "日本語"
+  languageCode = "ja-JP"
+  weight = 13
+  [languages.ja.params]
+    reviewed = false
+
+[languages.ko]
+  languageName = "한국어"
+  languageCode = "ko-KR"
+  weight = 14
+  [languages.ko.params]
+    reviewed = false

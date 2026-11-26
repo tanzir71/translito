@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="{{ .Site.LanguageCode }}">
+<html lang="{{ .Site.Language.LanguageCode }}" dir="{{ .Site.Language.LanguageDirection | default "ltr" }}" data-site-locale="{{ .Site.Language.Lang }}" data-home="{{ .IsHome }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ if .IsHome }}{{ .Site.Params.seoTitle }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
-    <meta name="description" content="{{ .Site.Params.description }}">
+    <title>{{ if .IsHome }}{{ i18n "seoTitle" }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
+    <meta name="description" content="{{ i18n "description" }}">
     <meta name="author" content="{{ .Site.Params.author }}">
     
     <meta name="theme-color" content="#080a09">
@@ -12,14 +12,14 @@
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ .Permalink }}">
-    <meta property="og:title" content="{{ if .IsHome }}{{ .Site.Params.seoTitle }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}">
-    <meta property="og:description" content="{{ .Site.Params.description }}">
+    <meta property="og:title" content="{{ if .IsHome }}{{ i18n "seoTitle" }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}">
+    <meta property="og:description" content="{{ i18n "description" }}">
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="{{ .Permalink }}">
-    <meta property="twitter:title" content="{{ if .IsHome }}{{ .Site.Params.seoTitle }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}">
-    <meta property="twitter:description" content="{{ .Site.Params.description }}">
+    <meta property="twitter:title" content="{{ if .IsHome }}{{ i18n "seoTitle" }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}">
+    <meta property="twitter:description" content="{{ i18n "description" }}">
     
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="{{ "translito-icon.png" | relURL }}">
@@ -32,6 +32,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
+    <link rel="canonical" href="{{ .Permalink }}">
+    {{ if .IsHome }}{{ range .Site.Sites }}
+    <link rel="alternate" hreflang="{{ .Language.LanguageCode }}" href="{{ .Home.Permalink }}">
+    {{ end }}{{ end }}
+    <link rel="alternate" hreflang="x-default" href="{{ (index .Site.Sites 0).Home.Permalink }}">
+    <link rel="stylesheet" href="{{ "css/language-picker.css" | relURL }}">
     <!-- CSS -->
     <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
     
@@ -53,6 +59,7 @@
                     </li>
                     {{ end }}
                 </ul>
+                {{ partial "language-picker.html" . }}
                 <a class="nav-download" href="#download">
                     Download Translito
                 </a>
@@ -72,7 +79,7 @@
                         <img src="{{ "translito-icon.png" | relURL }}" alt="" class="footer-icon">
                         <h3>{{ .Site.Title }}</h3>
                     </div>
-                    <p>{{ .Site.Params.description }}</p>
+                    <p>{{ i18n "description" }}</p>
                 </div>
                 <div class="footer-section">
                 </div>
@@ -86,9 +93,10 @@
                     </ul>
                 </div>
             </div>
+            {{ partial "locale-links.html" . }}
             <div class="footer-bottom">
-                <p>Built by <a href="https://tanziro.com" target="_blank" rel="noopener">Tanzir</a> in Bangladesh 🇧🇩</p>
-                <p>Windows 1.0.4 · macOS 1.0</p>
+                <p>Built by <a href="https://tanziro.com" target="_blank" rel="noopener">Tanzir</a> in Bangladesh ðŸ‡§ðŸ‡©</p>
+                <p>Windows 1.0.4 Â· macOS 1.0</p>
             </div>
         </div>
     </footer>

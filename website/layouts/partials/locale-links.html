@@ -1,0 +1,3 @@
+<div class="footer-locales"><span>{{ i18n "translitoIn" }}</span>
+  {{ range .Site.Sites }}<a href="{{ .Home.RelPermalink }}" lang="{{ .Language.LanguageCode }}" hreflang="{{ .Language.LanguageCode }}" data-locale-choice="{{ .Language.Lang }}">{{ .Language.LanguageName }}</a>{{ end }}
+</div>

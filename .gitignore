@@ -5,3 +5,7 @@ __pycache__/
 tools/eval/sets.local.json
 tools/eval/sets/private/
 tools/eval/results/
+
+# Local Hugo tool and build lock; site tests write output to temporary folders.
+tools/bin/
+website/.hugo_build.lock
