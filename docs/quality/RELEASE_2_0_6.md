@@ -56,3 +56,17 @@ verification. The frozen GUI used the real credential vault with a private copy
 of the reported configuration: Start was admitted with Soniox, browsing two
 unconnected providers retained Soniox, and Cancel cleared the warning and hid
 the main progress panel. No meeting audio was sent during these checks.
+
+The landing page passed **64 checks** with the updated 2.0.6 download links.
+
+The portable archive passed full CRC verification. Every staged file's size
+matches the archive, all 22 checked production modules and the importable GUI
+match the source, and bundled engine data and VB-CABLE resources match their
+sources. Both Windows binaries report version 2.0.6 and remain unsigned.
+The release source commit is `8ca09c7996d4794ccbe3b8c4cdd19a93f91c1645`.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| TranslitoSetup-2.0.6.exe | 256,935,161 | `e307f70dd86fcb6d68e61669d337a0e481759a8763d2fd6bb22919386b9e8145` |
+| TranslitoPortable-2.0.6.zip | 374,102,265 | `ecb9e763efb6343bc413acee019c6fdf63e00584b03c2a6152ada5c672164e83` |
+| Translito.dmg (retained 1.0) | 6,044,398 | `b8f94af1df5425fc3d3d31c8775e9ac013d7db64ca0364d2d8730e0d1fa4ba73` |
