@@ -27,6 +27,9 @@ restored without replaying a warning banner.
 Windows 2.0.6 keeps connected cloud routes active while browsing other providers,
 activates matching recognition and translation together, dismisses cancelled
 download controls, and retries transient cache errors with Windows diagnostics.
+Windows 2.0.7 repairs cache links blocked by Windows protection, starts connected
+cloud capture without requiring local models, chooses supported cloud models
+automatically, and keeps Stop responsive while preserving transcripts.
 
 - Dark 800×640 main window and 820×680 Settings with Languages, Engine, Cost & usage,
   Subtitles, Schedule, Audio, Models and General. Controls save automatically;
@@ -62,7 +65,7 @@ that cached copy. Download and Open folder are alongside it. Model changes
 require an idle session; gated models retain their
 terms/token setup. See [model-manager details](docs/quality/MODEL_MANAGER.md).
 
-- **Windows 2.0.6:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.6/TranslitoSetup-2.0.6.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.6/TranslitoPortable-2.0.6.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.6/SHA256SUMS.txt). Preserves connected cloud routes, synchronizes provider setup, clears cancelled download controls and retries transient cache failures. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_6.md).
+- **Windows 2.0.7:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.7/TranslitoSetup-2.0.7.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.7/TranslitoPortable-2.0.7.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.7/SHA256SUMS.txt). Repairs protected cache links, gives connected cloud capture priority, selects supported models automatically and keeps Stop responsive. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_7.md).
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 For the portable build, extract the entire ZIP into a new empty folder before

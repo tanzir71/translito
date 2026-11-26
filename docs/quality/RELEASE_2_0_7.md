@@ -58,6 +58,7 @@ engine data and VB-CABLE resources match their sources. Thirteen Python modules
 were rebuilt; 9,738 others and 14 archive entries are unchanged. Both raw and
 importable GUI copies were updated and verified. Release source:
 `9acfd7391d7cdbc9f1934e09806b56f83d54ea4e`.
+The landing page passed **64 checks** with the 2.0.7 download links.
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
