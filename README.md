@@ -59,7 +59,7 @@ that cached copy. Download and Open folder are alongside it. Model changes
 require an idle session; gated models retain their
 terms/token setup. See [model-manager details](docs/quality/MODEL_MANAGER.md).
 
-- **Windows 2.0.4:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.4/TranslitoSetup-2.0.4.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.4/TranslitoPortable-2.0.4.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.4/SHA256SUMS.txt). Fixes download Resume and buffered progress, opens on Listen, and centers setup actions. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_4.md).
+- **Windows 2.0.5:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.5/TranslitoSetup-2.0.5.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.5/TranslitoPortable-2.0.5.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.5/SHA256SUMS.txt). Recognizes cached models instead of restoring stale failed downloads, suppresses old startup warnings, and adds actionable setup diagnostics. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_5.md).
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 For the portable build, extract the entire ZIP into a new empty folder before
