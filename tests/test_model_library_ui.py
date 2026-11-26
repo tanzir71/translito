@@ -10,10 +10,18 @@ from model_library_ui import ModelManagerWindow
 
 @pytest.fixture(scope="module")
 def tk_root():
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("Tk display unavailable")
+    import os
+    import time
+    for attempt in range(6):
+        try:
+            root = tk.Tk()
+            break
+        except tk.TclError:
+            if attempt == 5:
+                if os.name != "nt":
+                    pytest.skip("Tk display unavailable")
+                raise
+            time.sleep(.1)
     root.withdraw()
     yield root
     root.destroy()

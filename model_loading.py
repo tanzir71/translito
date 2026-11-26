@@ -146,6 +146,10 @@ class ModelLoadManager:
         offline_only=False,
         on_event=None,
     ):
+        from engines.model_files import DOWNLOADING, whisper_spec, ModelNotReady, Incomplete
+        spec = whisper_spec(whisper_model)
+        if spec.repo in DOWNLOADING:
+            raise ModelNotReady(spec, Incomplete(0, spec.expected_size))
         key = (whisper_model, translation_model, torch_device, str(torch_dtype), bool(offline_only))
         with self._condition:
             if self._maintenance:

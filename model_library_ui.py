@@ -192,11 +192,14 @@ class ModelManagerWindow:
             else:
                 self.app.open_translation_model_setup()
             return
-        self.status.set(f"Downloading {row.spec.title}…")
-        def progress(kind, payload):
-            if kind == "model_progress":
-                self.dispatch(lambda: self.status.set(payload.get("phase", "Downloading…")))
-        self.run(lambda: self.library.download(row, on_event=progress), "Model downloaded. It is available for the next session.")
+        self.status.set(f"Downloading {row.spec.title} in the background…")
+        if hasattr(self.app, "download_manager"):
+            try:
+                self.app.download_manager.enqueue_model(row.spec)
+            except (ValueError, OSError) as error:
+                self.status.set(str(error))
+        else:
+            self.run(lambda: self.library.download(row), "Model downloaded. It is available for the next session.")
 
     def delete(self):
         row = self.selected()

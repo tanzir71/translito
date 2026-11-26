@@ -9,6 +9,10 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--check-runtime"]:
 
     raise SystemExit(check_main(sys.argv[2:]))
 
+if __name__ == "__main__" and sys.argv[1:2] == ["--download-job"]:
+    from engines.downloads import download_child
+    raise SystemExit(download_child(sys.argv[2]))
+
 import threading
 import tkinter as tk
 from tkinter import filedialog
@@ -524,6 +528,8 @@ class TranslatorGUI:
         self.schedule_controller = ScheduleController(self, COLORS)
         from reply_ui import ReplyController
         self.reply_controller = ReplyController(self, COLORS)
+        from download_ui import initialize as initialize_downloads
+        initialize_downloads(self, COLORS)
         self._initializing = False
         if not self.preview_mode:
             self.root.after(350, self.preload_current_models)
@@ -1133,6 +1139,8 @@ class TranslatorGUI:
         )
         self.settings_controls.extend((whisper_settings, chunk_scale, offline))
 
+        from download_ui import models_page
+        models_page(self, self.settings_shell.contents["Models"], COLORS)
         from engine_ui import pages as build_engine_pages
         build_engine_pages(self, COLORS)
         from subtitle_overlay import build_subtitle_page
@@ -2577,6 +2585,7 @@ class TranslatorGUI:
                     lambda _icon, _item: self.root.after(0, self.save_transcript),
                     enabled=lambda _item: bool(self.transcript_entries),
                 ),
+                pystray.MenuItem(lambda item: self.download_text.get() or "No downloads running", lambda *args: None, enabled=False),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
                     "Settings…",
@@ -2632,6 +2641,10 @@ class TranslatorGUI:
         self.open_settings()
 
     def quit_app(self):
+        if self.download_manager.active and not messagebox.askyesno("Download in progress",
+                "Quit and resume the download next time?", parent=self.root):
+            return
+        self.download_manager.close()
         self.is_quitting = True
         self.subtitle_controller.close()
         self.reply_controller.close()

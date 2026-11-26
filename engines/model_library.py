@@ -180,6 +180,11 @@ class ModelLibrary:
                 known.add(repo.repo_id)
         entries = []
         for spec in specs:
+            from dataclasses import replace
+            from engines.model_files import local_folder
+            registered = local_folder(spec.repo) if self._default_specs else None
+            if registered and spec.local_path is None:
+                spec = replace(spec, local_path=registered)
             copies = []
             if spec.local_path is not None:
                 path = spec.local_path.expanduser().absolute()
@@ -238,6 +243,9 @@ class ModelLibrary:
     def delete(self, entry, *, confirmed=False):
         if confirmed is not True:
             raise ModelLibraryError("Confirm the selected model deletion first.")
+        from engines.model_files import DOWNLOADING
+        if entry.spec.repo in DOWNLOADING:
+            raise ModelLibraryError("Pause this model download before removing its files.")
         self._guard()
         with self.manager.maintenance():
             self._guard()

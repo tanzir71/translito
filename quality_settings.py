@@ -70,9 +70,6 @@ def open_cohere_setup(app, colors, center):
     ttk.Button(buttons, text="Choose folder", style="Mac.TButton", command=browse).pack(side="left")
 
     def download():
-        if app.transcriber is not None or app.model_setup_busy:
-            status.set("Finish the current session or model setup first.")
-            return
         if app.preview_mode:
             status.set("Preview only: no key is saved and no download starts.")
             return
@@ -101,49 +98,14 @@ def open_cohere_setup(app, colors, center):
         except Exception as exc:
             status.set(str(exc))
             return
-        download_button.configure(state="disabled")
-        fallback_button.configure(state="disabled")
-        status.set("Downloading and preparing the model…")
-        app.model_setup_busy = True
-        app.set_status("Loading models")
-        app.update_action_button(running=False, loading=True)
-
-        def work():
-            success = False
-            try:
-                import torch
-                from engines.asr_local import get_cohere_model
-                model = get_cohere_model(device="cuda:0" if torch.cuda.is_available() else "cpu",
-                                          cache_dir=str(chosen), on_event=app.on_event)
-                model.offline_only = False
-                model.credentials = credentials
-                try:
-                    model.load()
-                finally:
-                    model.offline_only = True
-                success = True
-            except Exception:
-                # Download SDK errors may contain auth information; never show
-                # their exception text or traceback in this provider card.
-                pass
-
-            def finish():
-                app.model_setup_busy = False
-                app.finish_model_progress()
-                app.set_status("Ready")
-                app.update_action_button(running=False)
-                if window.winfo_exists():
-                    download_button.configure(state="normal")
-                    fallback_button.configure(state="normal")
-                    status.set("Model ready. Your next Arabic/English session will use it." if success else
-                               "Model setup failed. Check model access, the read token and free disk space, then retry.")
-
-            try:
-                app.root.after(0, finish)
-            except (RuntimeError, tk.TclError):
-                pass
-
-        threading.Thread(target=work, daemon=True).start()
+        from engines.model_library import ModelSpec
+        from engines.asr_cohere_local import MODEL_ID
+        try:
+            app.download_manager.enqueue_model(ModelSpec("cohere", "Cohere Arabic", "Speech", MODEL_ID,
+                "transformers", chosen, expected_size=7000000000), credential="huggingface")
+            status.set("Downloading in the background. You can close this window.")
+        except (ValueError, OSError) as error:
+            status.set(str(error))
 
     download_button = ttk.Button(buttons, text="3. Save key and download", style="Primary.TButton", command=download)
     download_button.pack(side="right")
@@ -154,7 +116,7 @@ def open_cohere_setup(app, colors, center):
              fg=colors["secondary"], wraplength=550, justify="left").pack(fill="x", pady=(10, 5))
 
     def download_fallback():
-        if app.preview_mode or app.transcriber is not None or app.model_setup_busy:
+        if app.preview_mode:
             status.set("Stop the session to download. Preview mode does not download models.")
             return
         try:
@@ -163,39 +125,13 @@ def open_cohere_setup(app, colors, center):
         except Exception:
             status.set("Choose an absolute model folder with enough free disk space.")
             return
-        fallback_button.configure(state="disabled")
-        download_button.configure(state="disabled")
-        app.set_status("Loading models")
-        app.update_action_button(running=False, loading=True)
-        status.set("Downloading the Arabic/English fallback…")
-        app.model_setup_busy = True
-
-        def work():
-            success = False
-            try:
-                from engines.asr_codeswitch import prepare_codeswitch_model
-                prepare_codeswitch_model(on_event=app.on_event)
-                success = True
-            except Exception:
-                pass
-
-            def finish():
-                app.model_setup_busy = False
-                app.finish_model_progress()
-                app.set_status("Ready")
-                app.update_action_button(running=False)
-                if window.winfo_exists():
-                    fallback_button.configure(state="normal")
-                    download_button.configure(state="normal")
-                    status.set("Fallback ready. It will be used when Cohere Arabic is unavailable." if success else
-                               "Fallback setup failed. Check your connection and free disk space, then retry.")
-
-            try:
-                app.root.after(0, finish)
-            except (RuntimeError, tk.TclError):
-                pass
-
-        threading.Thread(target=work, daemon=True).start()
+        from engines.model_files import whisper_spec
+        try:
+            from engines.asr_codeswitch import CODESWITCH_REPO
+            app.download_manager.enqueue_model(whisper_spec(CODESWITCH_REPO))
+            status.set("Downloading in the background. You can close this window.")
+        except (ValueError, OSError) as error:
+            status.set(str(error))
 
     fallback_button = ttk.Button(body, text="Download the Arabic/English fallback", style="Mac.TButton",
                                   command=download_fallback)
@@ -204,101 +140,8 @@ def open_cohere_setup(app, colors, center):
 
 
 def open_translategemma_setup(app, colors, center):
-    from engines.mt_translategemma import GEMMA_TERMS_URL, configured_model_path, enough_ram
-    window = _window(app, "Set up local translation", colors, center, 600, 420)
-    body = tk.Frame(window, bg=colors["bg"], padx=18, pady=18)
-    body.pack(fill="both", expand=True)
-    tk.Label(body, text="TranslateGemma 4B", bg=colors["bg"], fg=colors["text"],
-             font=("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
-    tk.Label(body, text="Optional local translation for Arabic, English and the other conversation languages. "
-             "The 2.5 GB model needs at least 8 GB RAM and 4 GB free disk space. "
-             "Your meeting audio and text stay on this PC.", bg=colors["bg"], fg=colors["secondary"],
-             wraplength=550, justify="left").pack(fill="x", pady=10)
-    ttk.Button(body, text="Review the Gemma Terms of Use", style="Mac.TButton",
-               command=lambda: webbrowser.open(GEMMA_TERMS_URL)).pack(anchor="w", pady=4)
-    accepted = tk.BooleanVar(value=False)
-    tk.Checkbutton(body, text="I have read and accept the Gemma Terms of Use", variable=accepted,
-                   **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=5)
-    model_path = configured_model_path()
-    folder = tk.StringVar(value=str(model_path.parent))
-    if not model_path.is_file() and Path("D:/").exists() and shutil.disk_usage(Path("D:/")).free > 4 * 2**30:
-        folder.set("D:/TranslitoModels/translategemma")
-    _entry(body, "Model folder", folder, colors)
-    status = tk.StringVar(value="No download starts until you accept the terms and press Download.")
-
-    def browse():
-        selected = filedialog.askdirectory(parent=window, title="Choose model folder")
-        if selected:
-            folder.set(selected)
-
-    def download():
-        if app.preview_mode:
-            status.set("Preview only: no download starts and no settings are saved.")
-            return
-        if app.transcriber is not None or app.model_setup_busy:
-            status.set("Finish the current session or model setup first.")
-            return
-        if not accepted.get():
-            status.set("Review and accept the Gemma Terms of Use first.")
-            return
-        try:
-            if not enough_ram():
-                raise ValueError("This model needs at least 8 GB RAM. Lite translation remains available.")
-            chosen = Path(folder.get()).expanduser()
-            if not chosen.is_absolute():
-                raise ValueError("Choose an absolute folder for the model.")
-            existing = chosen
-            while not existing.exists() and existing.parent != existing:
-                existing = existing.parent
-            if not existing.is_dir() or shutil.disk_usage(existing).free < 4 * 2**30:
-                raise ValueError("Choose a folder on an available drive with at least 4 GB free.")
-        except (OSError, ValueError) as exc:
-            status.set(str(exc))
-            return
-        app.model_setup_busy = True
-        app.set_status("Loading models")
-        app.update_action_button(running=False, loading=True)
-        download_button.configure(state="disabled")
-        status.set("Downloading and verifying TranslateGemma…")
-
-        def work():
-            success = False
-            try:
-                from app_config import save_translategemma_path
-                from engines.mt_translategemma import download_model, cached_translator
-                downloaded = download_model(chosen, accepted_terms=True, on_event=app.on_event)
-                cached_translator(str(downloaded)).warmup()
-                # Publish the path only after integrity, template and load checks.
-                save_translategemma_path(downloaded)
-                success = True
-            except Exception:
-                pass
-
-            def finish():
-                app.model_setup_busy = False
-                app.finish_model_progress()
-                app.set_status("Ready")
-                app.update_action_button(running=False)
-                if window.winfo_exists():
-                    download_button.configure(state="normal")
-                    status.set("TranslateGemma is ready for your next session." if success else
-                               "Model setup failed. Check your connection, memory and free disk space. "
-                               "Existing model files and settings were preserved.")
-            try:
-                app.root.after(0, finish)
-            except (RuntimeError, tk.TclError):
-                pass
-
-        threading.Thread(target=work, daemon=True).start()
-
-    buttons = tk.Frame(body, bg=colors["bg"])
-    buttons.pack(fill="x", pady=6)
-    ttk.Button(buttons, text="Choose folder", style="Mac.TButton", command=browse).pack(side="left")
-    download_button = ttk.Button(buttons, text="Download and prepare", style="Primary.TButton", command=download)
-    download_button.pack(side="right")
-    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["secondary"],
-             wraplength=550, justify="left", anchor="w").pack(fill="x", pady=10)
-    return window
+    from download_ui import gemma_dialog
+    return gemma_dialog(app, colors, center)
 
 
 def open_terms_editor(app, colors, center):

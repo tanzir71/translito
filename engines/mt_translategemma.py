@@ -86,7 +86,7 @@ class TranslateGemma:
             from llama_cpp import Llama
             from llama_cpp.llama_chat_format import Jinja2ChatFormatter
             model = (self.loader or Llama)(model_path=str(self.path), n_ctx=2048,
-                                          n_threads=psutil.cpu_count(logical=False) or 2,
+                                          n_threads=max(1, (psutil.cpu_count(logical=False) or 2) - 1),
                                           n_gpu_layers=0, verbose=False)
             template = model.metadata.get("tokenizer.chat_template", "")
             if hashlib.sha256(template.replace("\r\n", "\n").encode("utf-8")).hexdigest() != MANIFEST["template_sha256"]:

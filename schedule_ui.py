@@ -80,7 +80,7 @@ class ScheduleController:
         window.overrideredirect(True)
         window.attributes("-topmost", True)
         window.configure(bg=self.colors["surface"], padx=14, pady=12)
-        tk.Label(window, text="Scheduled listening · "+event.title, bg=self.colors["surface"], fg=self.colors["text"], wraplength=340, justify="left").pack(fill="x")
+        tk.Label(window, text=("" if getattr(event, "download", False) else "Scheduled listening · ")+event.title, bg=self.colors["surface"], fg=self.colors["text"], wraplength=340, justify="left").pack(fill="x")
         actions = tk.Frame(window,bg=self.colors["surface"])
         actions.pack(fill="x",pady=(8,0))
         ttk.Button(actions,text="Stop",style="Mac.TButton",command=lambda:(self.app.stop(),window.destroy())).pack(side="left")
