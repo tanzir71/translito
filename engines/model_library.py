@@ -238,7 +238,8 @@ class ModelLibrary:
         _lid_model.cache_clear()
         _cohere_model.cache_clear()
         cached_translator.cache_clear()
-        gc.collect()
+        from tk_lifecycle import collect_on_ui
+        collect_on_ui()
 
     def delete(self, entry, *, confirmed=False):
         if confirmed is not True:

@@ -104,3 +104,7 @@ def setting(section, key, default=""):
     if section == "ENGINES" and key.endswith("_monthly_cap_usd"):
         return Setting(section, key, default="", validator=lambda v: "" if not str(v).strip() else money(v))
     return Setting(section, key, type(default), default)
+
+add("SCHEDULE", "weekly_blocks", "[]")
+add("SCHEDULE", "skipped", "[]", live=True)
+add("SCHEDULE", "lead_seconds", 60, labels={0:"At the start time",60:"1 min before the start time",120:"2 min before",300:"5 min before"})

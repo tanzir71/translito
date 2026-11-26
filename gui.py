@@ -370,12 +370,17 @@ class MacScale(tk.Canvas):
 class TranslatorGUI:
     def __init__(self, root):
         self.root = root
+        from tk_lifecycle import confine_tk_collection
+        confine_tk_collection(root)
         self.root.title(APP_NAME)
         self.root.geometry("800x640")
         self.root.minsize(640, 480)
         self.root.configure(bg=COLORS["bg"])
         self.preview_mode = os.environ.get("TRANSLITO_UI_PREVIEW", "0").strip() == "1"
         self._initializing = True
+        self.tray_mode = "--tray" in sys.argv
+        if self.tray_mode:
+            self.root.withdraw()
 
         icon_path = app_resource_path("Translito.ico")
         if icon_path.exists():
@@ -509,6 +514,8 @@ class TranslatorGUI:
             on_error=lambda message: self.root.after(0, lambda: self.show_error(message)),
         )
         if not self.preview_mode:
+            from login import migrate_startup_command
+            migrate_startup_command()
             self.register_hotkeys()
             self.setup_tray()
 
@@ -531,7 +538,7 @@ class TranslatorGUI:
             self.root.after(350, self.preload_current_models)
             self.root.after(3000, self.auto_refresh_devices)
             self.root.after(1000, self.refresh_cost_status)
-            if not self.preferences.get("CAPTURE", "default_app_prompted", False):
+            if not self.tray_mode and not self.preferences.get("CAPTURE", "default_app_prompted", False):
                 self.preferences.set("CAPTURE", "default_app_prompted", True)
                 self.root.after(600, lambda: self.show_hint("Choose your default meeting app in Settings → Audio."))
 
@@ -2676,6 +2683,8 @@ def gui_main():
         from app_identity import APP_USER_MODEL_ID
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
     root = tk.Tk()
+    if "--tray" in sys.argv:
+        root.withdraw()
     TranslatorGUI(root)
     root.mainloop()
 

@@ -12,13 +12,31 @@ class ScheduleController:
     def __init__(self, app, colors):
         self.app, self.colors, self.feed = app, colors, None
         self.events, self.refreshing, self.next_refresh = [], False, None
-        self.scheduler = Scheduler(clock=lambda:datetime.now(timezone.utc), running=lambda:app.transcriber is not None or app.model_setup_busy,
+        self.scheduler = Scheduler(clock=lambda:datetime.now(timezone.utc), running=lambda:app.transcriber is not None,
             start_listen=self.start_listen, stop=app.stop, app_has_audio=self.app_has_audio, notice=self.toast,
             confirm=lambda event:messagebox.askyesno("Scheduled meeting", "Start listening for this meeting?", parent=app.root))
+        from engines.weekly_schedule import local_timezone, migrate_entries
+        pc_zone = local_timezone()
+        config = app.preferences.store.read()
+        if not config.has_option("SCHEDULE", "weekly_blocks"):
+            old = json.loads(config.get("SCHEDULE", "weekly_times", fallback="[]"))
+            blocks, changed = migrate_entries(old, config.get("SCHEDULE", "timezone", fallback="UTC"), pc_zone)
+            if not blocks:
+                blocks = [dict(days=[0,1,2,3,4],start="09:30",end="18:00",timezone=pc_zone,title="Workdays")]
+            app.preferences.set("SCHEDULE", "weekly_blocks", json.dumps(blocks))
+            if changed:
+                app.preferences.set("SCHEDULE", "timezone", pc_zone)
+                app.preferences.set("SCHEDULE", "timezone_notice", f"Weekly times now use your PC's time zone ({pc_zone}). Check them in Settings › Schedule.")
+        if not app.preview_mode and "blocks" in locals():
+            changes = {("SCHEDULE", "weekly_blocks"): json.dumps(blocks)}
+            if changed:
+                changes["SCHEDULE", "timezone"] = pc_zone
+                changes["SCHEDULE", "timezone_notice"] = f"Weekly times now use your PC's time zone ({pc_zone}). Check them in Settings › Schedule."
+            app.preferences.store.update(changes, sync=True)
         self.variables = {}
-        for key, default in (("enabled", False), ("source", "weekly"), ("weekly_times", "[]"), ("lead_seconds", 60),
+        for key, default in (("enabled", False), ("source", "weekly"), ("weekly_times", "[]"), ("weekly_blocks", json.dumps(blocks) if "blocks" in locals() else "[]"), ("skipped", "[]"), ("lead_seconds", 60),
             ("stop_rule", "end"), ("silence_seconds", 300), ("wait_for_app_audio", True), ("ask_before_start", False),
-            ("only_with_call_link", False), ("timezone", "UTC")):
+            ("only_with_call_link", False), ("timezone", pc_zone)):
             var = tk.BooleanVar(app.root) if isinstance(default,bool) else tk.IntVar(app.root) if isinstance(default,int) else tk.StringVar(app.root)
             self.variables[key] = app.preferences.bind(var, "SCHEDULE", key, default)
         app.next_meeting_var = tk.StringVar()
@@ -54,7 +72,7 @@ class ScheduleController:
         if values["enabled"].get() and not app.preview_mode:
             if values["source"].get() == "weekly":
                 try:
-                    self.events = weekly_meetings(json.loads(values["weekly_times"].get()), now-timedelta(days=1), now+timedelta(days=7), default_timezone=values["timezone"].get())
+                    self.events = weekly_meetings(json.loads(values["weekly_blocks"].get()), now-timedelta(days=1), now+timedelta(days=7), default_timezone=values["timezone"].get())
                 except (ValueError, KeyError, TypeError):
                     self.events = []
             elif not self.refreshing and (self.next_refresh is None or now >= self.next_refresh):
@@ -67,7 +85,13 @@ class ScheduleController:
                     finally:
                         self.refreshing = False
                 threading.Thread(target=refresh, daemon=True).start()
-            self.scheduler.tick(self.events, **{key:var.get() for key,var in values.items() if key in {
+            try:
+                skips = [item for item in json.loads(values["skipped"].get()) if datetime.fromisoformat(item["end"]) > now]
+                if json.dumps(skips) != values["skipped"].get():
+                    values["skipped"].set(json.dumps(skips))
+            except (ValueError, KeyError, TypeError):
+                skips = []
+            self.scheduler.tick(self.events, skipped={item["id"] for item in skips}, **{key:var.get() for key,var in values.items() if key in {
                 "enabled", "lead_seconds", "wait_for_app_audio", "stop_rule", "silence_seconds", "ask_before_start", "only_with_call_link"}})
         elif self.scheduler.active:
             self.scheduler.tick([], enabled=False)
@@ -92,71 +116,9 @@ class ScheduleController:
 
 
 def page(app, colors):
-    from engine_ui import field, heading
-    from ui_widgets import Switch
-    controller, parent = app.schedule_controller, app.settings_shell.contents["Schedule"]
-    variables = controller.variables
-    heading(parent,"Schedule","Start listening and show subtitles when meetings begin. Translito must remain running in the tray.",colors)
-    row = tk.Frame(parent,bg=colors["bg"])
-    row.pack(fill="x",pady=8)
-    tk.Label(row,text="Start automatically for meetings",bg=colors["bg"],fg=colors["text"]).pack(side="left")
-    Switch(row,variables["enabled"],colors).pack(side="right")
-    field(parent,"Meeting times come from",variables["source"],colors,("ical","weekly"))
-    link = tk.StringVar()
-    entry = field(parent,"Private calendar link (stored securely; press Enter)",link,colors)
-    entry.configure(show="•")
-    status = tk.StringVar(value="The calendar link is kept in Credential Manager. Open at login keeps scheduling available.")
-    def connect(_event=None):
-        if app.preview_mode:
-            status.set("Preview: no credentials are read or saved.")
-            return
-        if link.get():
-            try:
-                controller.calendar_feed().connect(link.get())
-                link.set("")
-                controller.next_refresh = None
-                status.set("Calendar link stored securely. Times refresh every 15 minutes.")
-            except Exception:
-                status.set("Calendar connection failed. Use a read-only HTTPS iCal link.")
-    entry.bind("<Return>",connect)
-    entry.bind("<FocusOut>",connect)
-    field(parent,"Time zone for weekly times",variables["timezone"],colors)
-    days = ("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
-    day, start, end = tk.StringVar(value=days[0]), tk.StringVar(value="15:00"), tk.StringVar(value="16:00")
-    field(parent,"Day",day,colors,days)
-    field(parent,"Start (24-hour HH:MM)",start,colors)
-    field(parent,"End (24-hour HH:MM)",end,colors)
-    listing = tk.Listbox(parent,bg=colors["field"],fg=colors["text"],height=3,relief="flat",bd=0)
-    listing.pack(fill="x",pady=8)
-    def render(*_):
-        listing.delete(0,"end")
-        try:
-            for item in json.loads(variables["weekly_times"].get()):
-                listing.insert("end",f"{days[item['weekday']]} {item['start']} – {item['end']} · {item.get('timezone','UTC')}")
-        except (ValueError,KeyError,TypeError):
-            status.set("Weekly times could not be read. Existing settings were preserved.")
-    def add():
-        try:
-            items = json.loads(variables["weekly_times"].get())
-            value = dict(weekday=days.index(day.get()),start=start.get(),end=end.get(),timezone=variables["timezone"].get())
-            weekly_meetings([value],datetime.now(timezone.utc),datetime.now(timezone.utc)+timedelta(days=7))
-            variables["weekly_times"].set(json.dumps([*items,value]))
-        except (ValueError,KeyError,TypeError):
-            status.set("Use a valid IANA time zone and HH:MM times.")
-    def remove():
-        if listing.curselection():
-            items = json.loads(variables["weekly_times"].get())
-            items.pop(listing.curselection()[0])
-            variables["weekly_times"].set(json.dumps(items))
-    buttons = tk.Frame(parent,bg=colors["bg"])
-    buttons.pack(fill="x")
-    ttk.Button(buttons,text="Add weekly time",style="Mac.TButton",command=add).pack(side="left")
-    ttk.Button(buttons,text="Remove selected",style="Mac.TButton",command=remove).pack(side="left",padx=8)
-    variables["weekly_times"].trace_add("write",render)
-    render()
-    field(parent,"Start this many seconds before the meeting",variables["lead_seconds"],colors,(0,30,60,120,300))
-    field(parent,"Stop",variables["stop_rule"],colors,("end","silence"))
-    field(parent,"Stop after silence (seconds)",variables["silence_seconds"],colors,(60,180,300,600))
-    for key,label in (("wait_for_app_audio","Wait until the default meeting app plays audio"),("ask_before_start","Ask before each start"),("only_with_call_link","Only events containing a call link")):
-        tk.Checkbutton(parent,text=label,variable=variables[key],**{**app._checkbutton_options(),"bg":colors["bg"]}).pack(anchor="w",pady=5)
-    tk.Label(parent,textvariable=status,bg=colors["bg"],fg=colors["tertiary"],wraplength=550,justify="left",anchor="w").pack(fill="x",pady=12)
+    from weekly_schedule_ui import page as workday_page
+    workday_page(app, colors)
+    notice = app.preferences.get("SCHEDULE", "timezone_notice", "")
+    if notice:
+        app.show_hint(notice)
+        app.preferences.set("SCHEDULE", "timezone_notice", "")

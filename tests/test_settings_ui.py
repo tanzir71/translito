@@ -19,6 +19,7 @@ def desktop(tmp_path, monkeypatch, tk_parent):
     monkeypatch.setattr(gui, "CONFIG_FILE", path)
     monkeypatch.setattr(app_config, "CONFIG_FILE", path)
     monkeypatch.setattr(gui, "is_open_at_login_enabled", lambda: False)
+    monkeypatch.setattr("login.migrate_startup_command", lambda: False)
     monkeypatch.setattr(gui, "query_input_devices", lambda **kw: [])
     monkeypatch.setattr(gui, "query_output_devices", lambda: [])
     for name in ("register_hotkeys", "setup_tray", "refresh_voices", "preload_current_models", "auto_refresh_devices"):
@@ -157,3 +158,57 @@ def test_inline_connect_status_and_remove_during_background_download(desktop, mo
         assert app.engine_var.get() == "On this PC · needs a monthly budget"
         app.cloud_remove()
         assert not keys
+
+
+def test_workday_chips_times_validation_and_restart(desktop, monkeypatch):
+    from engines.weekly_schedule import PRESETS
+    from app_config import read_config
+    import json
+    monkeypatch.setattr("engines.weekly_schedule.local_timezone", lambda: "Asia/Dhaka")
+    create, path = desktop
+    first = create()
+    first.settings_shell.show("Schedule")
+    first.schedule_block_views[0]["preset"](PRESETS["Sun–Thu"])
+    first.root.update()
+    var, widget = first.schedule_block_views[0]["times"]["start"]
+    widget.set("9:30 pm")
+    widget.event_generate("<FocusOut>")
+    var, widget = first.schedule_block_views[0]["times"]["end"]
+    widget.set("06:00")
+    widget.event_generate("<FocusOut>")
+    first.preferences.store.flush()
+    saved = json.loads(read_config(path)["SCHEDULE"]["weekly_blocks"])
+    assert saved[0]["days"] == [0,1,2,3,6]
+    assert saved[0]["start"] == "21:30" and saved[0]["end"] == "06:00"
+    assert "ends the next day" in first.schedule_block_views[0]["summary"].get()
+    before = path.read_bytes()
+    widget.set("bad time")
+    widget.event_generate("<FocusOut>")
+    first.preferences.store.flush()
+    assert "Enter a time" in first.schedule_error_var.get()
+    assert path.read_bytes() == before
+    second = create()
+    assert json.loads(second.schedule_controller.variables["weekly_blocks"].get()) == saved
+    second.schedule_add_block()
+    assert str(second.schedule_block_views[1]["days"][0].cget("state")) == "disabled"
+    assert second.schedule_block_views[1]["days"][0].tooltip
+
+
+def test_weekly_utc_notice_is_migrated_once_and_tray_start_is_quiet(desktop, monkeypatch):
+    import json
+    from unittest.mock import Mock
+    from app_config import read_config
+    monkeypatch.setattr("engines.weekly_schedule.local_timezone", lambda: "Asia/Dhaka")
+    monkeypatch.setattr(gui.sys, "argv", ["gui.py", "--tray"])
+    tray = Mock()
+    monkeypatch.setattr(gui.TranslatorGUI, "setup_tray", tray)
+    create, path = desktop
+    old = [dict(weekday=d,start="09:30",end="18:00",timezone="UTC") for d in range(5)]
+    path.write_text("[CAPTURE]\ndefault_app_prompted = 1\n[SCHEDULE]\ntimezone = UTC\nweekly_times = "+json.dumps(old)+"\n")
+    app = create()
+    assert app.root.state() == "withdrawn"
+    tray.assert_called_once()
+    assert "Weekly times now use your PC's time zone (Asia/Dhaka)" in app.hint_var.get()
+    assert read_config(path).get("SCHEDULE","timezone_notice") == ""
+    next_app = create()
+    assert "Weekly times now use" not in next_app.hint_var.get()

@@ -52,7 +52,7 @@ Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Description: "Launch {#M
 Filename: "https://vb-audio.com/Services/licensing.htm"; Description: "Support VB-Audio / donate for VB-CABLE"; Flags: shellexec postinstall skipifsilent unchecked
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Translito"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: startup; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Translito"; ValueData: """{app}\{#MyAppExeName}"" --tray"; Tasks: startup; Flags: uninsdeletevalue
 
 [Code]
 const

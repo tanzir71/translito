@@ -97,6 +97,9 @@ class SettingsState:
     def close(self):
         for var, token in self.bindings:
             var.trace_remove("write", token)
+            var.save_now = lambda: None
+            var.settings_owner = None
+            var.validation_error = None
         self.bindings.clear()
         if self.writable():
             self.store.flush()
