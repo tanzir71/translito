@@ -10,6 +10,7 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--check-runtime"]:
     raise SystemExit(check_main(sys.argv[2:]))
 
 import threading
+import webbrowser
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
@@ -435,6 +436,7 @@ class TranslatorGUI:
         self.offline_only_var = tk.BooleanVar(value=offline_default)
         self.monitor_var = tk.BooleanVar(value=speak_config.monitor_spoken_audio)
         self.voice_var = tk.StringVar(value=speak_config.voice or "Automatic")
+        self.voice_hint_var = tk.StringVar(value="")
         self.noise_gate_var = tk.DoubleVar(value=runtime_config.mic_noise_gate)
         self.chunk_duration_var = tk.DoubleVar(value=runtime_config.chunk_duration)
         self.transcript_folder_var = tk.StringVar(value=str(load_transcript_folder(CONFIG_FILE)))
@@ -1329,6 +1331,12 @@ class TranslatorGUI:
         speak = self._settings_section(content, "Speak Mode")
         voice_settings = self._settings_combo(speak, "Voice", self.voice_var, ["Automatic"])
         self.voice_settings_combo = voice_settings
+        self.voice_guidance = tk.Frame(speak, bg=speak.cget("bg"))
+        tk.Label(self.voice_guidance, textvariable=self.voice_hint_var, bg=speak.cget("bg"),
+                 fg=COLORS["secondary"], font=("Segoe UI", 8), wraplength=440,
+                 justify="left", anchor="w").pack(fill="x", pady=(8, 4))
+        ttk.Button(self.voice_guidance, text="Windows speech settings", style="Mac.TButton",
+                   command=lambda: webbrowser.open("ms-settings:speech")).pack(anchor="w")
         monitor = tk.Checkbutton(
             speak,
             text="Also play spoken translation through my speakers",
@@ -1337,6 +1345,9 @@ class TranslatorGUI:
             **self._checkbutton_options(),
         )
         monitor.pack(anchor="w", pady=(7, 2))
+        self.voice_settings_monitor = monitor
+        if self.voice_hint_var.get():
+            self.voice_guidance.pack(fill="x", before=monitor)
         self._settings_help(
             speak,
             "Route Speak Mode into Slack, Zoom, Teams, or Meet with VB-Audio Virtual Cable. Use headphones to prevent feedback.",
@@ -1565,6 +1576,11 @@ class TranslatorGUI:
             advanced.pack(fill="x") if one_way else advanced.pack_forget()
         if persist:
             self.persist_settings()
+
+        voice_variable = self.speak_target_var if one_way else self.audience_language_var
+        voice_language = self.language_entry_by_name(voice_variable.get())[2]
+        if getattr(self, "_voice_language", None) != voice_language:
+            self.refresh_voices()
 
     def change_quality_preset(self):
         self.whisper_var.set({"Fast": "openai/whisper-small", "Balanced": "openai/whisper-small",
@@ -1819,16 +1835,35 @@ class TranslatorGUI:
     def refresh_voices(self):
         variable = self.speak_target_var if self.one_way_var.get() else self.audience_language_var
         _name, _bcp47, target_iso = self.language_entry_by_name(variable.get())
+        if getattr(self, "_voice_loading", False) and getattr(self, "_voice_language", None) == target_iso:
+            return
+        self._voice_language, self._voice_loading = target_iso, True
+        self._voice_generation = getattr(self, "_voice_generation", 0) + 1
+        generation = self._voice_generation
         def load():
             voices = self.synthesizer.available_voices(target_iso)
             try:
-                self.root.after(0, lambda: self._apply_voices(voices))
+                self.root.after(0, lambda: self._apply_voices(voices, target_iso, generation))
             except (RuntimeError, tk.TclError):
                 pass
 
         threading.Thread(target=load, daemon=True).start()
 
-    def _apply_voices(self, voices):
+    def _apply_voices(self, voices, target_iso=None, generation=None):
+        if generation is not None and generation != self._voice_generation:
+            return
+        self._voice_loading = False
+        from speech_output import windows_voice_hint
+        variable = self.speak_target_var if self.one_way_var.get() else self.audience_language_var
+        current = self.language_entry_by_name(variable.get())[2]
+        if target_iso is not None and target_iso != current:
+            return
+        self.voice_hint_var.set(windows_voice_hint(current, voices))
+        if hasattr(self, "voice_guidance") and self.voice_guidance.winfo_exists():
+            if self.voice_hint_var.get():
+                self.voice_guidance.pack(fill="x", before=self.voice_settings_monitor)
+            else:
+                self.voice_guidance.pack_forget()
         if hasattr(self, "voice_settings_combo") and self.voice_settings_combo.winfo_exists():
             self.voice_settings_combo["values"] = voices
         if self.voice_var.get() not in voices:

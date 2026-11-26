@@ -45,3 +45,11 @@ The loader rejects revision, metadata, length and hash drift before inference.
 Only temporary evaluation audio was fetched; no audio was added to Git.
 Verification: `python -m pytest -q` — 621 tests pass; pinned-loader tests cover
 all ten app choices and integrity failures using synthetic bytes.
+
+A6: Windows voices are filtered by catalog language and Chinese locale, accepting
+legacy LCID/byte metadata and Norwegian aliases. Automatic synthesis selects a
+matching voice; Piper and SAPI never fall back to another language. Missing
+voices show the requested hint and a Windows speech-settings link in Audio.
+Stale asynchronous voice results cannot overwrite a new audience choice.
+Verification: `python -m pytest -q` — 645 tests pass with fake voice lists only.
+No voices or models were installed, and no physical audio devices were used.

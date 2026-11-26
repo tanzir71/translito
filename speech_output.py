@@ -1,16 +1,52 @@
 import base64
 from dataclasses import dataclass, field
 import math
+import locale
 import os
 from pathlib import Path
 import queue
+import re
 import shutil
 import subprocess
 import tempfile
 import threading
+from types import SimpleNamespace
 import wave
 
 import numpy as np
+from engines.languages import canonical_code, language as catalog_language
+
+
+def voice_matches_language(voice, language):
+    requested = canonical_code(language)
+    tags = list(getattr(voice, "languages", ()) or ())
+    culture = getattr(voice, "culture", "")
+    if culture:
+        tags.append(culture)
+    for raw in tags:
+        tag = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
+        tag = tag.strip().lstrip("".join(chr(i) for i in range(32)))
+        if re.fullmatch(r"[0-9a-fA-F]{3,4}", tag):
+            tag = locale.windows_locale.get(int(tag, 16), tag)
+        if canonical_code(tag) == requested:
+            return True
+    # Some older SAPI drivers omit languages but expose a culture in the ID.
+    identifier = str(getattr(voice, "id", "")).replace("_", "-")
+    return any(canonical_code(tag) == requested for tag in
+               re.findall(r"(?i)(?<![a-z])([a-z]{2,3}-[a-z]{2})(?![a-z])", identifier))
+
+
+def windows_voice_hint(language, voices):
+    if any(name != "Automatic" and not name.startswith("piper:") for name in voices):
+        return ""
+    entry = catalog_language(language)
+    name = entry.english_name if entry else language
+    return f"No Windows voice for {name}. Add one in Windows speech settings."
+
+
+class MissingWindowsVoiceError(RuntimeError):
+    def __init__(self, language):
+        super().__init__(windows_voice_hint(language, ()))
 
 
 def resample_audio(audio_array, original_sample_rate, target_sample_rate):
@@ -52,7 +88,9 @@ class LocalSpeechSynthesizer(SpeechSynthesizer):
                 pass
 
         try:
-            return self._synthesize_with_pyttsx3(text, voice)
+            return self._synthesize_with_pyttsx3(text, voice, language)
+        except MissingWindowsVoiceError:
+            raise
         except Exception:
             if os.name == "nt":
                 return self._synthesize_with_windows_sapi(text, language, voice)
@@ -67,6 +105,8 @@ class LocalSpeechSynthesizer(SpeechSynthesizer):
 
             engine = pyttsx3.init()
             for voice in engine.getProperty("voices"):
+                if not voice_matches_language(voice, language):
+                    continue
                 name = getattr(voice, "name", "") or getattr(voice, "id", "")
                 if name and name not in voices:
                     voices.append(name)
@@ -78,7 +118,7 @@ class LocalSpeechSynthesizer(SpeechSynthesizer):
     def _select_piper_voice(self, language, voice):
         if voice and voice != "Automatic" and voice.startswith("piper:"):
             wanted = voice.split(":", 1)[1]
-            for voice_path in self.tts_dir.rglob("*.onnx"):
+            for voice_path in self._piper_voice_paths(language):
                 if voice_path.stem == wanted:
                     return voice_path
         paths = self._piper_voice_paths(language)
@@ -87,16 +127,11 @@ class LocalSpeechSynthesizer(SpeechSynthesizer):
     def _piper_voice_paths(self, language):
         if not self.tts_dir.exists():
             return []
-        lowered_language = (language or "").lower()
         paths = sorted(self.tts_dir.rglob("*.onnx"))
-        if not lowered_language:
+        if not language:
             return paths
-        matching = [
-            path
-            for path in paths
-            if lowered_language in str(path).lower().replace("_", "-")
-        ]
-        return matching or paths
+        return [path for path in paths if voice_matches_language(
+            SimpleNamespace(id=path.stem, languages=()), language)]
 
     def _synthesize_with_piper(self, text, voice_path):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -118,20 +153,23 @@ class LocalSpeechSynthesizer(SpeechSynthesizer):
             )
             return read_wav_mono_float32(out_path)
 
-    def _synthesize_with_pyttsx3(self, text, voice):
+    def _synthesize_with_pyttsx3(self, text, voice, language):
         import pyttsx3
 
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = Path(tmpdir) / "speech.wav"
             engine = pyttsx3.init()
-            if voice and voice != "Automatic":
-                for candidate in engine.getProperty("voices"):
-                    if voice in {getattr(candidate, "name", ""), getattr(candidate, "id", "")}:
-                        engine.setProperty("voice", candidate.id)
-                        break
-            engine.save_to_file(text, str(out_path))
-            engine.runAndWait()
-            engine.stop()
+            try:
+                candidates = [candidate for candidate in engine.getProperty("voices") if voice_matches_language(candidate, language)]
+                if not candidates:
+                    raise MissingWindowsVoiceError(language)
+                selected = next((candidate for candidate in candidates if voice in
+                    {getattr(candidate, "name", ""), getattr(candidate, "id", "")}), candidates[0])
+                engine.setProperty("voice", selected.id)
+                engine.save_to_file(text, str(out_path))
+                engine.runAndWait()
+            finally:
+                engine.stop()
             return read_wav_mono_float32(out_path)
 
     def _synthesize_with_windows_sapi(self, text, language, voice):
@@ -146,13 +184,15 @@ $text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded_te
 Add-Type -AssemblyName System.Speech
 $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
 try {{
-  if ('{safe_voice}' -and '{safe_voice}' -ne 'Automatic') {{
-    try {{ $s.SelectVoice('{safe_voice}') }} catch {{ }}
-  }}
-  try {{
-    $culture = [Globalization.CultureInfo]::GetCultureInfo('{culture}')
-    $s.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::NotSet, [System.Speech.Synthesis.VoiceAge]::NotSet, 0, $culture)
-  }} catch {{ }}
+  $culture = [Globalization.CultureInfo]::GetCultureInfo('{culture}')
+  $voices = @($s.GetInstalledVoices() | Where-Object {{
+    $_.Enabled -and ($_.VoiceInfo.Culture.TwoLetterISOLanguageName -eq $culture.TwoLetterISOLanguageName) -and
+    ($culture.TwoLetterISOLanguageName -ne 'zh' -or $_.VoiceInfo.Culture.Name -eq $culture.Name)
+  }} | ForEach-Object {{ $_.VoiceInfo }})
+  if ($voices.Count -eq 0) {{ throw 'No installed voice for the selected language.' }}
+  $chosen = $voices | Where-Object {{ $_.Name -eq '{safe_voice}' }} | Select-Object -First 1
+  if (-not $chosen) {{ $chosen = $voices[0] }}
+  $s.SelectVoice($chosen.Name)
   $s.SetOutputToWaveFile('{safe_path}')
   $s.Speak($text)
 }} finally {{
