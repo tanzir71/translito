@@ -6,10 +6,12 @@ with another language, passes through lines already in your language, and protec
 terms in mixed speech. Listen captures a device or one app; Speak sends translated
 speech to a virtual microphone. Local processing works without a cloud key.
 
-## v2 source implementation
+## Translito 2.0 for Windows
 
-The current source implements `CODEX_HANDOFF_V2_SPEED_COST_UX`. The downloadable
-1.1.5 installer below predates these changes; no new installer or release was built.
+Windows 2.0 implements `CODEX_HANDOFF_V2_SPEED_COST_UX`. Listen now has a visible
+**App audio / Device** switch above the source picker. Each choice remembers its
+last source. A default meeting app only applies to App audio; choosing Device
+keeps that device selected, including when starting Listen or after a restart.
 
 - Dark 800×640 main window and 820×680 Settings with Languages, Engine, Cost & usage,
   Subtitles, Schedule, Audio, Models and General. Controls save immediately;
@@ -43,7 +45,7 @@ that cached copy. Download and Open folder are alongside it. Model changes
 require an idle session; gated models retain their
 terms/token setup. See [model-manager details](docs/quality/MODEL_MANAGER.md).
 
-- **Windows 1.1.5:** [Installer](https://github.com/tanzir71/translito/releases/download/v1.1.5/TranslitoSetup-1.1.5.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v1.1.5/TranslitoPortable-1.1.5.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v1.1.5/SHA256SUMS.txt). Keeps model download/delete controls visible above the list in compact windows. Includes model cache management, installer space/runtime checks, the Windows audio-thread fix, bilingual routing, optional free cloud providers, guided virtual-mic setup, app-audio capture and settings/certificate fixes.
+- **Windows 2.0.0:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.0/TranslitoSetup-2.0.0.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.0/TranslitoPortable-2.0.0.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.0/SHA256SUMS.txt). Includes the v2 interface, direct app/device capture switching, guarded paid streaming, budget controls, checks, subtitles, scheduling and short replies. Existing settings, transcripts and cached models keep their locations.
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 For the portable build, extract the entire ZIP into a new empty folder before
@@ -90,8 +92,7 @@ and download network access once the selected models are cached.
 | Custom | Enabled and tested providers in the configured routing order. | Each cloud provider requires its own setup/Test. |
 | Live interpreter (Gemini preview) | Opt-in streaming speech/text translation with Free recovery. | A tested free-tier key and separate data-reuse consent; one-way preview, with real meeting timing/quality still unverified. |
 
-The 1.1.5 downloads contain evaluation-only paid candidates. The v2 source above
-adds opt-in paid providers; the default monthly paid cap remains $0. Private Saudi
+Version 2.0 adds opt-in paid providers; the default monthly paid cap remains $0. Private Saudi
 meeting clips were unavailable and their evaluation was waived; public/synthetic
 smoke tests do not establish Saudi accuracy or the target meeting latency.
 

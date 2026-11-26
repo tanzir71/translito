@@ -1,3 +1,21 @@
+# Windows 2.0 capture and release follow-up · 2026-11-26
+
+The owner subsequently requested Windows builds and publication. This supersedes
+the original source-only build restriction for this follow-up; no installation
+or device/provider testing is requested. The main window now exposes App audio /
+Device directly. Explicit Device and app selections take priority over the meeting
+default, persist independently, and changing capture type cancels app waiting.
+See `RELEASE_2_0_0.md` for release verification and artifact details.
+
+Verification passed **504 tests**, plus all **18** frozen dependency checks and a
+CPU tensor calculation in the new CPU-only build. The complete portable archive
+passed CRC verification and its required resources were present. The installer
+and portable package are version 2.0.0; their hashes are recorded in the release
+report. The existing installed app, settings, transcripts and model cache were
+not changed. The existing macOS 1.0 DMG is retained unchanged.
+Windows 2.0.0 is published as latest on GitHub. All six server asset digests and
+sizes matched the verified local files; the release tag targets source `4bfb195`.
+
 # Current v2 source status · 2026-11-25
 
 All milestones M0–M8.2 from `CODEX_HANDOFF_V2_SPEED_COST_UX.md` are implemented
