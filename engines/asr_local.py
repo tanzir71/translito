@@ -15,8 +15,13 @@ from engines.cancellation import generation_scope, check_cancelled
 def _lid_model(offline_only):
     from faster_whisper import WhisperModel
     from model_loading import physical_cpu_threads
-    return WhisperModel("base", device="cpu", compute_type="int8",
-                        cpu_threads=physical_cpu_threads(), local_files_only=offline_only)
+    from engines.model_files import whisper_spec, inspect_model, Ready, ModelNotReady, ready_whisper
+    spec = whisper_spec(ready_whisper("openai/whisper-base") or "openai/whisper-base")
+    status = inspect_model(spec)
+    if not isinstance(status, Ready):
+        raise ModelNotReady(spec, status)
+    return WhisperModel(str(status.path), device="cpu", compute_type="int8",
+                        cpu_threads=physical_cpu_threads(), local_files_only=True)
 
 
 @lru_cache(maxsize=2)
@@ -73,7 +78,9 @@ class LocalConversationRecognizer:
         if lid is None:
             self.on_event("model_progress", {"phase": "Preparing per-utterance language detection",
                                                "fraction": None})
-            lid = PairLanguageDetector(_lid_model(offline_only), other_language)
+            detector_model = getattr(whisper, "model", None)
+            detector_model = detector_model if callable(getattr(detector_model, "detect_language", None)) else _lid_model(offline_only)
+            lid = PairLanguageDetector(detector_model, other_language)
         self.lid = lid
         if other_language == "ar":
             self.cohere = cohere or get_cohere_model(device=device, on_event=self.on_event)

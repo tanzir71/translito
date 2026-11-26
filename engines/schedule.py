@@ -32,21 +32,38 @@ def calendar_meetings(content, start, end):
     return sorted(result, key=lambda event:event.start)
 
 
-def weekly_meetings(entries, start, end, *, default_timezone="UTC"):
-    result = []
+def weekly_meetings(entries, start, end, *, default_timezone=None):
+    from engines.weekly_schedule import local_timezone, normalize_time
+    import hashlib
+    import json
+    default_timezone = default_timezone or local_timezone()
+    result, used = [], set()
     for index, entry in enumerate(entries):
-        zone = ZoneInfo(entry.get("timezone", default_timezone))
-        day, last = start.astimezone(zone).date(), end.astimezone(zone).date()
+        days = entry.get("days", [int(entry["weekday"])] if "weekday" in entry else [])
+        if "days" in entry:
+            if used.intersection(days):
+                raise ValueError("Each day can have hours in only one block")
+            used.update(days)
+        zone_name = entry.get("timezone", default_timezone)
+        zone = ZoneInfo(zone_name)
+        day, last = (start.astimezone(zone)-timedelta(days=1)).date(), end.astimezone(zone).date()
+        begin_time, end_time = normalize_time(entry["start"]), normalize_time(entry["end"])
+        identity = hashlib.sha256(json.dumps([days,begin_time,end_time,zone_name]).encode()).hexdigest()[:12]
         while day <= last:
-            if day.weekday() == int(entry["weekday"]):
-                def at(value):
+            if day.weekday() in days:
+                def at(value, date):
                     hour, minute = map(int, value.split(":"))
-                    return datetime(day.year, day.month, day.day, hour, minute, tzinfo=zone)
-                began, ended = at(entry["start"]), at(entry["end"])
-                ended = ended if ended > began else ended+timedelta(days=1)
-                result.append(Meeting(f"weekly-{index}-{began.isoformat()}", began, ended, entry.get("title", "Scheduled meeting")))
+                    local = datetime(date.year,date.month,date.day,hour,minute,tzinfo=zone)
+                    # Spring gaps move forward by the gap; ambiguous hours use
+                    # their first occurrence so a block starts only once.
+                    from datetime import timezone
+                    return local.astimezone(timezone.utc).astimezone(zone)
+                began = at(begin_time, day)
+                ended = at(end_time, day+timedelta(days=1) if end_time <= begin_time else day)
+                if began < end and ended > start:
+                    result.append(Meeting(f"weekly-{identity}-{began.isoformat()}",began,ended,entry.get("title","Workdays")))
             day += timedelta(days=1)
-    return sorted(result, key=lambda event:event.start)
+    return sorted(result,key=lambda event:event.start)
 
 
 class CalendarFeed:
@@ -89,7 +106,7 @@ class Scheduler:
         self.last_speech = self.clock()
 
     def tick(self, events, *, enabled=False, lead_seconds=60, wait_for_app_audio=True, stop_rule="end",
-             silence_seconds=300, ask_before_start=False, only_with_call_link=False):
+             silence_seconds=300, ask_before_start=False, only_with_call_link=False, skipped=()):
         now = self.clock()
         if self.active is not None:
             silent = self.last_speech is not None and (now-self.last_speech).total_seconds() >= silence_seconds
@@ -100,7 +117,7 @@ class Scheduler:
         if not enabled or self.running():
             return
         for event in events:
-            if event.id in self.seen or not event.start-timedelta(seconds=lead_seconds) <= now < event.end:
+            if event.id in skipped or event.id in self.seen or not event.start-timedelta(seconds=lead_seconds) <= now < event.end:
                 continue
             if only_with_call_link and not event.has_call_link:
                 continue

@@ -50,7 +50,7 @@ def test_cohere_decodes_once_with_explicit_language_and_honors_stop():
     assert model.generate.call_count == 1
 
 
-def test_gated_download_reads_token_only_from_credential_store(monkeypatch, tmp_path):
+def test_gated_load_reads_saved_token_and_never_downloads(monkeypatch, tmp_path):
     import model_loading
     import transformers
     credentials = Mock()
@@ -69,7 +69,8 @@ def test_gated_download_reads_token_only_from_credential_store(monkeypatch, tmp_
     recognizer = CohereLocalRecognizer(offline_only=False, credentials=credentials, cache_dir=tmp_path)
     recognizer.load()
     credentials.get.assert_called_once_with("huggingface")
-    assert download.call_args.kwargs["token"] == credentials.get.return_value
+    download.assert_not_called()
+    assert processor_factory.call_args.kwargs["local_files_only"] is True
     assert processor_factory.call_args.kwargs["token"] == credentials.get.return_value
     assert list(tmp_path.iterdir()) == []
     recognizer.load()

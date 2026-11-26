@@ -197,3 +197,19 @@ All V3 milestones are implemented on the draft branch. Native review of every
 translation, example and reply remains pending; see V3_NATIVE_REVIEW.md. Domain
 choice and merging/deploying remain owner tasks. No V3 installers, releases,
 workflow changes or deployments were made. Remote main remains 74287b9.
+
+## 2.0.1 fix integration (2026-11-26)
+
+F1–F9 from `codex/v2.1-fixes` are integrated into this branch. Conflict
+resolution preserves the v3 catalog, provider language guidance, pinned local
+translation revisions, script-aware replies/subtitles and stale-voice-result
+protection. The fixes retain the dark theme, shared settings store, inline
+cloud setup, current list prices, actual engine/fallback status, background
+downloads, workday scheduling, exact-size icons and scaled layout.
+
+Verification: the standalone fixes pass 587 tests; the combined full suite
+passes 803, including real Hugo builds. Credentials, HTTP and model fetchers
+are fake and no external requests are allowed in the tests. The same resolved
+tree is carried back to `codex/v2.1-fixes` for PR #22. No installer build,
+release, workflow change or deployment was performed by this fix task.
+See [RELEASE_2_0_1.md](RELEASE_2_0_1.md) for the release behavior and owner checks.

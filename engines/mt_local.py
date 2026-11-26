@@ -92,11 +92,15 @@ class LocalOpusPipeline:
             self.tokenizer = None
             return
         for repo in model_id.split("|"):
-            options = dict(local_files_only=offline_only, token=False)
+            from engines.model_files import local_folder, DOWNLOADING
+            if repo in DOWNLOADING:
+                raise FileNotFoundError("This translation model is downloading. It will be used from the next session.")
+            local = local_folder(repo)
+            options = dict(local_files_only=True, token=False)
             if repo in REVISIONS:
                 options["revision"] = REVISIONS[repo]
-            tokenizer = AutoTokenizer.from_pretrained(repo, **options)
-            model = AutoModelForSeq2SeqLM.from_pretrained(repo, **options)
+            tokenizer = AutoTokenizer.from_pretrained(str(local) if local else repo, **options)
+            model = AutoModelForSeq2SeqLM.from_pretrained(str(local) if local else repo, **options)
             model.to(self.device).eval()
             self.steps.append((tokenizer, model))
         self.tokenizer = self.steps[0][0]

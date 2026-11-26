@@ -24,14 +24,14 @@ def test_engine_migration_preserves_original_bytes_and_private_preference(tmp_pa
     assert path.read_bytes() == first
 
 
-def test_test_fingerprint_changes_with_key_or_account_and_no_key_is_saved(tmp_path):
+def test_connection_fingerprint_changes_only_with_key_and_no_key_is_saved(tmp_path):
     path = tmp_path / "config.ini"
     preference = ProviderSettings(enabled=True, region="global", account_kind="free")
     secret = "SENTINEL-KEY-NEVER-IN-CONFIG"
     signature = credential_signature("azure", secret, preference)
     assert signature != credential_signature("azure", secret + "changed", preference)
-    assert signature != credential_signature("azure", secret, replace(preference, region="eastus"))
-    assert signature != credential_signature("azure", secret, replace(preference, account_kind="paid"))
+    assert signature == credential_signature("azure", secret, replace(preference, region="eastus"))
+    assert signature == credential_signature("azure", secret, replace(preference, account_kind="paid"))
     save_engine_settings(EngineSettings(providers={"azure": replace(preference, tested_signature=signature)}), path)
     assert secret not in path.read_text()
     assert load_engine_settings(path).provider("azure").tested_signature == signature

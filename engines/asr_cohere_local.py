@@ -63,14 +63,15 @@ class CohereLocalRecognizer:
             self.on_event("model_progress", {"phase": "Preparing Cohere Transcribe Arabic",
                                                "fraction": None})
             try:
-                if not self.offline_only:
-                    from model_loading import _download_repo_with_progress
-                    _download_repo_with_progress(MODEL_ID, "Cohere Arabic", 0, 1,
-                                                 self.on_event, token=token or False,
-                                                 cache_dir=self.cache_dir)
-                processor = AutoProcessor.from_pretrained(MODEL_ID, **kwargs)
+                from engines.model_files import local_folder, DOWNLOADING
+                if MODEL_ID in DOWNLOADING:
+                    raise CohereAccessRequired("Cohere is downloading. Using local Whisper until it finishes.")
+                folder = local_folder(MODEL_ID)
+                model_id = str(folder) if folder else MODEL_ID
+                kwargs["local_files_only"] = True
+                processor = AutoProcessor.from_pretrained(model_id, **kwargs)
                 precision = torch.bfloat16 if self.dtype == "bfloat16" else torch.float32
-                model = CohereAsrForConditionalGeneration.from_pretrained(MODEL_ID, dtype=precision, **kwargs)
+                model = CohereAsrForConditionalGeneration.from_pretrained(model_id, dtype=precision, **kwargs)
                 model.to(self.device).eval()
                 if self.dtype == "int8":
                     model = torch.ao.quantization.quantize_dynamic(model, {torch.nn.Linear}, dtype=torch.qint8)

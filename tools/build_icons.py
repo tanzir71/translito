@@ -4,15 +4,19 @@ import math
 from pathlib import Path
 import re
 import shutil
+import sys
 import xml.etree.ElementTree as ET
 
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
-ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+ICO_SIZES = (16, 20, 24, 28, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 128, 256)
+TRAY_SIZES = (16, 20, 24, 28, 32, 40, 48)
 
 
-def mark(size, *, masters=ROOT / "branding", cut_size=None):
+def mark(size, *, masters=ROOT / "branding", cut_size=None, supersampled=False):
     svg = ET.parse(masters / ("translito-mark-small.svg" if (cut_size or size) <= 40 else "translito-mark.svg")).getroot()
     scale = size * 4 / 400
     canvas = Image.new("RGBA", (size * 4, size * 4))
@@ -36,6 +40,15 @@ def mark(size, *, masters=ROOT / "branding", cut_size=None):
         a = rect.attrib
         rx, ry, w, h = (float(a[k]) * scale for k in ("x", "y", "width", "height"))
         draw.rounded_rectangle((rx, ry, rx + w, ry + h), radius=float(a["rx"]) * scale, fill=a["fill"])
+    return canvas if supersampled else canvas.resize((size, size), Image.Resampling.LANCZOS)
+
+
+def tray_frame(size, state):
+    canvas = mark(size, cut_size=16, supersampled=True)
+    color = {"idle": None, "listening": "#30d158", "paused": "#ff9f0a"}[state]
+    if color:
+        ImageDraw.Draw(canvas).ellipse((size*2.7, size*2.7, size*3.7, size*3.7),
+            fill=color, outline="#0b0b0c", width=max(1, round(size/8)))
     return canvas.resize((size, size), Image.Resampling.LANCZOS)
 
 
@@ -45,17 +58,37 @@ def build_windows(root=ROOT):
     frames[-1].save(root / "installer/Translito.ico", sizes=[(n, n) for n in ICO_SIZES], append_images=frames[:-1])
     tray = root / "engines/data/tray"
     tray.mkdir(parents=True, exist_ok=True)
-    for size in (32, 64):
-        for state, color in (("idle", None), ("listening", "#30d158"), ("paused", "#ff9f0a")):
-            icon = mark(size * 4,cut_size=size)
-            if color:
-                d = ImageDraw.Draw(icon)
-                d.ellipse((size * 2.7, size * 2.7, size * 3.7, size * 3.7), fill=color, outline="#0b0b0c", width=max(1, size // 8))
-            icon.resize((size, size), Image.Resampling.LANCZOS).save(tray / f"{state}-{size}.png")
+    for state in ("idle", "listening", "paused"):
+        frames = [tray_frame(size, state) for size in TRAY_SIZES]
+        frames[-1].save(tray / f"{state}.ico", sizes=[(n,n) for n in TRAY_SIZES], append_images=frames[:-1])
+        for size in (32, 64):
+            tray_frame(size, state).save(tray / f"{state}-{size}.png")
+    from app_identity import APP_USER_MODEL_ID
+    (root / "installer/app_identity.iss").write_text(f'#define AppUserModelID "{APP_USER_MODEL_ID}"\n', encoding="utf-8")
     web = root / "website/static"
     web.mkdir(parents=True, exist_ok=True)
     mark(512).save(web / "translito-icon.png")
     shutil.copyfile(ROOT / "branding/translito-mark.svg", web / "favicon.svg")
+
+
+def contact_sheet(root=ROOT):
+    sheet = Image.new("RGB", (720, 390), "#1f1f1f")
+    draw = ImageDraw.Draw(sheet)
+    draw.text((20, 14), "Translito 2.0.1 - native pixel sizes (old / new)", fill="white")
+    for row, (title, sizes) in enumerate((("Tray", (16,20,24,32)), ("Taskbar", (24,30,36,48)))):
+        top = 55 + row*160
+        draw.text((20, top), title, fill="white")
+        for column, size in enumerate(sizes):
+            left = 125 + column*140
+            old = mark(64*4, cut_size=64).resize((64,64), Image.Resampling.LANCZOS).resize((size,size), Image.Resampling.LANCZOS)
+            new = tray_frame(size, "idle") if row == 0 else mark(size)
+            sheet.paste(old, (left,top+25), old)
+            sheet.paste(new, (left+60,top+25), new)
+            draw.text((left,top+83), f"{size}px  old / new", fill="#b1b1b6")
+    target = root / "docs/quality/icons-2.0.1.png"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(target)
+    return target
 
 
 def build_macos(root=ROOT):
@@ -84,5 +117,8 @@ def build_macos(root=ROOT):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--macos", action="store_true")
+    parser.add_argument("--sheet", action="store_true")
     options = parser.parse_args()
     build_macos() if options.macos else build_windows()
+    if options.sheet:
+        contact_sheet()

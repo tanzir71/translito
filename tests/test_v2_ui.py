@@ -7,7 +7,7 @@ import gui
 
 
 @pytest.fixture(scope="module")
-def app(tmp_path_factory):
+def app(tmp_path_factory, tk_parent):
     tmp_path = tmp_path_factory.mktemp("v2-ui")
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setenv("TRANSLITO_UI_PREVIEW", "1")
@@ -21,7 +21,7 @@ def app(tmp_path_factory):
     import time
     for attempt in range(4):
         try:
-            root = tk.Tk()
+            root = tk.Toplevel(tk_parent)
             break
         except tk.TclError as error:
             if "Can't find a usable" not in str(error) or attempt == 3:
@@ -96,10 +96,10 @@ def test_main_dimensions_app_bar_and_translation_order(app):
     assert original.cget("fg") == gui.COLORS["secondary"]
 
 
-def test_budget_pages_share_one_value_and_connect_has_one_provider_picker(app):
-    assert str(app.engine_budget_entry.cget("textvariable")) == str(app.cost_budget_entry.cget("textvariable"))
+def test_budget_lives_on_engine_and_connect_has_one_provider_picker(app):
+    assert not hasattr(app, "cost_budget_entry")
     app.monthly_budget_var.set("5.00")
-    assert app.engine_budget_entry.get() == app.cost_budget_entry.get() == "5.00"
+    assert app.engine_budget_entry.get() == "5.00"
     from provider_settings import open_provider_settings
     window = open_provider_settings(app, gui.COLORS, gui.center_window)
     window.update_idletasks()
@@ -116,7 +116,7 @@ def test_four_subtitle_entry_points_share_one_state_and_any_pair_text(app):
         assert not app.subtitles_enabled_var.get()
         controller.set_enabled(True, origin)
         assert app.preferences.get("UI", "subtitles_enabled", False)
-    for source, target in (("Hola", "Hello"), ("Hello", "مرحبا")):
+    for source, target in (("Hola", "Hello"), ("Hello", "Ù…Ø±Ø­Ø¨Ø§")):
         controller.accept({"id":target,"source_text":source,"translated_text":target,"translation_pending":False})
         assert controller.overlay.entries[-1]["translated_text"] == target
 
@@ -134,23 +134,32 @@ def test_overlay_reply_tray_shares_current_set_and_shortcuts(app):
     assert not tray.winfo_manager()
 
 
-def test_engine_cards_restore_measured_results_for_the_current_pair_only(app):
-    from engines.checks import CheckStore
-    from engine_ui import pair, refresh_measurements
-    source, target = pair(app)
-    store = CheckStore(app.preferences.path.parent/"checks.json")
-    store.save(source,target,[dict(engine="soniox",delay_p50_s=1.2,words_right=90,cost_per_speech_hour=".2")])
-    refresh_measurements(app)
-    assert "measured" in app.engine_card_descriptions["cloud"].get()
-    assert "1.2 s" in app.engine_card_descriptions["cloud"].get()
-    app.listen_source_var.set("Spanish" if source != "es" else "French")
+def test_engine_cards_keep_setup_simple_and_checks_live_only_under_models(app):
+    app.open_settings()
+    texts = []
+    def visit(widget):
+        if "text" in widget.keys():
+            texts.append(str(widget.cget("text")))
+        for child in widget.winfo_children():
+            visit(child)
+    visit(app.root)
+    assert not {"Run check", "Check this PC's speed", "Compare engines", "Connect providers"} & set(texts)
+    assert "Tools · Compare engines on a sample" in texts
+    assert "not measured" not in " ".join(v.get() for v in app.engine_card_descriptions.values())
+    app.engine_default_vars["default_asr_model"].set("saved-future-model")
+    app.settings_shell.show("Engine")
+    assert app.engine_default_vars["default_asr_model"].get() == "saved-future-model"
+
+
+def test_unsupported_provider_stays_visible_with_language_guidance(app):
     from engine_ui import refresh_provider_choices
+    app.open_settings()
+    app.listen_source_var.set("Spanish")
     refresh_provider_choices(app)
-    assert "cohere-api" in app.engine_provider_widgets["asr"].cget("values")
+    widget = app.engine_provider_widgets["asr"]
+    label = widget.display_labels["cohere-api"]
+    assert label in widget.cget("values")
     assert "cohere-api" in app.engine_support_var.get() and "unavailable" in app.engine_support_var.get()
-    refresh_measurements(app)
-    assert "not measured" in app.engine_card_descriptions["cloud"].get()
-    app.listen_source_var.set(app.language_name_for_iso(source))
 
 
 def test_main_capture_switch_remembers_device_and_app_and_cancels_default_wait(app,monkeypatch):
@@ -189,3 +198,32 @@ def test_main_capture_switch_remembers_device_and_app_and_cancels_default_wait(a
     app.capture_kind_buttons["Device"].invoke()
     assert app.preferences.get("CAPTURE","app_executable","") == ""
     app.default_app_var.set("")
+
+
+def test_every_style_has_dark_interaction_states(app):
+    import ast
+    from pathlib import Path
+    styles = {"TButton", "Treeview.Heading", "Vertical.TScrollbar", "Horizontal.TScrollbar",
+              "TCheckbutton", "TRadiobutton"}
+    for path in [*Path(".").glob("*.py"), *Path("engines").glob("*.py")]:
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.keyword) and node.arg == "style" and isinstance(node.value, ast.Constant):
+                styles.add(node.value.value)
+    def luminance(color):
+        values = [v/65535 for v in app.root.winfo_rgb(color)]
+        linear = [v/12.92 if v <= .04045 else ((v+.055)/1.055)**2.4 for v in values]
+        return sum(v*w for v,w in zip(linear,(.2126,.7152,.0722)))
+    for name in styles:
+        for state in ((), ("active",), ("pressed", "active"), ("focus",), ("disabled",)):
+            bg = app.style.lookup(name, "background", state)
+            fg = app.style.lookup(name, "foreground", state)
+            assert bg and luminance(bg) < .35, (name, state, bg)
+            if "disabled" not in state and fg:
+                bright, dark = sorted((luminance(bg), luminance(fg)), reverse=True)
+                assert (bright+.05)/(dark+.05) >= 2.9, (name, state, bg, fg)
+    assert app.style.lookup("SegmentActive.TButton", "background", ("active",)) == gui.COLORS["field"]
+    assert app.style.lookup("SegmentActive.TButton", "bordercolor", ("focus",)) == gui.COLORS["blue"]
+    app.open_settings()
+    app.settings_shell._hover("Audio", True)
+    assert app.settings_shell.buttons["Audio"].cget("bg") == gui.COLORS["surface_2"]

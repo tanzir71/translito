@@ -43,3 +43,10 @@ class CredentialStore:
             self.backend.set_password(self.service, provider, key)
         except Exception:
             raise CredentialError("Could not save the key in Windows Credential Manager.") from None
+
+    def delete(self, provider):
+        provider = self._provider(provider)
+        try:
+            self.backend.delete_password(self.service, provider)
+        except Exception:
+            raise CredentialError("Could not remove the key from Windows Credential Manager.") from None

@@ -13,7 +13,7 @@ from engines.stream_transport import SocketStream
 from engines.streaming_protocols import SonioxProtocol, SpeechmaticsProtocol, ElevenLabsProtocol
 from engines.usage import Rate, UsageLedger
 
-RATE_CHECKED_ON = "2026-11-25"
+RATE_CHECKED_ON = "2026-11-26"
 SONIOX_RATE = Rate(per_audio_hour=Decimal(".06"), per_million_input_tokens=Decimal("4"),
                    per_million_output_tokens=Decimal("4"))
 
@@ -32,7 +32,7 @@ class PaidStreamingInterpreter:
         self.translator = None
         self._mt_stop, self._mt_queue = threading.Event(), queue.Queue(maxsize=50)
         self.rate = {"soniox": SONIOX_RATE, "elevenlabs": Rate(per_audio_hour=Decimal(".22")),
-                     "speechmatics": Rate(per_audio_hour=Decimal(".20"))}[provider]
+                     "speechmatics": Rate(per_audio_hour=Decimal(".40"))}[provider]
         self.billing_mode = "audio_sent" if provider == "elevenlabs" else "open_stream"
         self.guard = self.worker = None
         self.gates_target_language = True

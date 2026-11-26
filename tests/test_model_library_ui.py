@@ -9,11 +9,19 @@ from model_library_ui import ModelManagerWindow
 
 
 @pytest.fixture(scope="module")
-def tk_root():
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("Tk display unavailable")
+def tk_root(tk_parent):
+    import os
+    import time
+    for attempt in range(6):
+        try:
+            root = tk.Toplevel(tk_parent)
+            break
+        except tk.TclError:
+            if attempt == 5:
+                if os.name != "nt":
+                    pytest.skip("Tk display unavailable")
+                raise
+            time.sleep(.1)
     root.withdraw()
     yield root
     root.destroy()
@@ -32,7 +40,8 @@ def ui(tmp_path, tk_root):
     app = SimpleNamespace(root=root, transcriber=None, model_setup_busy=False, preview_mode=False,
                           offline_only_var=tk.BooleanVar(root, value=False), is_quitting=False,
                           open_arabic_model_setup=Mock(), open_translation_model_setup=Mock())
-    colors = dict(bg="#222222", surface="#252525", surface_2="#303033", text="white", secondary="#aaaaaa", blue="#0a84ff")
+    from gui import COLORS
+    colors = dict(COLORS, bg="#222222", surface="#252525", surface_2="#303033", text="white", secondary="#aaaaaa", blue="#0a84ff")
     manager = ModelManagerWindow(app, colors, lambda *a, **k: None, library=library, auto_refresh=False)
     manager.window.withdraw()
     manager.rows = {row.key: row for row in (downloaded, available)}

@@ -45,7 +45,7 @@ that cached copy. Download and Open folder are alongside it. Model changes
 require an idle session; gated models retain their
 terms/token setup. See [model-manager details](docs/quality/MODEL_MANAGER.md).
 
-- **Windows 2.0.0:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.0/TranslitoSetup-2.0.0.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.0/TranslitoPortable-2.0.0.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.0/SHA256SUMS.txt). Includes the v2 interface, direct app/device capture switching, guarded paid streaming, budget controls, checks, subtitles, scheduling and short replies. Existing settings, transcripts and cached models keep their locations.
+- **Windows 2.0.1:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.1/TranslitoSetup-2.0.1.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.1/TranslitoPortable-2.0.1.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.1/SHA256SUMS.txt). Adds resumable background model downloads, validated settings with save feedback, inline cloud setup, sharper icons, workday scheduling and DPI scaling. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_1.md).
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 For the portable build, extract the entire ZIP into a new empty folder before

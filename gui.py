@@ -1,3 +1,5 @@
+from ui_scale import px, scaled_geometry
+from ui_scale import px, scaled_geometry
 import os
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +10,10 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--check-runtime"]:
     from runtime_check import check_main
 
     raise SystemExit(check_main(sys.argv[2:]))
+
+if __name__ == "__main__" and sys.argv[1:2] == ["--download-job"]:
+    from engines.downloads import download_child
+    raise SystemExit(download_child(sys.argv[2]))
 
 import threading
 import webbrowser
@@ -79,6 +85,7 @@ COLORS = {
     "blue": "#0a84ff",
     "blue_hover": "#3298ff",
     "red": "#ff453a",
+    "red_hover": "#ff5f56",
     "green": "#30d158",
     "orange": "#ff9f0a",
     "purple": "#bf5af2",
@@ -152,7 +159,7 @@ def show_startup_error(title, message):
         error_root = tk.Tk()
         error_root.update_idletasks()
         error_root.geometry(
-            f"1x1+{error_root.winfo_screenwidth() // 2}+{error_root.winfo_screenheight() // 2}"
+            f"{px(1)}x{px(1)}+{error_root.winfo_screenwidth() // 2}+{error_root.winfo_screenheight() // 2}"
         )
         error_root.withdraw()
         messagebox.showerror(title, message, parent=error_root)
@@ -173,8 +180,8 @@ def app_resource_path(filename):
 def center_window(window, parent=None, width=None, height=None):
     """Center a Tk window over its visible parent, or over the current screen."""
     window.update_idletasks()
-    width = int(width or window.winfo_width() or window.winfo_reqwidth())
-    height = int(height or window.winfo_height() or window.winfo_reqheight())
+    width = int(px(width) if width is not None else window.winfo_width() or window.winfo_reqwidth())
+    height = int(px(height) if height is not None else window.winfo_height() or window.winfo_reqheight())
 
     parent_is_visible = False
     if parent is not None:
@@ -211,8 +218,8 @@ class ScrollableFrame(tk.Frame):
         self.canvas = tk.Canvas(
             self,
             bg=background,
-            highlightthickness=0,
-            borderwidth=0,
+            highlightthickness=px(0),
+            borderwidth=px(0),
         )
         self.scrollbar = ttk.Scrollbar(
             self,
@@ -231,10 +238,15 @@ class ScrollableFrame(tk.Frame):
         self.canvas.bind("<Leave>", self._unbind_wheel)
 
     def _update_scrollregion(self, _event=None):
+        self._fit_content_width()
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-    def _fit_content_width(self, event):
-        self.canvas.itemconfigure(self.window_id, width=event.width)
+    def _fit_content_width(self, _event=None):
+        # Hidden pages can receive queued Configure events after being resized.
+        # Use the current canvas size rather than a stale event's old width.
+        width = self.canvas.winfo_width()
+        if width > 1 and int(float(self.canvas.itemcget(self.window_id, "width"))) != width:
+            self.canvas.itemconfigure(self.window_id, width=width)
 
     def _bind_wheel(self, _event=None):
         self.canvas.bind_all("<MouseWheel>", self._on_wheel)
@@ -268,10 +280,10 @@ class MacScale(tk.Canvas):
         self._trace_id = None
         super().__init__(
             parent,
-            height=24,
+            height=px(24),
             bg=background or COLORS["surface"],
-            highlightthickness=0,
-            borderwidth=0,
+            highlightthickness=px(0),
+            borderwidth=px(0),
             cursor="hand2",
         )
         self.bind("<Configure>", self._redraw)
@@ -288,7 +300,7 @@ class MacScale(tk.Canvas):
     def _set_from_pointer(self, event):
         if str(self.cget("state")) == "disabled":
             return
-        left, right = 7, max(8, self.winfo_width() - 7)
+        left, right = px(7), max(px(8), self.winfo_width() - px(7))
         fraction = max(0.0, min(1.0, (event.x - left) / max(1, right - left)))
         value = self.minimum + fraction * (self.maximum - self.minimum)
         if self.resolution > 0:
@@ -303,7 +315,7 @@ class MacScale(tk.Canvas):
             return
         self.delete("scale")
         width = self.winfo_width()
-        left, right, center = 7, max(8, width - 7), 12
+        left, right, center = px(7), max(px(8), width - px(7)), px(12)
         span = max(0.000001, self.maximum - self.minimum)
         fraction = max(0.0, min(1.0, (float(self.variable.get()) - self.minimum) / span))
         thumb_x = left + (right - left) * fraction
@@ -315,7 +327,7 @@ class MacScale(tk.Canvas):
             right,
             center,
             fill=COLORS["field"],
-            width=4,
+            width=px(4),
             capstyle="round",
             tags="scale",
         )
@@ -325,18 +337,18 @@ class MacScale(tk.Canvas):
             thumb_x,
             center,
             fill=accent,
-            width=4,
+            width=px(4),
             capstyle="round",
             tags="scale",
         )
         self.create_oval(
-            thumb_x - 6,
-            center - 6,
-            thumb_x + 6,
-            center + 6,
+            thumb_x - px(6),
+            center - px(6),
+            thumb_x + px(6),
+            center + px(6),
             fill=accent,
             outline=COLORS["surface_2"],
-            width=1,
+            width=px(1),
             tags="scale",
         )
 
@@ -355,12 +367,20 @@ class MacScale(tk.Canvas):
 class TranslatorGUI:
     def __init__(self, root):
         self.root = root
+        import queue
+        self._ui_events = queue.Queue()
+        self.root.after(50, self._drain_ui)
+        from tk_lifecycle import confine_tk_collection
+        confine_tk_collection(root)
         self.root.title(APP_NAME)
-        self.root.geometry("800x640")
-        self.root.minsize(640, 480)
+        self.root.geometry(scaled_geometry("800x640"))
+        self.root.minsize(px(640), px(480))
         self.root.configure(bg=COLORS["bg"])
         self.preview_mode = os.environ.get("TRANSLITO_UI_PREVIEW", "0").strip() == "1"
         self._initializing = True
+        self.tray_mode = "--tray" in sys.argv
+        if self.tray_mode:
+            self.root.withdraw()
 
         icon_path = app_resource_path("Translito.ico")
         if icon_path.exists():
@@ -368,13 +388,6 @@ class TranslatorGUI:
                 self.root.iconbitmap(default=str(icon_path))
             except tk.TclError:
                 pass
-        try:
-            self.window_icons = [tk.PhotoImage(file=str(app_resource_path(f"engines/data/tray/idle-{n}.png")))
-                                 for n in (32, 64)]
-            self.root.iconphoto(True, *self.window_icons)
-        except tk.TclError:
-            self.window_icons = []
-
         self.input_choices = []
         self.listen_choices = []
         self.speak_mic_choices = []
@@ -396,6 +409,9 @@ class TranslatorGUI:
         self.latest_translation = ""
         self.synthesizer = LocalSpeechSynthesizer()
 
+        if not self.preview_mode:
+            from settings_store import SettingsStore
+            SettingsStore(CONFIG_FILE).migrate(language_code=lambda value: next((iso for name, bcp, iso in LANGUAGES if value in {name, iso}), value))
         language_config = load_language_config(CONFIG_FILE)
         speak_config = load_speak_config(CONFIG_FILE)
         runtime_config = load_runtime_config(CONFIG_FILE)
@@ -433,7 +449,7 @@ class TranslatorGUI:
         self.lag_var = tk.StringVar(value="")
         self.active_engines = {"asr": "Local", "mt": "Local"}
         self.active_fallbacks = {"asr": False, "mt": False}
-        self.offline_only_var = tk.BooleanVar(value=offline_default)
+        self.offline_only_var = tk.BooleanVar(value=__import__("app_config").read_config(CONFIG_FILE).getboolean("NETWORK", "block_all", fallback=False))
         self.monitor_var = tk.BooleanVar(value=speak_config.monitor_spoken_audio)
         self.voice_var = tk.StringVar(value=speak_config.voice or "Automatic")
         self.voice_hint_var = tk.StringVar(value="")
@@ -456,16 +472,17 @@ class TranslatorGUI:
 
         from settings_state import SettingsState, CONTROL_VARIABLES
         self.preferences = SettingsState(CONFIG_FILE, writable=lambda: not self.preview_mode and not self._initializing)
+        self.preferences.owner = self
         for name in CONTROL_VARIABLES:
-            var = getattr(self, name + "_var")
-            self.preferences.bind(var, "UI", name, var.get())
+            self.preferences.bind_control(self, name)
         self._capture_source_type = self.listen_source_type_var.get()
         for action, var in self.hotkey_vars.items():
             self.preferences.bind(var, "HOTKEYS", action, var.get())
         geometry = self.preferences.get("UI", "window_geometry", "800x640")
         import re
         if re.fullmatch(r"\d{3,4}x\d{3,4}(?:[+-]\d+[+-]\d+)?", geometry):
-            self.root.geometry(geometry)
+            from ui_scale import restore_geometry
+            self.root.geometry(restore_geometry(geometry, self.preferences.get("UI", "window_dpi", 96)))
 
         self.english_passthrough_var = self.preferences.bind(tk.BooleanVar(value=not conversation.one_way),
             "LANGUAGE", "english_passthrough", not conversation.one_way)
@@ -491,17 +508,19 @@ class TranslatorGUI:
 
         self.hotkey_manager = GlobalHotkeyManager(
             callbacks={
-                "toggle": lambda: self.root.after(0, self.hotkey_toggle),
-                "listen": lambda: self.root.after(0, lambda: self.hotkey_start_mode("listen")),
-                "speak": lambda: self.root.after(0, lambda: self.hotkey_start_mode("speak")),
-                "stop": lambda: self.root.after(0, self.stop),
-                "subtitles": lambda: self.root.after(0, self.toggle_subtitles),
-                "replies": lambda: self.root.after(0, self.reply_controller.show_and_request),
-                **{f"reply_{i+1}": lambda i=i: self.root.after(0,lambda:self.reply_controller.say(i)) for i in range(3)},
+                "toggle": lambda: self.post_ui( self.hotkey_toggle),
+                "listen": lambda: self.post_ui( lambda: self.hotkey_start_mode("listen")),
+                "speak": lambda: self.post_ui( lambda: self.hotkey_start_mode("speak")),
+                "stop": lambda: self.post_ui( self.stop),
+                "subtitles": lambda: self.post_ui( self.toggle_subtitles),
+                "replies": lambda: self.post_ui( self.reply_controller.show_and_request),
+                **{f"reply_{i+1}": lambda i=i: self.post_ui(lambda:self.reply_controller.say(i)) for i in range(3)},
             },
-            on_error=lambda message: self.root.after(0, lambda: self.show_error(message)),
+            on_error=lambda message: self.post_ui( lambda: self.show_error(message)),
         )
         if not self.preview_mode:
+            from login import migrate_startup_command
+            migrate_startup_command()
             self.register_hotkeys()
             self.setup_tray()
 
@@ -517,185 +536,57 @@ class TranslatorGUI:
         self.schedule_controller = ScheduleController(self, COLORS)
         from reply_ui import ReplyController
         self.reply_controller = ReplyController(self, COLORS)
+        from download_ui import initialize as initialize_downloads
+        initialize_downloads(self, COLORS)
         self._initializing = False
         if not self.preview_mode:
-            from engines.hardware import speed_history_path
-            if speed_history_path().exists():
-                self.root.after(350, self.preload_current_models)
-            else:
-                self.root.after(350, lambda: self.open_speed_check(first_run=True))
+            self.root.after(350, self.preload_current_models)
             self.root.after(3000, self.auto_refresh_devices)
             self.root.after(1000, self.refresh_cost_status)
-            if not self.preferences.get("CAPTURE", "default_app_prompted", False):
+            if not self.tray_mode and not self.preferences.get("CAPTURE", "default_app_prompted", False):
                 self.preferences.set("CAPTURE", "default_app_prompted", True)
                 self.root.after(600, lambda: self.show_hint("Choose your default meeting app in Settings → Audio."))
 
     # ------------------------------------------------------------------
     # Window construction
 
-    def apply_styles(self):
-        style = ttk.Style(self.root)
+    def post_ui(self, callback):
+        from ui_dispatch import post
+        post(self, callback)
+
+    def _drain_ui(self):
+        import queue
+        for _ in range(200):
+            try:
+                callback = self._ui_events.get_nowait()
+            except queue.Empty:
+                break
+            callback()
         try:
-            style.theme_use("clam")
+            if self.root.winfo_exists():
+                self.root.after(50, self._drain_ui)
         except tk.TclError:
             pass
-        self.style = style
-        from ui_theme import input_styles, dark_titlebar
-        input_styles(self.root, style, COLORS)
-        self.root.after_idle(lambda: dark_titlebar(self.root))
-        self.root.option_add("*Font", "{Segoe UI} 10")
-        self.root.option_add("*TCombobox*Listbox.background", COLORS["field"])
-        self.root.option_add("*TCombobox*Listbox.foreground", COLORS["text"])
-        self.root.option_add("*TCombobox*Listbox.selectBackground", COLORS["blue"])
-        self.root.option_add("*TCombobox*Listbox.selectForeground", "white")
 
-        style.configure("Dark.TFrame", background=COLORS["bg"])
-        style.configure("Surface.TFrame", background=COLORS["surface"])
-        style.configure("Dark.TLabel", background=COLORS["bg"], foreground=COLORS["text"])
-        style.configure(
-            "Secondary.TLabel", background=COLORS["bg"], foreground=COLORS["secondary"]
-        )
-        style.configure(
-            "Surface.TLabel", background=COLORS["surface"], foreground=COLORS["text"]
-        )
-        style.configure(
-            "SurfaceSecondary.TLabel",
-            background=COLORS["surface"],
-            foreground=COLORS["secondary"],
-        )
-        style.configure(
-            "Mac.TButton",
-            background=COLORS["surface_2"],
-            foreground=COLORS["text"],
-            bordercolor=COLORS["border"],
-            lightcolor=COLORS["surface_2"],
-            darkcolor=COLORS["surface_2"],
-            padding=(12, 6),
-            relief="flat",
-        )
-        style.map(
-            "Mac.TButton",
-            background=[("active", COLORS["field"]), ("disabled", COLORS["surface"])],
-            foreground=[("disabled", COLORS["tertiary"])],
-        )
-        style.configure(
-            "Icon.TButton",
-            background=COLORS["surface_2"],
-            foreground=COLORS["text"],
-            bordercolor=COLORS["border"],
-            lightcolor=COLORS["surface_2"],
-            darkcolor=COLORS["surface_2"],
-            padding=(6, 5),
-            relief="flat",
-            font=("Segoe UI Symbol", 10),
-        )
-        style.map(
-            "Icon.TButton",
-            background=[("active", COLORS["field"]), ("disabled", COLORS["surface"])],
-            foreground=[("disabled", COLORS["tertiary"])],
-        )
-        style.configure(
-            "Primary.TButton",
-            background=COLORS["blue"],
-            foreground="white",
-            bordercolor=COLORS["blue"],
-            lightcolor=COLORS["blue"],
-            darkcolor=COLORS["blue"],
-            padding=(12, 5),
-            relief="flat",
-            font=("Segoe UI Semibold", 10),
-        )
-        style.map(
-            "Primary.TButton",
-            background=[("active", COLORS["blue_hover"]), ("disabled", COLORS["field"])],
-            foreground=[("disabled", COLORS["tertiary"])],
-        )
-        style.configure(
-            "Stop.TButton",
-            background=COLORS["red"],
-            foreground="white",
-            bordercolor=COLORS["red"],
-            lightcolor=COLORS["red"],
-            darkcolor=COLORS["red"],
-            padding=(12, 5),
-            relief="flat",
-            font=("Segoe UI Semibold", 10),
-        )
-        style.configure(
-            "SegmentActive.TButton",
-            background=COLORS["field"],
-            foreground=COLORS["text"],
-            bordercolor=COLORS["border"],
-            padding=(14, 6),
-            relief="flat",
-            font=("Segoe UI Semibold", 9),
-        )
-        style.configure(
-            "SegmentInactive.TButton",
-            background=COLORS["surface"],
-            foreground=COLORS["secondary"],
-            bordercolor=COLORS["border"],
-            padding=(14, 6),
-            relief="flat",
-            font=("Segoe UI", 9),
-        )
-        style.map(
-            "SegmentInactive.TButton",
-            background=[("active", COLORS["surface_2"])],
-            foreground=[("active", COLORS["text"]), ("disabled", COLORS["tertiary"])],
-        )
-        style.configure(
-            "Dark.TCombobox",
-            fieldbackground=COLORS["field"],
-            background=COLORS["field"],
-            foreground=COLORS["text"],
-            arrowcolor=COLORS["secondary"],
-            bordercolor=COLORS["border"],
-            lightcolor=COLORS["border"],
-            darkcolor=COLORS["border"],
-            padding=6,
-        )
-        style.map(
-            "Dark.TCombobox",
-            fieldbackground=[("readonly", COLORS["field"]), ("disabled", COLORS["surface"])],
-            foreground=[("readonly", COLORS["text"]), ("disabled", COLORS["tertiary"])],
-            selectbackground=[("readonly", COLORS["field"])],
-            selectforeground=[("readonly", COLORS["text"])],
-        )
-        style.configure(
-            "Dark.Horizontal.TProgressbar",
-            troughcolor=COLORS["field"],
-            background=COLORS["blue"],
-            bordercolor=COLORS["field"],
-            lightcolor=COLORS["blue"],
-            darkcolor=COLORS["blue"],
-        )
-        style.configure(
-            "Dark.Vertical.TScrollbar",
-            background=COLORS["field"],
-            troughcolor=COLORS["bg"],
-            bordercolor=COLORS["bg"],
-            arrowcolor=COLORS["secondary"],
-            lightcolor=COLORS["field"],
-            darkcolor=COLORS["field"],
-            borderwidth=0,
-            arrowsize=10,
-        )
+    def apply_styles(self):
+        from ui_theme import apply_theme
+        self.style = ttk.Style(self.root)
+        apply_theme(self.root, self.style, COLORS)
 
     def build_ui(self):
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(8, weight=1)
 
-        self.mode_bar = tk.Frame(self.root, bg=COLORS["bg"], height=48)
+        self.mode_bar = tk.Frame(self.root, bg=COLORS["bg"], height=px(48))
         self.mode_bar.grid(row=0, column=0, sticky="ew")
         self.mode_bar.columnconfigure(0, weight=1)
         segment = tk.Frame(
             self.mode_bar,
             bg=COLORS["surface"],
             highlightbackground=COLORS["border"],
-            highlightthickness=1,
+            highlightthickness=px(1),
         )
-        segment.grid(row=0, column=0, sticky="w", padx=12, pady=(10, 4))
+        segment.grid(row=0, column=0, sticky="w", padx=px(12), pady=px((10, 4)))
         self.listen_mode_button = ttk.Button(
             segment,
             text="Listen",
@@ -711,21 +602,23 @@ class TranslatorGUI:
         )
         self.speak_mode_button.pack(side="left")
         subtitle_controls = tk.Frame(self.mode_bar, bg=COLORS["bg"])
-        subtitle_controls.grid(row=0, column=1, sticky="e", pady=(10, 4))
+        subtitle_controls.grid(row=0, column=1, sticky="e", pady=px((10, 4)))
         tk.Label(subtitle_controls, text="Subtitles on screen", bg=COLORS["bg"], fg=COLORS["secondary"],
-                 font=("Segoe UI", 9)).pack(side="left", padx=(0, 8))
+                 font=("Segoe UI", 9)).pack(side="left", padx=px((0, 8)))
         from ui_widgets import Switch
         self.subtitle_switch = Switch(subtitle_controls, self.subtitles_enabled_var, COLORS)
         self.subtitle_switch.pack(side="left")
-        self.settings_image = tk.PhotoImage(file=str(app_resource_path("engines/data/ui/settings.png")))
+        from PIL import Image, ImageTk
+        icon = Image.open(app_resource_path("engines/data/ui/settings.png"))
+        self.settings_image = ImageTk.PhotoImage(icon.resize((px(15), px(15)), Image.Resampling.LANCZOS), master=self.root)
         self.settings_button = ttk.Button(
             self.mode_bar,
             image=self.settings_image,
-            width=2,
+            width=px(2, chars=True),
             style="Icon.TButton",
             command=self.open_settings,
         )
-        self.settings_button.grid(row=0, column=2, sticky="e", padx=12, pady=(10, 4))
+        self.settings_button.grid(row=0, column=2, sticky="e", padx=px(12), pady=px((10, 4)))
 
         self._separator(1)
 
@@ -747,7 +640,7 @@ class TranslatorGUI:
         self._build_bottom_bar()
 
     def _separator(self, row):
-        tk.Frame(self.root, bg=COLORS["separator"], height=1).grid(
+        tk.Frame(self.root, bg=COLORS["separator"], height=px(1)).grid(
             row=row, column=0, sticky="ew"
         )
 
@@ -760,7 +653,7 @@ class TranslatorGUI:
             fg=COLORS["secondary"],
             font=("Segoe UI", 8),
             anchor="w",
-        ).pack(fill="x", pady=(0, 3))
+        ).pack(fill="x", pady=px((0, 3)))
         combo = ttk.Combobox(
             frame,
             textvariable=variable,
@@ -772,50 +665,50 @@ class TranslatorGUI:
         return frame, combo
 
     def _build_listen_controls(self, parent):
-        frame = tk.Frame(parent, bg=COLORS["bg"], padx=12, pady=10)
+        frame = tk.Frame(parent, bg=COLORS["bg"], padx=px(12), pady=px(10))
         frame.grid(row=0, column=0, sticky="ew")
         frame.columnconfigure(0, weight=3)
         frame.columnconfigure(2, weight=2)
         frame.columnconfigure(3, weight=2)
 
         source_field, self.listen_combo = self._field(
-            frame, "Source", self.listen_device_var, width=26
+            frame, "Source", self.listen_device_var, width=px(26)
         )
         source_field.pack_slaves()[0].destroy()
         capture_switch = tk.Frame(source_field, bg=COLORS["bg"])
-        capture_switch.pack(fill="x", before=self.listen_combo, pady=(0, 4))
+        capture_switch.pack(fill="x", before=self.listen_combo, pady=px((0, 4)))
         self.capture_kind_buttons = {}
         for kind in ("App audio", "Device"):
-            button = ttk.Button(capture_switch, text=kind, width=9,
+            button = ttk.Button(capture_switch, text=kind, width=px(9, chars=True),
                 command=lambda selected=kind:self.select_capture_source(selected))
             button.pack(side="left")
             self.capture_kind_buttons[kind] = button
         self.listen_source_type_var.trace_add("write", lambda *_:self.update_capture_switch())
         self.update_capture_switch()
-        source_field.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        source_field.grid(row=0, column=0, sticky="ew", padx=px((0, 10)))
         self.btn_refresh_listen = ttk.Button(
-            frame, text="↻", width=2, style="Icon.TButton", command=self.manual_refresh_devices
+            frame, text="↻", width=px(2, chars=True), style="Icon.TButton", command=self.manual_refresh_devices
         )
-        self.btn_refresh_listen.grid(row=0, column=1, sticky="s", padx=(0, 10))
+        self.btn_refresh_listen.grid(row=0, column=1, sticky="s", padx=px((0, 10)))
 
         from_field, self.listen_source_combo = self._field(
-            frame, "English +", self.conversation_other_var, width=12
+            frame, "English +", self.conversation_other_var, width=px(12)
         )
         self.listen_source_label = from_field.winfo_children()[0]
         self.listen_source_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
-        from_field.grid(row=0, column=2, sticky="sew", padx=(0, 10))
+        from_field.grid(row=0, column=2, sticky="sew", padx=px((0, 10)))
 
         to_field, self.listen_target_combo = self._field(
-            frame, "My language", self.my_language_var, width=12
+            frame, "My language", self.my_language_var, width=px(12)
         )
         self.listen_target_label = to_field.winfo_children()[0]
         self.listen_target_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
-        to_field.grid(row=0, column=3, sticky="sew", padx=(0, 12))
+        to_field.grid(row=0, column=3, sticky="sew", padx=px((0, 12)))
 
         self.listen_action_button = ttk.Button(
             frame,
             text="▶  Start",
-            width=9,
+            width=px(9, chars=True),
             style="Primary.TButton",
             command=self.toggle_capture,
         )
@@ -824,67 +717,67 @@ class TranslatorGUI:
         return frame
 
     def _build_speak_controls(self, parent):
-        frame = tk.Frame(parent, bg=COLORS["bg"], padx=12, pady=10)
+        frame = tk.Frame(parent, bg=COLORS["bg"], padx=px(12), pady=px(10))
         frame.columnconfigure(0, weight=2)
         frame.columnconfigure(1, weight=2)
         frame.columnconfigure(3, weight=1)
         frame.columnconfigure(4, weight=1)
 
         mic_field, self.speak_mic_combo = self._field(
-            frame, "Microphone", self.speak_mic_var, width=13
+            frame, "Microphone", self.speak_mic_var, width=px(13)
         )
-        mic_field.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        mic_field.grid(row=0, column=0, sticky="ew", padx=px((0, 10)))
 
         output_field, self.speak_output_combo = self._field(
-            frame, "Speak to", self.speak_output_var, width=13
+            frame, "Speak to", self.speak_output_var, width=px(13)
         )
-        output_field.grid(row=0, column=1, sticky="ew", padx=(0, 10))
+        output_field.grid(row=0, column=1, sticky="ew", padx=px((0, 10)))
 
         self.btn_refresh_speak = ttk.Button(
-            frame, text="↻", width=2, style="Icon.TButton", command=self.manual_refresh_devices
+            frame, text="↻", width=px(2, chars=True), style="Icon.TButton", command=self.manual_refresh_devices
         )
-        self.btn_refresh_speak.grid(row=0, column=2, sticky="s", padx=(0, 10))
+        self.btn_refresh_speak.grid(row=0, column=2, sticky="s", padx=px((0, 10)))
 
         from_field, self.speak_source_combo = self._field(
-            frame, "English +", self.conversation_other_var, width=8
+            frame, "English +", self.conversation_other_var, width=px(8)
         )
         self.speak_source_label = from_field.winfo_children()[0]
         self.speak_source_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
-        from_field.grid(row=0, column=3, sticky="ew", padx=(0, 10))
+        from_field.grid(row=0, column=3, sticky="ew", padx=px((0, 10)))
 
         to_field, self.speak_target_combo = self._field(
-            frame, "Audience", self.audience_language_var, width=8
+            frame, "Audience", self.audience_language_var, width=px(8)
         )
         self.speak_target_label = to_field.winfo_children()[0]
         self.speak_target_combo["values"] = [name for name, _bcp, _iso in LANGUAGES]
-        to_field.grid(row=0, column=4, sticky="ew", padx=(0, 12))
+        to_field.grid(row=0, column=4, sticky="ew", padx=px((0, 12)))
 
         self.speak_action_button = ttk.Button(
             frame,
             text="●  Start",
-            width=9,
+            width=px(9, chars=True),
             style="Primary.TButton",
             command=self.toggle_capture,
         )
         self.speak_action_button.grid(row=0, column=5, sticky="s")
         ttk.Button(frame, text="Virtual-mic setup…", style="Mac.TButton",
-                   command=self.show_virtual_mic_setup).grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
+                   command=self.show_virtual_mic_setup).grid(row=1, column=0, columnspan=2, sticky="w", pady=px((6, 0)))
         return frame
 
     def _build_status_bar(self):
-        self.status_bar = tk.Frame(self.root, bg=COLORS["bg"], padx=12, pady=8)
+        self.status_bar = tk.Frame(self.root, bg=COLORS["bg"], padx=px(12), pady=px(8))
         self.status_bar.grid(row=5, column=0, sticky="ew")
         self.status_bar.columnconfigure(4, weight=1)
 
         self.status_dot = tk.Canvas(
             self.status_bar,
-            width=14,
-            height=14,
+            width=px(14),
+            height=px(14),
             bg=COLORS["bg"],
-            highlightthickness=0,
+            highlightthickness=px(0),
         )
         self.status_dot.create_oval(2, 2, 12, 12, fill=COLORS["tertiary"], outline="", tags="dot")
-        self.status_dot.grid(row=0, column=0, padx=(0, 8))
+        self.status_dot.grid(row=0, column=0, padx=px((0, 8)))
         tk.Label(
             self.status_bar,
             textvariable=self.status_var,
@@ -897,7 +790,7 @@ class TranslatorGUI:
             self.status_bar,
             variable=self.progress_var,
             maximum=100,
-            length=125,
+            length=px(125),
             style="Dark.Horizontal.TProgressbar",
         )
         self.phase_label = tk.Label(
@@ -916,15 +809,15 @@ class TranslatorGUI:
             bg=COLORS["bg"],
             fg=COLORS["secondary"],
             font=("Segoe UI", 11),
-        ).pack(side="left", padx=(0, 5))
+        ).pack(side="left", padx=px((0, 5)))
         self.level_canvas = tk.Canvas(
             self.level_frame,
-            width=110,
-            height=8,
+            width=px(110),
+            height=px(8),
             bg=COLORS["field"],
-            highlightthickness=0,
+            highlightthickness=px(0),
         )
-        self.level_canvas.create_rectangle(0, 0, 0, 8, fill=COLORS["green"], outline="", tags="level")
+        self.level_canvas.create_rectangle(0, 0, 0, px(8), fill=COLORS["green"], outline="", tags="level")
         self.level_canvas.pack(side="left")
         tk.Label(
             self.level_frame,
@@ -932,16 +825,16 @@ class TranslatorGUI:
             bg=COLORS["bg"],
             fg=COLORS["tertiary"],
             font=("Cascadia Mono", 8),
-        ).pack(side="left", padx=(6, 0))
+        ).pack(side="left", padx=px((6, 0)))
         self.level_frame.grid(row=0, column=5, sticky="e")
         self.level_frame.grid_remove()
         for column, variable in ((2, self.delay_var), (3, self.engine_var), (4, self.session_cost_var), (5, self.month_cost_var)):
             label = tk.Label(self.status_bar, textvariable=variable, bg=COLORS["bg"], fg=COLORS["secondary"],
                              font=("Segoe UI", 8), anchor="w")
-            label.grid(row=0, column=column, padx=(14, 0), sticky="w")
+            label.grid(row=0, column=column, padx=px((14, 0)), sticky="w")
             if column == 3:
                 self.engine_label = label
-                label.configure(width=24)
+                label.configure(width=px(24))
         tk.Label(self.status_bar, textvariable=self.lag_var, bg=COLORS["bg"], fg=COLORS["orange"],
                  font=("Segoe UI", 8)).grid(row=1, column=5, sticky="e")
 
@@ -955,7 +848,7 @@ class TranslatorGUI:
             text="●",
             bg=COLORS["yellow_bg"],
             fg=COLORS["orange"],
-            padx=12,
+            padx=px(12),
         )
         self.hint_icon.pack(side="left")
         self.hint_label = tk.Label(
@@ -965,10 +858,11 @@ class TranslatorGUI:
             fg=COLORS["secondary"],
             justify="left",
             anchor="w",
-            wraplength=800,
-            pady=8,
+            wraplength=px(800),
+            pady=px(8),
         )
-        self.hint_label.pack(side="left", fill="x", expand=True, padx=(0, 12))
+        self.hint_action = ttk.Button(self.hint_frame, style="Mac.TButton")
+        self.hint_label.pack(side="left", fill="x", expand=True, padx=px((0, 12)))
 
         self.error_frame = tk.Frame(self.banner_host, bg=COLORS["red_bg"])
         self.error_icon = tk.Label(
@@ -977,7 +871,7 @@ class TranslatorGUI:
             bg=COLORS["red_bg"],
             fg=COLORS["red"],
             font=("Segoe UI Semibold", 10),
-            padx=12,
+            padx=px(12),
         )
         self.error_icon.pack(side="left")
         self.error_label = tk.Label(
@@ -987,10 +881,10 @@ class TranslatorGUI:
             fg="#ffb4ae",
             justify="left",
             anchor="w",
-            wraplength=800,
-            pady=8,
+            wraplength=px(800),
+            pady=px(8),
         )
-        self.error_label.pack(side="left", fill="x", expand=True, padx=(0, 12))
+        self.error_label.pack(side="left", fill="x", expand=True, padx=px((0, 12)))
 
     def _build_transcript_area(self):
         self.transcript_host = tk.Frame(self.root, bg=COLORS["bg"])
@@ -1004,21 +898,23 @@ class TranslatorGUI:
         self.empty_state = tk.Frame(self.transcript_host, bg=COLORS["bg"])
         empty_icon = tk.Canvas(
             self.empty_state,
-            width=40,
-            height=36,
+            width=px(40),
+            height=px(36),
             bg=COLORS["bg"],
-            highlightthickness=0,
-            borderwidth=0,
+            highlightthickness=px(0),
+            borderwidth=px(0),
         )
         empty_icon.create_line(
             6, 5, 34, 5, 34, 25, 18, 25, 11, 31, 11, 25, 6, 25, 6, 5,
             fill=COLORS["tertiary"],
-            width=2,
+            width=px(2),
             joinstyle="round",
         )
-        empty_icon.create_line(12, 12, 28, 12, fill=COLORS["tertiary"], width=2)
-        empty_icon.create_line(12, 18, 24, 18, fill=COLORS["tertiary"], width=2)
-        empty_icon.pack(pady=(0, 8))
+        empty_icon.create_line(12, 12, 28, 12, fill=COLORS["tertiary"], width=px(2))
+        empty_icon.create_line(12, 18, 24, 18, fill=COLORS["tertiary"], width=px(2))
+        from ui_scale import scale
+        empty_icon.scale("all", 0, 0, scale(), scale())
+        empty_icon.pack(pady=px((0, 8)))
         self.empty_title_label = tk.Label(
             self.empty_state,
             text="Transcripts will appear here",
@@ -1036,17 +932,18 @@ class TranslatorGUI:
             bg=COLORS["bg"],
             fg=COLORS["tertiary"],
             justify="center",
-            wraplength=460,
+            wraplength=px(460),
             font=("Segoe UI", 9),
         )
-        self.empty_help_label.pack(pady=(5, 0))
-        self.empty_measurements_var = tk.StringVar(value="Delay and accuracy: not measured for this pair.")
+        self.empty_help_label.pack(pady=px((5, 0)))
+        self.empty_measurements_var = tk.StringVar(value="")
         tk.Label(self.empty_state, textvariable=self.empty_measurements_var, bg=COLORS["bg"], fg=COLORS["tertiary"],
-                 wraplength=460, justify="center", font=("Segoe UI", 9)).pack(pady=(12, 0))
-        ttk.Button(self.empty_state, text="Compare engines", command=self.open_speed_check, style="Mac.TButton").pack(pady=10)
+                 wraplength=px(460), justify="center", font=("Segoe UI", 9)).pack(pady=px((12, 0)))
+        ttk.Button(self.empty_state, text="Set up cloud", command=self.open_cloud_setup, style="Mac.TButton").pack(pady=px(10))
+        ttk.Button(self.empty_state, text="Keep using this PC", command=lambda: self.engine_choice_var.set("local"), style="Mac.TButton").pack()
 
     def _build_bottom_bar(self):
-        bar = tk.Frame(self.root, bg=COLORS["bg"], padx=12, pady=12)
+        bar = tk.Frame(self.root, bg=COLORS["bg"], padx=px(12), pady=px(12))
         bar.grid(row=10, column=0, sticky="ew")
         bar.columnconfigure(1, weight=1)
         tk.Label(
@@ -1059,15 +956,15 @@ class TranslatorGUI:
         self.clear_button = ttk.Button(
             bar, text="Clear", style="Mac.TButton", command=self.clear_transcript
         )
-        self.clear_button.grid(row=0, column=2, padx=(8, 0))
+        self.clear_button.grid(row=0, column=2, padx=px((8, 0)))
         self.save_button = ttk.Button(
             bar, text="Save Transcript", style="Mac.TButton", command=self.save_transcript
         )
-        self.save_button.grid(row=0, column=3, padx=(8, 0))
+        self.save_button.grid(row=0, column=3, padx=px((8, 0)))
         self.show_folder_button = ttk.Button(
             bar, text="Show in Explorer", style="Mac.TButton", command=self.reveal_transcripts
         )
-        self.show_folder_button.grid(row=0, column=4, padx=(8, 0))
+        self.show_folder_button.grid(row=0, column=4, padx=px((8, 0)))
 
     # ------------------------------------------------------------------
     # Settings window
@@ -1092,8 +989,8 @@ class TranslatorGUI:
         window = tk.Toplevel(self.root)
         self.settings_window = window
         window.title("Translito Settings")
-        window.geometry("820x680")
-        window.minsize(720, 460)
+        window.geometry(scaled_geometry("820x680"))
+        window.minsize(px(720), px(460))
         window.resizable(True, True)
         window.configure(bg=COLORS["bg"])
         window.transient(self.root)
@@ -1101,7 +998,11 @@ class TranslatorGUI:
             window.iconbitmap(default=str(app_resource_path("Translito.ico")))
         except tk.TclError:
             pass
+        from ui_theme import apply_theme
+        apply_theme(window, self.style, COLORS)
         from settings_shell import SettingsShell
+        from settings_feedback import add_footer
+        add_footer(self, window, COLORS)
         from ui_theme import dark_titlebar
         self.settings_shell = SettingsShell(window, COLORS, ScrollableFrame,
             initial=self.preferences.get("UI", "last_settings_page", "Languages"),
@@ -1124,14 +1025,14 @@ class TranslatorGUI:
         hotkeys = self._settings_section(content, "Hotkeys")
         for action in DEFAULT_HOTKEYS:
             row = tk.Frame(hotkeys, bg=COLORS["surface"])
-            row.pack(fill="x", pady=3)
+            row.pack(fill="x", pady=px(3))
             row.columnconfigure(1, weight=1)
             tk.Label(
                 row,
                 text=HOTKEY_LABELS[action],
                 bg=COLORS["surface"],
                 fg=COLORS["text"],
-                width=19,
+                width=px(19, chars=True),
                 anchor="w",
             ).grid(row=0, column=0, sticky="w")
             entry = tk.Entry(
@@ -1141,18 +1042,18 @@ class TranslatorGUI:
                 fg=COLORS["text"],
                 insertbackground=COLORS["text"],
                 relief="flat",
-                highlightthickness=1,
+                highlightthickness=px(1),
                 highlightbackground=COLORS["border"],
                 highlightcolor=COLORS["blue"],
             )
-            entry.grid(row=0, column=1, sticky="ew", padx=(8, 8), ipady=6)
+            entry.grid(row=0, column=1, sticky="ew", padx=px((8, 8)), ipady=px(6))
             record = ttk.Button(
                 row,
                 text="Record",
                 style="Mac.TButton",
                 command=lambda a=action: self.record_hotkey(a),
             )
-            record.grid(row=0, column=2, padx=(0, 6))
+            record.grid(row=0, column=2, padx=px((0, 6)))
             clear = ttk.Button(
                 row,
                 text="Clear",
@@ -1163,7 +1064,7 @@ class TranslatorGUI:
             self.settings_controls.extend((entry, record, clear))
         ttk.Button(
             hotkeys, text="Reset Defaults", style="Mac.TButton", command=self.reset_hotkeys
-        ).pack(anchor="e", pady=(7, 0))
+        ).pack(anchor="e", pady=px((7, 0)))
         self._settings_help(
             hotkeys,
             "Hotkeys work system-wide. Toggle starts the last-used mode or switches between listening and speaking.",
@@ -1172,10 +1073,10 @@ class TranslatorGUI:
         languages = self._settings_section(content, "Languages")
         self._settings_help(languages, "What is being spoken and what you want to read.")
         pair = tk.Frame(languages, bg=COLORS["surface"])
-        pair.pack(fill="x", pady=(10, 12))
+        pair.pack(fill="x", pady=px((10, 12)))
         for label, variable in (("Spoken language", self.listen_source_var), ("Translate to", self.listen_target_var)):
-            field, combo = self._field(pair, label, variable, width=22)
-            field.pack(side="left", fill="x", expand=True, padx=(0, 10))
+            field, combo = self._field(pair, label, variable, width=px(22))
+            field.pack(side="left", fill="x", expand=True, padx=px((0, 10)))
             combo.configure(values=[name for name, _, _ in LANGUAGES])
             combo.bind("<<ComboboxSelected>>", lambda _event: self.apply_language_pair())
             self.settings_controls.append(combo)
@@ -1186,19 +1087,15 @@ class TranslatorGUI:
             ("Keep English technical terms in English", self.keep_english_var, self.persist_settings),
             ("Show the original line under each translation", self.both_languages_var, self.persist_settings)):
             control = tk.Checkbutton(languages, text=text, variable=variable, command=callback, **self._checkbutton_options())
-            control.pack(anchor="w", pady=5)
+            control.pack(anchor="w", pady=px(5))
             self.settings_controls.append(control)
-        ttk.Button(languages, text="Edit terms", style="Mac.TButton", command=self.open_terms).pack(anchor="w", pady=10)
+        ttk.Button(languages, text="Edit terms", style="Mac.TButton", command=self.open_terms).pack(anchor="w", pady=px(10))
 
         recognition = self._settings_section(content, "Speech Recognition")
         cohere_button = ttk.Button(recognition, text="Recommended local model", style="Mac.TButton",
                                     command=self.download_models)
-        cohere_button.pack(anchor="w", pady=(3, 8))
+        cohere_button.pack(anchor="w", pady=px((3, 8)))
         self.settings_controls.append(cohere_button)
-        speed_button = ttk.Button(recognition, text="Check this PC's speed", style="Mac.TButton",
-                                  command=self.open_speed_check)
-        speed_button.pack(anchor="w", pady=(0, 8))
-        self.settings_controls.append(speed_button)
         quality_settings = self._settings_combo(recognition, "Quality", self.quality_var,
                                                 ["Fast", "Balanced", "Best"])
         quality_settings.bind("<<ComboboxSelected>>", lambda _event: self.change_quality_preset())
@@ -1216,20 +1113,20 @@ class TranslatorGUI:
 
         advanced_recognition_button = ttk.Button(recognition, text="Advanced ▸", style="Mac.TButton",
                                                   command=toggle_advanced_recognition)
-        advanced_recognition_button.pack(anchor="w", pady=5)
+        advanced_recognition_button.pack(anchor="w", pady=px(5))
         self.settings_controls.append(advanced_recognition_button)
         whisper_settings = self._settings_combo(
             advanced_recognition, "Model ID", self.whisper_var, WHISPER_MODELS
         )
         whisper_settings.bind("<<ComboboxSelected>>", lambda _event: self.persist_settings())
         slider_row = tk.Frame(advanced_recognition, bg=COLORS["surface"])
-        slider_row.pack(fill="x", pady=5)
+        slider_row.pack(fill="x", pady=px(5))
         tk.Label(
             slider_row,
             text="Legacy window",
             bg=COLORS["surface"],
             fg=COLORS["text"],
-            width=19,
+            width=px(19, chars=True),
             anchor="w",
         ).pack(side="left")
         chunk_scale = MacScale(
@@ -1241,31 +1138,31 @@ class TranslatorGUI:
             command=self.update_chunk_duration,
             background=COLORS["surface"],
         )
-        chunk_scale.pack(side="left", fill="x", expand=True, padx=(8, 8))
+        chunk_scale.pack(side="left", fill="x", expand=True, padx=px((8, 8)))
         self.chunk_label = tk.Label(
             slider_row,
             text="6 s",
             bg=COLORS["surface"],
             fg=COLORS["secondary"],
-            width=5,
+            width=px(5, chars=True),
             anchor="w",
             font=("Cascadia Mono", 9),
         )
         self.chunk_label.pack(side="left")
         offline = tk.Checkbutton(
             recognition,
-            text="Offline mode (use already-downloaded models only)",
+            text="Never connect to the internet (blocks cloud and model downloads)",
             variable=self.offline_only_var,
             command=self.change_offline_mode,
             **self._checkbutton_options(),
         )
-        offline.pack(anchor="w", pady=(6, 2))
+        offline.pack(anchor="w", pady=px((6, 2)))
         ttk.Button(
             recognition,
             text="Manage models…",
             style="Mac.TButton",
             command=self.download_models,
-        ).pack(anchor="w", pady=(5, 0))
+        ).pack(anchor="w", pady=px((5, 0)))
         self._settings_help(
             recognition,
             "Models download once, then run locally. Live segments close after a pause, up to 15 seconds. "
@@ -1273,6 +1170,8 @@ class TranslatorGUI:
         )
         self.settings_controls.extend((whisper_settings, chunk_scale, offline))
 
+        from download_ui import models_page
+        models_page(self, self.settings_shell.contents["Models"], COLORS)
         from engine_ui import pages as build_engine_pages
         build_engine_pages(self, COLORS)
         from subtitle_overlay import build_subtitle_page
@@ -1286,20 +1185,20 @@ class TranslatorGUI:
         translation = self._settings_section(content, "Local translation")
         gemma_button = ttk.Button(translation, text="Set up TranslateGemma", style="Mac.TButton",
                                    command=self.open_translation_model_setup)
-        gemma_button.pack(anchor="w", pady=(3, 6))
+        gemma_button.pack(anchor="w", pady=px((3, 6)))
         self.settings_controls.append(gemma_button)
         self._settings_help(translation, "TranslateGemma 4B offers a larger local translator on PCs with at least 8 GB RAM. "
                             "It is an optional 2.5 GB download. Lite translation is the fallback.")
 
         capture = self._settings_section(content, "Capture")
         gate_row = tk.Frame(capture, bg=COLORS["surface"])
-        gate_row.pack(fill="x", pady=5)
+        gate_row.pack(fill="x", pady=px(5))
         tk.Label(
             gate_row,
             text="Mic noise gate",
             bg=COLORS["surface"],
             fg=COLORS["text"],
-            width=19,
+            width=px(19, chars=True),
             anchor="w",
         ).pack(side="left")
         gate_scale = MacScale(
@@ -1311,13 +1210,13 @@ class TranslatorGUI:
             command=lambda _value: (self.update_noise_gate_label(), self.persist_settings()),
             background=COLORS["surface"],
         )
-        gate_scale.pack(side="left", fill="x", expand=True, padx=(8, 8))
+        gate_scale.pack(side="left", fill="x", expand=True, padx=px((8, 8)))
         self.noise_gate_label = tk.Label(
             gate_row,
             text="Medium",
             bg=COLORS["surface"],
             fg=COLORS["secondary"],
-            width=10,
+            width=px(10, chars=True),
             anchor="w",
             font=("Cascadia Mono", 9),
         )
@@ -1333,8 +1232,8 @@ class TranslatorGUI:
         self.voice_settings_combo = voice_settings
         self.voice_guidance = tk.Frame(speak, bg=speak.cget("bg"))
         tk.Label(self.voice_guidance, textvariable=self.voice_hint_var, bg=speak.cget("bg"),
-                 fg=COLORS["secondary"], font=("Segoe UI", 8), wraplength=440,
-                 justify="left", anchor="w").pack(fill="x", pady=(8, 4))
+                 fg=COLORS["secondary"], font=("Segoe UI", 8), wraplength=px(440),
+                 justify="left", anchor="w").pack(fill="x", pady=px((8, 4)))
         ttk.Button(self.voice_guidance, text="Windows speech settings", style="Mac.TButton",
                    command=lambda: webbrowser.open("ms-settings:speech")).pack(anchor="w")
         monitor = tk.Checkbutton(
@@ -1344,7 +1243,7 @@ class TranslatorGUI:
             command=self.persist_settings,
             **self._checkbutton_options(),
         )
-        monitor.pack(anchor="w", pady=(7, 2))
+        monitor.pack(anchor="w", pady=px((7, 2)))
         self.voice_settings_monitor = monitor
         if self.voice_hint_var.get():
             self.voice_guidance.pack(fill="x", before=monitor)
@@ -1363,11 +1262,11 @@ class TranslatorGUI:
             fg=COLORS["secondary"],
             anchor="w",
             justify="left",
-            padx=8,
-            pady=7,
-            wraplength=440,
+            padx=px(8),
+            pady=px(7),
+            wraplength=px(440),
         )
-        folder_label.pack(fill="x", pady=(0, 8))
+        folder_label.pack(fill="x", pady=px((0, 8)))
         folder_buttons = tk.Frame(transcripts, bg=COLORS["surface"])
         folder_buttons.pack(fill="x")
         ttk.Button(
@@ -1375,14 +1274,14 @@ class TranslatorGUI:
         ).pack(side="left")
         ttk.Button(
             folder_buttons, text="Use Default", style="Mac.TButton", command=self.reset_folder
-        ).pack(side="left", padx=(8, 0))
+        ).pack(side="left", padx=px((8, 0)))
         ttk.Button(
             folder_buttons, text="Open Folder", style="Mac.TButton", command=self.open_folder
-        ).pack(side="left", padx=(8, 0))
+        ).pack(side="left", padx=px((8, 0)))
 
         if self.transcriber is not None:
             self._settings_help(content, "Stop capture to change settings.", color=COLORS["orange"])
-            self._set_settings_controls_state(False)
+            self._settings_help(content, "Applies when you start the next session", color=COLORS["orange"])
         self.update_noise_gate_label()
         self.update_chunk_label()
         center_window(window, self.root, 820, 680)
@@ -1393,7 +1292,7 @@ class TranslatorGUI:
         if getattr(self, "settings_shell", None):
             parent = self.settings_shell.section_parent(title)
         outer = tk.Frame(parent, bg=COLORS["bg"])
-        outer.pack(fill="x", pady=(0, 14))
+        outer.pack(fill="x", pady=px((0, 14)))
         tk.Label(
             outer,
             text=title,
@@ -1401,27 +1300,27 @@ class TranslatorGUI:
             fg=COLORS["text"],
             font=("Segoe UI Semibold", 12),
             anchor="w",
-        ).pack(fill="x", padx=3, pady=(0, 5))
+        ).pack(fill="x", padx=px(3), pady=px((0, 5)))
         card = tk.Frame(
             outer,
             bg=COLORS["surface"],
             highlightbackground=COLORS["border"],
-            highlightthickness=1,
-            padx=12,
-            pady=11,
+            highlightthickness=px(1),
+            padx=px(12),
+            pady=px(11),
         )
         card.pack(fill="x")
         return card
 
     def _settings_combo(self, parent, label, variable, values):
         row = tk.Frame(parent, bg=COLORS["surface"])
-        row.pack(fill="x", pady=4)
+        row.pack(fill="x", pady=px(4))
         tk.Label(
             row,
             text=label,
             bg=COLORS["surface"],
             fg=COLORS["text"],
-            width=19,
+            width=px(19, chars=True),
             anchor="w",
         ).pack(side="left")
         combo = ttk.Combobox(
@@ -1431,7 +1330,7 @@ class TranslatorGUI:
             state="readonly",
             style="Dark.TCombobox",
         )
-        combo.pack(side="left", fill="x", expand=True, padx=(8, 0))
+        combo.pack(side="left", fill="x", expand=True, padx=px((8, 0)))
         self.settings_controls.append(combo)
         # ttk otherwise changes a focused language/provider selection while the
         # user is merely scrolling the settings page.
@@ -1446,9 +1345,9 @@ class TranslatorGUI:
             fg=color or COLORS["tertiary"],
             justify="left",
             anchor="w",
-            wraplength=440,
+            wraplength=px(440),
             font=("Segoe UI", 8),
-        ).pack(fill="x", pady=(8, 0))
+        ).pack(fill="x", pady=px((8, 0)))
 
     def _checkbutton_options(self):
         return {
@@ -1486,12 +1385,14 @@ class TranslatorGUI:
             return
         if not self._initializing:
             self.preferences.set("UI", "window_geometry", self.root.geometry())
-        content_wrap = max(320, event.width - 56)
+            from ui_scale import scale
+            self.preferences.set("UI", "window_dpi", round(96*scale()))
+        content_wrap = max(px(320), event.width - px(56))
         self.routing_label.configure(wraplength=content_wrap)
         self.hint_label.configure(wraplength=content_wrap)
         self.error_label.configure(wraplength=content_wrap)
-        self.empty_help_label.configure(wraplength=min(460, max(300, event.width - 80)))
-        transcript_wrap = max(280, event.width - 56)
+        self.empty_help_label.configure(wraplength=min(px(460), max(px(300), event.width - px(80))))
+        transcript_wrap = max(px(280), event.width - px(56))
         for label in tuple(self.transcript_text_labels):
             try:
                 label.configure(wraplength=transcript_wrap)
@@ -1595,16 +1496,10 @@ class TranslatorGUI:
             self.show_error(f"Could not open Terms: {exc}")
 
     def open_arabic_model_setup(self):
-        if self.transcriber is not None or self.model_setup_busy:
-            self.show_hint("Stop the current session before setting up a model.")
-            return
         from quality_settings import open_cohere_setup
         open_cohere_setup(self, COLORS, center_window)
 
     def open_translation_model_setup(self):
-        if self.transcriber is not None or self.model_setup_busy:
-            self.show_hint("Finish the current session or model setup first.")
-            return
         from quality_settings import open_translategemma_setup
         open_translategemma_setup(self, COLORS, center_window)
 
@@ -1616,18 +1511,22 @@ class TranslatorGUI:
         open_check(self, COLORS, center_window, first_run=first_run)
 
     def change_engine_profile(self):
-        self.offline_only_var.set(ENGINE_PROFILES[self.engine_profile_var.get()] == "offline")
         self.persist_settings()
 
+    def open_cloud_setup(self):
+        self.open_settings()
+        self.engine_choice_var.set("cloud")
+        self.settings_shell.show("Engine")
+        self.refresh_cloud_connection()
+        self.cloud_key_entry.focus_set()
+
     def open_provider_settings(self):
-        if self.transcriber is not None or self.model_setup_busy:
-            self.show_hint("Finish the current session or setup first.")
-            return
         from provider_settings import open_provider_settings
-        open_provider_settings(self, COLORS, center_window)
+        return open_provider_settings(self, COLORS, center_window)
 
     def change_offline_mode(self):
-        self.engine_profile_var.set("Offline (private)" if self.offline_only_var.get() else "Free (recommended)")
+        self.preferences.set("NETWORK", "block_all", self.offline_only_var.get())
+        self.configure_offline_env()
         self.persist_settings()
 
     def selected_listen_choice(self):
@@ -1649,6 +1548,13 @@ class TranslatorGUI:
         return None
 
     def refresh_devices(self, show_error=False):
+        self._restoring_devices = True
+        try:
+            self._refresh_devices(show_error=show_error)
+        finally:
+            self._restoring_devices = False
+
+    def _refresh_devices(self, show_error=False):
         current_listen = self.selected_listen_choice()
         current_is_app = current_listen is not None and getattr(current_listen.raw, "is_process_loopback", False)
         if self.listen_source_type_var.get() == "App audio":
@@ -1700,7 +1606,7 @@ class TranslatorGUI:
             else:
                 self.listen_choices = []
                 self.app_audio_hint.configure(text="App audio needs 64-bit Windows build 20348+; use Device here.")
-            self.app_audio_hint.grid(row=1, column=0, columnspan=5, sticky="ew", pady=(6,0))
+            self.app_audio_hint.grid(row=1, column=0, columnspan=5, sticky="ew", pady=px((6,0)))
         else:
             self.app_audio_hint.configure(text="")
             self.app_audio_hint.grid_remove()
@@ -1775,7 +1681,7 @@ class TranslatorGUI:
                 self.set_status("Ready")
             if not self.is_quitting:
                 try:
-                    self.root.after(0, done)
+                    self.post_ui( done)
                 except (RuntimeError, tk.TclError):
                     pass
         threading.Thread(target=run, daemon=True, name="Translito device refresh").start()
@@ -1843,7 +1749,7 @@ class TranslatorGUI:
         def load():
             voices = self.synthesizer.available_voices(target_iso)
             try:
-                self.root.after(0, lambda: self._apply_voices(voices, target_iso, generation))
+                self.post_ui(lambda: self._apply_voices(voices, target_iso, generation))
             except (RuntimeError, tk.TclError):
                 pass
 
@@ -1867,7 +1773,12 @@ class TranslatorGUI:
         if hasattr(self, "voice_settings_combo") and self.voice_settings_combo.winfo_exists():
             self.voice_settings_combo["values"] = voices
         if self.voice_var.get() not in voices:
-            self.voice_var.set("Automatic")
+            restoring = getattr(self, "_restoring_devices", False)
+            self._restoring_devices = True
+            try:
+                self.voice_var.set("Automatic")
+            finally:
+                self._restoring_devices = restoring
 
     def update_capture_switch(self):
         for kind, button in self.capture_kind_buttons.items():
@@ -1906,42 +1817,11 @@ class TranslatorGUI:
     def persist_settings(self):
         if self.preview_mode or self._initializing:
             return
-        from dataclasses import replace
-        engines = load_engine_settings(CONFIG_FILE)
-        save_engine_settings(replace(engines, profile=ENGINE_PROFILES[self.engine_profile_var.get()]), CONFIG_FILE)
-        _listen_name, _listen_bcp, listen_source = self.language_entry_by_name(
-            self.listen_source_var.get()
-        )
-        _target_name, _target_bcp, listen_target = self.language_entry_by_name(
-            self.listen_target_var.get()
-        )
-        _speak_name, _speak_bcp, speak_source = self.language_entry_by_name(
-            self.speak_source_var.get()
-        )
-        _speak_target_name, _speak_target_bcp, speak_target = self.language_entry_by_name(
-            self.speak_target_var.get()
-        )
-        save_language_config(listen_source, listen_target, self.whisper_var.get(), CONFIG_FILE)
-        save_conversation_config(self.current_conversation(), CONFIG_FILE)
-        mic_choice = self.selected_speak_mic_choice()
-        output_choice = self.selected_output_choice()
-        save_speak_config(
-            CONFIG_FILE,
-            source=speak_source,
-            target=speak_target,
-            mic_name=mic_choice.name if mic_choice else self.speak_mic_var.get(),
-            output_device_name=output_choice.name if output_choice else self.speak_output_var.get(),
-            voice=self.voice_var.get(),
-            monitor_spoken_audio=self.monitor_var.get(),
-        )
-        save_runtime_config(
-            CONFIG_FILE,
-            mic_noise_gate=self.noise_gate_var.get(),
-            last_mode=self.mode_var.get(),
-            chunk_duration=self.chunk_duration_var.get(),
-            offline_only=self.offline_only_var.get(),
-            asr_preset=self.quality_var.get().lower(),
-        )
+        from dataclasses import asdict
+        # Control traces already save their own canonical keys. Update only the
+        # derived conversation contract as one transaction.
+        self.preferences.store.update({("CONVERSATION", key): str(int(value)) if isinstance(value, bool) else str(value)
+            for key, value in asdict(self.current_conversation()).items()})
 
     def choose_folder(self):
         selected = filedialog.askdirectory(
@@ -1968,14 +1848,7 @@ class TranslatorGUI:
     # Runtime actions
 
     def configure_offline_env(self):
-        if self.offline_only_var.get():
-            os.environ.setdefault("HF_HUB_OFFLINE", "1")
-            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-            os.environ["OFFLINE_ONLY"] = "1"
-        else:
-            os.environ.pop("HF_HUB_OFFLINE", None)
-            os.environ.pop("TRANSFORMERS_OFFLINE", None)
-            os.environ["OFFLINE_ONLY"] = "0"
+        os.environ["OFFLINE_ONLY"] = "1" if self.offline_only_var.get() else "0"
 
     def current_model_request(self):
         mode = self.mode_var.get()
@@ -2006,8 +1879,15 @@ class TranslatorGUI:
         cloud_available = (not self.offline_only_var.get() and self.engine_profile_var.get() != "Offline (private)" and
             any(p.enabled and p.tested_signature and (settings.engine_choice != "free" or p.account_kind != "paid")
                 for name,p in settings.providers.items() if name in {"azure","deepl","google","gemini","gemini-live","soniox","elevenlabs","speechmatics"}))
-        translation_model = translation_model_for(src_iso, tgt_iso, cloud_available=cloud_available)
-        if defaults["default_mt_provider"] == "local" and defaults["default_mt_model"] == "opus":
+        native_cloud = (settings.engine_choice == "cloud" and (defaults["default_asr_provider"] or "soniox") == "soniox"
+            and settings.monthly_cap > 0 and settings.provider("soniox").enabled and settings.provider("soniox").monthly_cap > 0 and bool(settings.provider("soniox").tested_signature)
+            and not self.offline_only_var.get())
+        text_cloud = cloud_available and any(p.enabled and p.tested_signature and
+            (p.account_kind != "paid" or (settings.monthly_cap > 0 and p.monthly_cap > 0)) for name,p in settings.providers.items()
+            if name in {"azure", "deepl", "google", "gemini"})
+        translation_model = (f"cloud:{src_iso}:{tgt_iso}" if native_cloud or text_cloud else
+                             translation_model_for(src_iso, tgt_iso, cloud_available=cloud_available))
+        if defaults["default_mt_provider"] == "local" and defaults["default_mt_model"] == "opus" and not native_cloud:
             translation_model = resolve_local_mt(src_iso,tgt_iso,offline=True).model_id
         return {
             "mode": mode,
@@ -2017,6 +1897,7 @@ class TranslatorGUI:
             "whisper_model": whisper_model,
             "variety": self.variety_var.get(),
             "translation_model": translation_model,
+            "cloud_translation": native_cloud or text_cloud,
             "conversation": conversation,
         }
 
@@ -2107,21 +1988,42 @@ class TranslatorGUI:
                     self.show_error(str(exc))
                     return
 
+        from engines.model_files import ready_whisper
+        fallback = ready_whisper(request["whisper_model"])
+        if fallback is None:
+            self.download_missing_whisper()
+            return
+        if fallback != request["whisper_model"]:
+            request["whisper_model"] = fallback
+            self.refresh_model_hint()
+        if not request.get("cloud_translation") and not request["translation_model"].startswith(("translategemma:", "identity:")):
+            from engines.model_files import missing_translations
+            needed = missing_translations(request["src_iso"], request["tgt_iso"])
+            if needed:
+                for spec in needed:
+                    self.download_missing_whisper(spec)
+                self.show_hint("Lite translation is downloading. It will be used from your next session.")
+                return
         self.model_setup_busy = True
         self.lock_controls(True)
         self.set_status("Testing virtual microphone" if request["mode"] == "speak" else "Loading models")
         self.update_action_button(running=False, loading=True)
+
+        session_options = dict(speech_voice=self.voice_var.get(), monitor_spoken_audio=self.monitor_var.get(),
+            chunk_duration=self.chunk_duration_var.get(), transcript_folder=self.transcript_folder_var.get(),
+            asr_preset=self.quality_var.get().lower(),
+            engine_settings=load_engine_settings(self.preferences.path) if hasattr(self, "preferences") else None)
 
         def run_start():
             try:
                 if request["mode"] == "speak":
                     from engines.virtual_mic import self_test
                     result = self_test(output_choice)
-                    self.root.after(0, lambda: self.virtual_mic_setup.test_result(output_choice, result))
+                    self.post_ui( lambda: self.virtual_mic_setup.test_result(output_choice, result))
                     if not result.passed:
-                        self.root.after(0, lambda: self.start_failed(RuntimeError(result.message)))
+                        self.post_ui( lambda: self.start_failed(RuntimeError(result.message)))
                         return
-                    self.root.after(0, lambda: self.set_status("Loading models"))
+                    self.post_ui( lambda: self.set_status("Loading models"))
                 transcriber = ArabicAudioTranscriber(
                     selected_device=selected_device,
                     on_event=self.on_event,
@@ -2131,18 +2033,14 @@ class TranslatorGUI:
                     mode=request["mode"],
                     target_language=request["tgt_iso"],
                     speech_output_device_name=output_name,
-                    speech_voice=self.voice_var.get(),
-                    monitor_spoken_audio=self.monitor_var.get(),
                     mic_noise_gate=mic_noise_gate,
-                    chunk_duration=self.chunk_duration_var.get(),
-                    transcript_folder=self.transcript_folder_var.get(),
                     conversation=request["conversation"],
-                    asr_preset=self.quality_var.get().lower(),
+                    **session_options,
                     variety=request.get("variety", ""),
                     whisper_model=request.get("whisper_model"),
                 )
             except Exception as exc:
-                self.root.after(0, lambda exc=exc: self.start_failed(exc))
+                self.post_ui( lambda exc=exc: self.start_failed(exc))
                 return
 
             def finish_start():
@@ -2158,7 +2056,7 @@ class TranslatorGUI:
                 self.update_action_button(running=True)
                 transcriber.start_background(enable_keyboard_shortcuts=False)
 
-            self.root.after(0, finish_start)
+            self.post_ui( finish_start)
 
         threading.Thread(target=run_start, daemon=True).start()
 
@@ -2167,7 +2065,16 @@ class TranslatorGUI:
         self.lock_controls(False)
         self.set_status("Error")
         self.update_action_button(running=False)
-        self.show_error(str(exc))
+        from engines.model_files import ModelNotReady
+        if isinstance(exc, ModelNotReady):
+            from engines.model_files import model_hint
+            message, action = model_hint(exc.spec, exc.status)
+            self.show_hint(message)
+            self.hint_action.configure(text=action, command=lambda: self.download_missing_whisper(exc.spec))
+            self.hint_action.pack(side="right")
+            self.set_status("Ready")
+        else:
+            self.show_error(str(exc))
         self.update_routing_banner()
 
     def stop(self, after=None):
@@ -2203,7 +2110,7 @@ class TranslatorGUI:
                 if callable(after):
                     after()
 
-            self.root.after(0, done)
+            self.post_ui( done)
 
         threading.Thread(target=finalize, daemon=True).start()
 
@@ -2247,7 +2154,7 @@ class TranslatorGUI:
             *self.capture_kind_buttons.values(),
         ):
             widget.configure(state=normal_state)
-        self._set_settings_controls_state(not locked)
+        self._set_settings_controls_state(True)
         self.update_routing_banner()
 
     def _set_settings_controls_state(self, enabled):
@@ -2269,6 +2176,20 @@ class TranslatorGUI:
         elif running:
             button.configure(text="■  Stop", style="Stop.TButton", state="normal")
         else:
+            from engines.model_files import ready_whisper
+            if not self.preview_mode and ready_whisper(self.whisper_var.get()) is None:
+                button.configure(text="Download Whisper Small (484 MB) to start", style="Primary.TButton", state="normal")
+                return
+            if not self.preview_mode:
+                try:
+                    request = self.current_model_request()
+                    if not request.get("cloud_translation") and not request["translation_model"].startswith(("translategemma:", "identity:")):
+                        from engines.model_files import missing_translations
+                        if missing_translations(request["src_iso"], request["tgt_iso"]):
+                            button.configure(text="Download Lite translation to start", style="Primary.TButton", state="normal")
+                            return
+                except UnsupportedPairError:
+                    pass
             symbol = "●" if self.mode_var.get() == "speak" else "▶"
             button.configure(text=f"{symbol}  Start", style="Primary.TButton", state="normal")
 
@@ -2291,10 +2212,17 @@ class TranslatorGUI:
                 self.handle_model_progress(payload or {})
             elif event_type == "hint":
                 self.show_hint(str(payload))
+            elif event_type == "engine_fallback":
+                from engine_ui import refresh_engine_status
+                self._engine_fallback_reason = str(payload)
+                status = refresh_engine_status(self, str(payload))
+                self.show_hint(status.text)
+                tk.Label(self.transcript_scroll.content, text=status.text, bg=COLORS["bg"], fg=COLORS["orange"],
+                         wraplength=px(600), justify="left").pack(fill="x", pady=px(8))
             elif event_type == "gap":
                 seconds = round((payload or {}).get("seconds", 0))
                 tk.Label(self.transcript_scroll.content, text=f"{seconds//60} min {seconds%60} s · nothing sent",
-                         bg=COLORS["bg"], fg=COLORS["tertiary"], font=("Segoe UI", 8), pady=12).pack(fill="x")
+                         bg=COLORS["bg"], fg=COLORS["tertiary"], font=("Segoe UI", 8), pady=px(12)).pack(fill="x")
             elif event_type == "error":
                 self.show_error(str(payload))
                 self.set_status("Error")
@@ -2312,7 +2240,13 @@ class TranslatorGUI:
                 for key in ("asr", "mt"):
                     if (payload or {}).get(key):
                         self.active_engines[key] = payload[key]
-                self.engine_var.set(f"Engine  {self.active_engines['asr']} / {self.active_engines['mt']}")
+                if self.engine_choice_var.get() == "cloud":
+                    from engine_ui import refresh_engine_status
+                    if (payload or {}).get("fallback") is False:
+                        self._engine_fallback_reason = ""
+                    refresh_engine_status(self, getattr(self, "_engine_fallback_reason", ""))
+                else:
+                    self.engine_var.set(f"Engine  {self.active_engines['asr']} / {self.active_engines['mt']}")
                 if "fallback" in (payload or {}):
                     stages = [payload["stage"]] if payload.get("stage") in {"asr", "mt"} else [
                         key for key in ("asr", "mt") if payload.get(key)]
@@ -2320,7 +2254,7 @@ class TranslatorGUI:
                         self.active_fallbacks[stage] = payload["fallback"]
                     self.engine_label.configure(fg=COLORS["orange"] if any(self.active_fallbacks.values()) else COLORS["secondary"])
 
-        self.root.after(0, handle)
+        self.post_ui( handle)
 
     def pretty_status(self, status):
         return {
@@ -2354,7 +2288,7 @@ class TranslatorGUI:
         phase = str(payload.get("phase", ""))
         fraction = payload.get("fraction")
         self.phase_var.set(phase)
-        self.progress.grid(row=0, column=2, padx=(12, 8), sticky="w")
+        self.progress.grid(row=0, column=2, padx=px((12, 8)), sticky="w")
         self.phase_label.grid(row=0, column=3, sticky="w")
         if fraction is None:
             self.progress.configure(mode="indeterminate")
@@ -2366,10 +2300,11 @@ class TranslatorGUI:
 
     def update_level(self, peak):
         peak = max(0.0, min(1.0, float(peak)))
-        self.level_canvas.coords("level", 0, 0, 110 * peak, 8)
+        self.level_canvas.coords("level", 0, 0, px(110) * peak, px(8))
         self.peak_var.set(f"peak {peak:.4f}")
 
     def show_hint(self, message):
+        self.hint_action.pack_forget()
         self.hint_var.set(message)
         self.hint_frame.pack(fill="x")
 
@@ -2397,15 +2332,15 @@ class TranslatorGUI:
             self.transcript_scroll.content,
             bg=card_bg,
             highlightbackground=COLORS["separator"],
-            highlightthickness=0,
-            padx=16,
-            pady=12,
+            highlightthickness=px(0),
+            padx=px(16),
+            pady=px(12),
         )
         card.pack(fill="x")
-        tk.Frame(self.transcript_scroll.content, bg=COLORS["separator"], height=1).pack(fill="x", padx=16)
+        tk.Frame(self.transcript_scroll.content, bg=COLORS["separator"], height=px(1)).pack(fill="x", padx=px(16))
 
         header = tk.Frame(card, bg=card_bg)
-        header.pack(fill="x", pady=(0, 4))
+        header.pack(fill="x", pady=px((0, 4)))
         timestamp = entry.get("timestamp", "")
         try:
             time_text = datetime.fromisoformat(timestamp).strftime("%H:%M:%S")
@@ -2419,8 +2354,8 @@ class TranslatorGUI:
             font=("Cascadia Mono", 8),
         ).pack(side="left")
         tk.Label(header, text=entry.get("language_tag", entry.get("source_language", "")).upper(),
-                 bg=COLORS["field"], fg=COLORS["blue"], padx=5,
-                 font=("Segoe UI Semibold", 8)).pack(side="left", padx=(8, 0))
+                 bg=COLORS["field"], fg=COLORS["blue"], padx=px(5),
+                 font=("Segoe UI Semibold", 8)).pack(side="left", padx=px((8, 0)))
         source_info = self.current_source_info(entry)
         if entry.get("delay_s") is not None:
             source_info += f" · {entry['delay_s']:.1f} s"
@@ -2432,7 +2367,7 @@ class TranslatorGUI:
             fg=COLORS["tertiary"],
             font=("Segoe UI", 8),
         )
-        meta_label.pack(side="left", padx=(9, 0))
+        meta_label.pack(side="left", padx=px((9, 0)))
         self.transcript_meta[entry.get("id")] = meta_label
 
         source_text = entry.get("source_text", entry.get("arabic_text", ""))
@@ -2451,7 +2386,7 @@ class TranslatorGUI:
             fg=COLORS["text"] if entry.get("pass_through") else COLORS["secondary"],
             anchor=source_anchor,
             justify="right" if source_anchor == "e" else "left",
-            wraplength=800,
+            wraplength=px(800),
             font=("Segoe UI", 10),
         )
         source_label.pack(fill="x")
@@ -2465,10 +2400,10 @@ class TranslatorGUI:
                 fg=COLORS["tertiary"] if entry.get("translation_pending") else COLORS["text"],
                 anchor=target_anchor,
                 justify="right" if target_anchor == "e" else "left",
-                wraplength=800,
+                wraplength=px(800),
                 font=("Segoe UI", 10),
             )
-            translated_label.pack(fill="x", before=source_label, pady=(0, 5))
+            translated_label.pack(fill="x", before=source_label, pady=px((0, 5)))
             configure_language_text(translated_label, self.transcript_target_text(entry), target_language, 10, displayed=True)
             if not self.transcript_target_text(entry):
                 translated_label.pack_forget()
@@ -2517,7 +2452,7 @@ class TranslatorGUI:
         label.configure(anchor="e" if dominant_rtl(translated) else "w",
                          justify="right" if dominant_rtl(translated) else "left")
         if self.transcript_target_text(stored_entry):
-            label.pack(fill="x", before=source_label, pady=(0, 5))
+            label.pack(fill="x", before=source_label, pady=px((0, 5)))
         else:
             label.pack_forget()
         self.latest_translation = stored_entry.get("translated_text") or stored_entry.get("source_text", "")
@@ -2545,7 +2480,7 @@ class TranslatorGUI:
             self.transcript_scroll.grid()
         else:
             self.transcript_scroll.grid_remove()
-            self.empty_state.grid(row=0, column=0, sticky="new", padx=24, pady=(56, 0))
+            self.empty_state.grid(row=0, column=0, sticky="new", padx=px(24), pady=px((56, 0)))
 
     def clear_transcript(self):
         self.transcript_entries.clear()
@@ -2599,15 +2534,13 @@ class TranslatorGUI:
         except UnsupportedPairError as exc:
             self.show_hint(str(exc))
             return
-        offline_only = False if force_online else self.offline_only_var.get()
-        if offline_only:
-            os.environ.setdefault("HF_HUB_OFFLINE", "1")
-            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-            os.environ["OFFLINE_ONLY"] = "1"
-        else:
-            os.environ.pop("HF_HUB_OFFLINE", None)
-            os.environ.pop("TRANSFORMERS_OFFLINE", None)
-            os.environ["OFFLINE_ONLY"] = "0"
+        if self.engine_choice_var.get() != "local":
+            return
+        from engines.model_files import inspect_model, whisper_spec, Ready
+        if not isinstance(inspect_model(whisper_spec(request["whisper_model"])), Ready):
+            self.refresh_model_hint()
+            return
+        offline_only = True
         torch_device = 0 if (torch and torch.cuda.is_available()) else -1
         torch_dtype = torch.float16 if torch_device == 0 else None
         self.set_status("Loading models")
@@ -2622,14 +2555,36 @@ class TranslatorGUI:
                     offline_only=offline_only,
                     on_event=self.on_event,
                 )
-                self.root.after(0, lambda: self.set_status("Ready"))
+                self.post_ui( lambda: self.set_status("Ready"))
             except Exception as exc:
-                self.root.after(0, lambda exc=exc: self.show_error(f"Model preload failed: {exc}"))
-                self.root.after(0, lambda: self.set_status("Ready"))
+                self.post_ui( lambda: self.refresh_model_hint())
+                self.post_ui( lambda: self.set_status("Ready"))
             finally:
-                self.root.after(0, self.finish_model_progress)
+                self.post_ui( self.finish_model_progress)
 
         threading.Thread(target=run_preload, daemon=True).start()
+
+    def refresh_model_hint(self):
+        from engines.model_files import whisper_spec, inspect_model, ready_whisper, Ready, model_hint
+        spec = whisper_spec(self.whisper_var.get())
+        status = inspect_model(spec)
+        if not isinstance(status, Ready):
+            fallback = ready_whisper(spec.key)
+            message, action = model_hint(spec, status, whisper_spec(fallback).title if fallback else None)
+            self.show_hint(message)
+            self.hint_action.configure(text=action, command=lambda: self.download_missing_whisper(spec))
+            self.hint_action.pack(side="right", padx=px(8))
+
+    def download_missing_whisper(self, spec=None):
+        if self.offline_only_var.get():
+            self.show_hint("Internet is blocked. Turn off Never connect to the internet to download models.")
+            return
+        from engines.model_files import whisper_spec
+        spec = spec or whisper_spec("openai/whisper-small")
+        if hasattr(self, "download_manager"):
+            self.download_manager.enqueue_model(spec)
+        else:
+            self.download_models()
 
     def finish_model_progress(self):
         self.progress.stop()
@@ -2710,38 +2665,40 @@ class TranslatorGUI:
                     enabled=False,
                 ),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Subtitles on screen", lambda _icon, _item: self.root.after(0, self.toggle_subtitles),
-                                checked=lambda _item: self.subtitles_enabled_var.get()),
+                pystray.MenuItem("Subtitles on screen", lambda _icon, _item: self.post_ui( self.toggle_subtitles),
+                                checked=lambda _item: getattr(self, "_tray_subtitles_enabled", False)),
                 pystray.MenuItem(
                     lambda _item: "Stop" if self.transcriber is not None else "Start Listening",
-                    lambda _icon, _item: self.root.after(0, self.tray_primary_action),
+                    lambda _icon, _item: self.post_ui( self.tray_primary_action),
                 ),
                 pystray.MenuItem(
                     "Start Speak Mode",
-                    lambda _icon, _item: self.root.after(0, self.tray_start_speak),
+                    lambda _icon, _item: self.post_ui( self.tray_start_speak),
                     visible=lambda _item: self.transcriber is None,
                 ),
                 pystray.MenuItem(
                     "Open Translito Window",
-                    lambda _icon, _item: self.root.after(0, self.show_main_window),
+                    lambda _icon, _item: self.post_ui( self.show_main_window),
                     default=True,
                 ),
                 pystray.MenuItem(
                     "Save Transcript",
-                    lambda _icon, _item: self.root.after(0, self.save_transcript),
+                    lambda _icon, _item: self.post_ui( self.save_transcript),
                     enabled=lambda _item: bool(self.transcript_entries),
                 ),
+                pystray.MenuItem(lambda item: getattr(self, "download_status_text", "") or "No downloads running", lambda *args: None, enabled=False),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
                     "Settings…",
-                    lambda _icon, _item: self.root.after(0, self.show_settings_from_tray),
+                    lambda _icon, _item: self.post_ui( self.show_settings_from_tray),
                 ),
                 pystray.MenuItem(
                     "Quit",
-                    lambda _icon, _item: self.root.after(0, self.quit_app),
+                    lambda _icon, _item: self.post_ui( self.quit_app),
                 ),
             )
-            self.tray_icon = pystray.Icon("Translito", image, APP_NAME, menu)
+            from windows_icons import tray_icon_class
+            self.tray_icon = tray_icon_class()("Translito", image, APP_NAME, menu)
             threading.Thread(target=self.tray_icon.run, daemon=True).start()
         except Exception as exc:
             self.tray_icon = None
@@ -2754,11 +2711,15 @@ class TranslatorGUI:
         return text if len(text) <= 72 else text[:69] + "…"
 
     def refresh_tray_menu(self):
+        if hasattr(self, "subtitles_enabled_var"):
+            self._tray_subtitles_enabled = self.subtitles_enabled_var.get()
         if self.tray_icon is not None:
             try:
                 state = ("paused" if any(word in self.current_status.lower() for word in ("budget", "paused", "error")) else
                          "listening" if self.transcriber is not None else "idle")
-                if getattr(self, "tray_images", None):
+                if hasattr(self.tray_icon, "set_state"):
+                    self.tray_icon.set_state(state)
+                elif getattr(self, "tray_images", None):
                     self.tray_icon.icon = self.tray_images[state]
                 self.tray_icon.update_menu()
             except Exception:
@@ -2786,6 +2747,11 @@ class TranslatorGUI:
         self.open_settings()
 
     def quit_app(self):
+        if self.download_manager.active and not messagebox.askyesno("Download in progress",
+                "Quit and resume the download next time?", parent=self.root):
+            return
+        self.download_manager.close()
+        self.preferences.close()
         self.is_quitting = True
         self.subtitle_controller.close()
         self.reply_controller.close()
@@ -2810,6 +2776,8 @@ class TranslatorGUI:
 
 
 def gui_main():
+    from ui_scale import enable_system_dpi_awareness
+    enable_system_dpi_awareness()
     failure_message = dependency_failure_message()
     if failure_message:
         show_startup_error(f"{APP_NAME} startup error", failure_message)
@@ -2819,8 +2787,11 @@ def gui_main():
     hide_console_window()
     if sys.platform == "win32":
         import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Translito.Desktop.v2")
+        from app_identity import APP_USER_MODEL_ID
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
     root = tk.Tk()
+    if "--tray" in sys.argv:
+        root.withdraw()
     TranslatorGUI(root)
     root.mainloop()
 

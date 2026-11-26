@@ -11,13 +11,16 @@ def check_runtime():
     for name in ("numpy", "torch", "transformers", "faster_whisper",
                  "sentencepiece", "google.protobuf", "soundcard", "sounddevice",
                  "google.genai", "websockets", "httpx2", "icalendar", "recurring_ical_events",
-                 "tzdata", "arabic_reshaper", "bidi", "PIL", "tkinter"):
+                 "tzdata", "tzlocal", "arabic_reshaper", "bidi", "PIL", "tkinter"):
         try:
             module = importlib.import_module(name)
             if name == "torch":
                 # Import alone does not prove the native CPU backend can run.
                 if module.tensor([1.0, 2.0]).sum().item() != 3.0:
                     raise RuntimeError("CPU tensor calculation failed")
+            elif name == "tzdata":
+                from zoneinfo import ZoneInfo
+                ZoneInfo("Asia/Dhaka")
             elif name == "transformers":
                 # Resolve the lazy pipeline import checked at GUI startup.
                 getattr(module, "pipeline")
