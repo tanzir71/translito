@@ -210,3 +210,76 @@ def test_atomic_file_rename_cannot_move_visible_progress_backwards(tmp_path):
     manager.poll()
     assert seen == [80, 90, 90, 100]
     manager.close()
+
+
+def test_next_file_returns_to_downloading_after_verifying_previous_file(tmp_path):
+    manager = DownloadManager(directory=tmp_path / "jobs")
+    job = DownloadJob("files", "fake/files", "Multiple files", str(tmp_path), total=1000, bytes=10, state="Verifying")
+    manager.active, manager.generation = job, "child"
+    manager.last_progress = manager.clock()
+    manager.events.put(("child", {"file": "model.bin", "bytes": 20, "total": 1000}))
+    manager.poll()
+    assert job.state == "Downloading" and job.bytes == 20
+    manager.close()
+
+
+def test_buffered_sdk_reports_transfer_before_files_are_written(tmp_path, monkeypatch):
+    """Xet can receive chunks for over a minute before flushing its first file."""
+    from dataclasses import asdict
+    from engines import downloads
+    import huggingface_hub
+    folder = tmp_path / "buffered"
+    job = DownloadJob("buffered", "fake/buffered", "Buffered", str(folder), total=1000)
+    files = [{"name": "model.bin", "size": 1000,
+              "sha256": hashlib.sha256(b"x" * 1000).hexdigest()}]
+    monkeypatch.setattr(downloads, "_plan", lambda *_: ("revision", files))
+    emitted = []
+    monkeypatch.setattr(downloads, "write_json_line",
+        lambda data: emitted.append((dict(data), (folder / "model.bin").exists())))
+    def buffered_fetch(repo, name, *, local_dir, tqdm_class, **kwargs):
+        # Both SDK signals are cumulative views of the same bytes, not additive.
+        with tqdm_class(total=1000) as bar:
+            bar.update_transfer(400)
+            time.sleep(.3)
+            bar.update(400)
+            bar.update_transfer(300)
+            time.sleep(.3)
+            path = Path(local_dir) / name
+            path.write_bytes(b"x" * 1000)
+            return path
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", buffered_fetch)
+    path = tmp_path / "buffered.json"
+    path.write_text(json.dumps(asdict(job)))
+    assert downloads.download_child(path) == 0
+    before_flush = [data["bytes"] for data, exists in emitted if not exists and "bytes" in data]
+    assert 400 in before_flush and 700 in before_flush
+    assert emitted[-1][0]["bytes"] == 1000 and "ready" in emitted[-1][0]
+
+
+@pytest.mark.parametrize("status,retry", [(429, True), (503, True), (403, False), (404, False)])
+def test_remote_failure_retries_transient_errors_without_exposing_sdk_details(tmp_path, monkeypatch, status, retry):
+    from dataclasses import asdict
+    from engines import downloads
+    import httpx
+    request = httpx.Request("GET", "https://example.test/model?token=private-test-token")
+    response = httpx.Response(status, request=request)
+    error = httpx.HTTPStatusError("private-test-token", request=request, response=response)
+    def fail(*_):
+        raise error
+    monkeypatch.setattr(downloads, "_plan", fail)
+    events = []
+    monkeypatch.setattr(downloads, "write_json_line", events.append)
+    job = DownloadJob("error", "fake/error", "Failure", str(tmp_path / "model"), state="Downloading")
+    path = tmp_path / "error.json"
+    path.write_text(json.dumps(asdict(job)))
+    assert downloads.download_child(path) == 1
+    assert "private-test-token" not in json.dumps(events)
+    assert bool(events[-1].get("retryable")) is retry
+    manager = DownloadManager(directory=tmp_path / "queue", clock=lambda: 0)
+    manager.jobs, manager.active, manager.generation = [job], job, "child"
+    manager.events.put(("child", events[-1]))
+    manager.poll()
+    assert job.state == ("Stalled · retrying" if retry else "Paused")
+    if retry:
+        assert manager.retry_at == 10 and job.retries == 1
+    manager.close()

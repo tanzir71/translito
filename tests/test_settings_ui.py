@@ -217,6 +217,55 @@ def test_empty_state_actions_share_one_row_and_equal_size(desktop):
     assert cloud.winfo_x() + cloud.winfo_width() < local.winfo_x()
 
 
+def test_single_empty_state_action_is_centered_and_pair_layout_restores(desktop):
+    from dataclasses import replace
+    from engines.session_state import ReadinessState
+    create, _ = desktop
+    app = create()
+    app.root.deiconify()
+    controller = app.session_controller
+    plan = controller.plan
+    for offer in (False, True, False):
+        app.preferences.set("UI", "setup_offer_seen", not offer)
+        controller.plan = replace(plan, preferred_engine="local" if offer else "cloud")
+        controller.state = ReadinessState("setup_required", "Connect cloud to use this route.", "connect")
+        controller.render()
+        app.root.update_idletasks()
+        cloud, local = app.empty_setup_button, app.empty_local_button
+        row = app.empty_actions
+        assert abs(row.winfo_rootx() + row.winfo_width() / 2 -
+                   (app.empty_state.winfo_rootx() + app.empty_state.winfo_width() / 2)) <= 1
+        if offer:
+            assert local.winfo_ismapped()
+            assert cloud.winfo_width() == local.winfo_width()
+            assert cloud.winfo_height() == local.winfo_height()
+            assert cloud.winfo_y() == local.winfo_y()
+        else:
+            assert not local.winfo_ismapped()
+            assert abs(cloud.winfo_rootx() + cloud.winfo_width() / 2 -
+                       (row.winfo_rootx() + row.winfo_width() / 2)) <= 1
+
+
+def test_launch_opens_listen_even_after_speak_and_toggle_uses_current_tab(desktop, monkeypatch):
+    from unittest.mock import Mock
+    create, path = desktop
+    first = create()
+    first.set_mode("speak")
+    first.speak_source_var.set("Spanish")
+    first.preferences.store.flush()
+    assert app_config.load_runtime_config(path).last_mode == "speak"
+    app = create()
+    assert app.mode_var.get() == "listen"
+    assert app.listen_frame.winfo_manager() == "grid"
+    assert not app.speak_frame.winfo_manager()
+    assert app.speak_source_var.get() == "Spanish"
+    start = Mock()
+    monkeypatch.setattr(app, "start", start)
+    app.hotkey_toggle()
+    assert app.mode_var.get() == "listen"
+    start.assert_called_once()
+
+
 def test_cloud_ready_has_start_and_no_repeated_setup_offer(desktop, monkeypatch):
     from dataclasses import replace
     from decimal import Decimal

@@ -170,6 +170,37 @@ def test_new_required_resource_preempts_automatic_backup_not_manual_work(manager
     assert manager.active is old
 
 
+@pytest.mark.parametrize("reason", ["superseded", "policy", "preempted", "failure"])
+def test_explicit_resume_keeps_user_ownership_across_refresh_and_restart(manager, tmp_path, reason):
+    old, current = spec(tmp_path, "old-pair"), spec(tmp_path, "current-pair")
+    manager.reconcile_setup((old,))
+    job = manager.jobs[0]
+    job.bytes = 40
+    manager.pause(job, reason=reason)
+    manager.resume(job)
+    for enabled in (True, False, True):
+        manager.reconcile_setup((current,), enabled=enabled)
+        assert job.origin == "manual" and job.state == "Queued" and job.bytes == 40
+    restarted = DownloadManager(directory=manager.directory)
+    restarted.reconcile_setup((current,))
+    same = next(j for j in restarted.jobs if j.repo == old.repo)
+    assert same.origin == "manual" and same.state == "Queued" and same.bytes == 40
+    restarted.active, same.state = same, "Downloading"
+    restarted.reconcile_setup((current,))
+    assert restarted.active is same and same.state == "Downloading"
+
+
+def test_automatic_resume_keeps_language_preemption(manager, tmp_path):
+    old, current = spec(tmp_path, "old-pair"), spec(tmp_path, "current-pair")
+    manager.reconcile_setup((old,))
+    job = manager.jobs[0]
+    manager.reconcile_setup((current,))
+    manager.reconcile_setup((old,))
+    assert job.origin == "auto_setup" and job.state == "Queued"
+    manager.reconcile_setup((current,))
+    assert job.state == "Paused" and job.pause_reason == "superseded"
+
+
 def test_already_queued_manual_resource_can_be_prioritized_without_resuming_user_pauses(manager, tmp_path):
     required, backup = spec(tmp_path, "manual-required"), spec(tmp_path, "backup")
     manual = manager.enqueue_model(required)

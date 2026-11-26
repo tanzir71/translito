@@ -29,12 +29,22 @@ model preparation and temporary recovery are presented as setup progress.
 - A user's Pause or Cancel persists across refreshes, pair switches and restart.
   Resume is explicit. Cancel stops the transfer and retains partial files;
   removing downloaded files is a separate Models action.
+- Explicit Resume makes an automatic download user-controlled. It continues
+  across language changes and automatic-setup refreshes, including after restart.
+  Only automatically resumed work remains eligible for automatic preemption.
+- Progress includes network transfer callbacks before buffered files reach disk,
+  so receiving model data does not look like an idle/stalled download.
 - Language and engine edits during capture apply to the next session. The
   running route retains its original snapshot while the new pair can prepare.
 - Internet blocking stops active/background transfers immediately. Automatic
   setup may resume after unblocking, but manually paused/cancelled work does not.
 
 ## Other acceptance criteria
+
+The app opens on Listen even if the previous session used Speak. Saved Speak
+languages, microphone and output choices remain available when switching tabs.
+The idle toggle shortcut starts the currently selected tab. A single empty-state
+action is centered; the initial two actions retain equal size and inline layout.
 
 Validated pending money edits commit on debounce, Enter, blur or Start. Partial
 or invalid text never changes the live spending cap. Presentation and valid

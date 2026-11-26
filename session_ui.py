@@ -204,7 +204,13 @@ class SessionController:
             app.empty_measurements_var.set("Language changes apply to the next session. Preparing the new pair in the background.")
         actions = getattr(app, "empty_actions", None)
         if actions is not None:
-            if not app.preferences.get("UI", "setup_offer_seen", True) and self.plan and self.plan.preferred_engine == "local":
+            offer = (not app.preferences.get("UI", "setup_offer_seen", True)
+                     and self.plan and self.plan.preferred_engine == "local")
+            # A hidden second action must not leave an equal-width empty column.
+            actions.columnconfigure(0, weight=1, uniform="empty-state-actions" if offer else "")
+            actions.columnconfigure(1, weight=1 if offer else 0, uniform="empty-state-actions" if offer else "")
+            app.empty_setup_button.grid_configure(padx=__import__("ui_scale").px((0, 4) if offer else 0))
+            if offer:
                 actions.pack(pady=__import__("ui_scale").px((12, 0)))
                 app.empty_setup_button.configure(text="Set up cloud", command=app.open_cloud_setup)
                 app.empty_local_button.grid()

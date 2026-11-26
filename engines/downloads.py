@@ -189,9 +189,14 @@ class DownloadManager:
     def cancel(self, job):
         self.pause(job, state="Cancelled")
 
-    def resume(self, job):
+    def resume(self, job, *, automatic=False):
         if self.blocked():
             raise ValueError("Internet is blocked. Allow internet access before resuming downloads.")
+        # An explicit Resume takes ownership from automatic pair preparation.
+        # Otherwise the next readiness refresh can supersede or preempt it again.
+        if not automatic and job.origin != "manual":
+            job.origin = "manual"
+            self.save(job)
         if job.state in {"Downloading", "Queued", "Stalled · retrying"}:
             return
         job.state, job.retries, job.error, job.pause_reason = "Queued", 0, "", ""
@@ -200,6 +205,7 @@ class DownloadManager:
 
     def _retry(self, job):
         self._stop()
+        job.bytes_per_s = 0
         if job.retries >= 3:
             job.state, job.error, job.pause_reason = "Paused", "Paused · check your connection", "failure"
         else:
@@ -221,6 +227,8 @@ class DownloadManager:
             if job is None or self.generation != identity:
                 continue
             if "bytes" in data:
+                if "file" in data:
+                    job.state = "Downloading"
                 # Byte growth, not repeated heartbeat lines, resets a stall.
                 if data["bytes"] > job.bytes:
                     self.last_progress = self.clock()
@@ -235,8 +243,12 @@ class DownloadManager:
                 job.bytes = job.total
                 self._stop()
             elif "error" in data:
-                job.state, job.error, job.pause_reason = "Paused", data["error"], "failure"
-                self._stop()
+                job.error = data["error"]
+                if data.get("retryable"):
+                    self._retry(job)
+                else:
+                    job.state, job.pause_reason = "Paused", "failure"
+                    self._stop()
             elif "exit" in data:
                 self._retry(job)
             self.save(job)
@@ -273,7 +285,7 @@ class DownloadManager:
                 changed = (job.priority, job.context, job.title) != (priority, context, spec.title)
                 job.priority, job.context, job.title = priority, context, spec.title
                 if job.state == "Paused" and job.pause_reason in {"superseded", "policy", "blocked"} and not self.blocked():
-                    self.resume(job)
+                    self.resume(job, automatic=True)
                 if changed:
                     self.save(job)
                     self.on_change(job)
@@ -291,7 +303,7 @@ class DownloadManager:
         # A preempted job remains queued behind the new mandatory resource.
         for job in self.jobs:
             if job.state == "Paused" and job.pause_reason == "preempted" and job.repo in desired and enabled and not self.blocked():
-                self.resume(job)
+                self.resume(job, automatic=True)
 
     def block_network(self):
         for job in tuple(self.jobs):
@@ -354,6 +366,54 @@ def write_json_line(value, *, stream=None, kernel32=None):
         raise BrokenPipeError("The download progress pipe is closed")
 
 
+def _progress_class(report):
+    """Read HTTP/Xet transfer progress even before buffered bytes reach disk."""
+    from tqdm import tqdm
+
+    class DownloadProgress(tqdm):
+        def __init__(self, *args, **kwargs):
+            kwargs["disable"] = True  # A windowed child has no terminal stream.
+            super().__init__(*args, **kwargs)
+            self.transferred = 0
+            report(self.n)
+
+        def update(self, n=1):
+            self.n += n
+            report(max(self.n, self.transferred))
+
+        def update_transfer(self, n):
+            self.transferred += n
+            report(max(self.n, self.transferred))
+
+        def set_transfer_postfix_str(self, *args, **kwargs):
+            pass
+
+    return DownloadProgress
+
+
+def _file_size(path):
+    # The SDK renames temporary files atomically while progress is sampled.
+    try:
+        return path.stat().st_size
+    except FileNotFoundError:
+        return 0
+
+
+def _remote_failure(error):
+    """SDK messages can contain credentials or signed URLs; emit safe reasons."""
+    import httpx
+    status = getattr(getattr(error, "response", None), "status_code", None)
+    if status == 429 or isinstance(status, int) and status >= 500:
+        return {"error": "The model server is busy. Retrying; partial files are kept.", "retryable": True}
+    if isinstance(error, (httpx.RequestError, TimeoutError, ConnectionError)):
+        return {"error": "The model server connection was interrupted. Retrying; partial files are kept.", "retryable": True}
+    if status in {401, 403}:
+        return {"error": "Model access was denied. Check the model's access requirements in Models."}
+    if status == 404:
+        return {"error": "The selected model revision is unavailable. Choose the model again in Models."}
+    return {"error": "Download failed. Check your connection or model access. Partial files are kept for Resume."}
+
+
 def download_child(path):
     """Early GUI dispatch target; never imports Tk, tray, hotkeys or audio."""
     def emit(value):
@@ -376,7 +436,11 @@ def download_child(path):
             module.loader.exec_module(fetcher)
             revision, files = job.revision, job.files
         else:
-            revision, files = _plan(job, token)
+            try:
+                revision, files = _plan(job, token)
+            except Exception as error:
+                emit(_remote_failure(error))
+                return 1
             fetcher = None
         if job.cache_dir:
             folder = Path(job.cache_dir) / ("models--" + job.repo.replace("/", "--")) / "snapshots" / revision
@@ -386,7 +450,7 @@ def download_child(path):
         total = sum(f["size"] for f in files)
         have = sum(min((folder / f["name"]).stat().st_size, f["size"]) for f in files if (folder / f["name"]).is_file())
         partial_root = folder.parent.parent / "blobs" if job.cache_dir else folder
-        partial = sum(p.stat().st_size for p in partial_root.rglob("*.incomplete"))
+        partial = sum(_file_size(p) for p in partial_root.rglob("*.incomplete"))
         if shutil.disk_usage(folder).free < max(0, total-have-partial) + 500000000:
             raise ValueError(f"Not enough disk space. Free at least {(max(0,total-have-partial)+500000000)/1e9:.2f} GB in the selected folder.")
         manifest = {"repo": job.repo, "revision": revision, "files": files, "verified": False}
@@ -404,6 +468,10 @@ def download_child(path):
                 raise ValueError("The model contains an unsafe file name.")
             errors, done = [], threading.Event()
             result = []
+            transferred = [0]
+            def report(count):
+                transferred[0] = max(transferred[0], count)
+            progress = _progress_class(report)
             def fetch():
                 try:
                     if fetcher:
@@ -412,9 +480,9 @@ def download_child(path):
                         from huggingface_hub import hf_hub_download
                         result.append(hf_hub_download(job.repo, name, revision=revision,
                             **({"cache_dir": job.cache_dir} if job.cache_dir else {"local_dir": folder}),
-                            token=token, force_download=repair))
-                except Exception:
-                    errors.append(True)
+                            token=token, force_download=repair, tqdm_class=progress))
+                except Exception as error:
+                    errors.append(error)
                 finally:
                     done.set()
             threading.Thread(target=fetch, daemon=True).start()
@@ -422,10 +490,10 @@ def download_child(path):
             while True:
                 finished = done.wait(.25)
                 final = folder / name
-                size = final.stat().st_size if final.is_file() else 0
+                size = max(_file_size(final), transferred[0])
                 partials = ([partial_root / (file["sha256"] + ".incomplete")] if job.cache_dir and file.get("sha256")
                             else list(partial_root.rglob("*.incomplete")))
-                size = max(size, max((p.stat().st_size for p in partials if p.is_file()), default=0))
+                size = max(size, max((_file_size(p) for p in partials), default=0))
                 # A fetcher can atomically rename .incomplete between the two
                 # probes above. That is completion, not lost download progress.
                 size = max(previous, size)
@@ -436,7 +504,8 @@ def download_child(path):
                 if finished:
                     break
             if errors:
-                raise ValueError("Download failed. Check your connection or model access. Partial files are kept for Resume.")
+                emit(_remote_failure(errors[0]))
+                return 1
             final = Path(result[0])
             if final.stat().st_size != file["size"]:
                 raise ValueError("The downloaded file has the wrong size. Use Repair to download it again.")

@@ -18,6 +18,9 @@ default to On this PC and prepare basic models automatically. Changing languages
 reprioritizes downloads, reuses partial files, and preserves Pause/Cancel choices.
 Progress and Pause/Resume/Cancel are available in the main window, Models and tray.
 Saved cloud preferences remain selected during local fallback and recovery.
+Windows 2.0.4 opens on Listen, centers single setup actions, and keeps explicitly
+resumed downloads running across setup refreshes. Buffered transfer progress and
+bounded connection retries keep model setup responsive.
 
 - Dark 800×640 main window and 820×680 Settings with Languages, Engine, Cost & usage,
   Subtitles, Schedule, Audio, Models and General. Controls save automatically;

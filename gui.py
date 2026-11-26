@@ -560,7 +560,7 @@ class TranslatorGUI:
             self.setup_tray()
 
         self.refresh_devices(show_error=not self.preview_mode)
-        self.set_mode(self.mode_var.get(), force=True)
+        self.set_mode("listen", force=True)
         self.refresh_voices()
         self.update_noise_gate_label()
         self.update_chunk_label()
@@ -2258,7 +2258,7 @@ class TranslatorGUI:
 
     def hotkey_toggle(self):
         if self.transcriber is None:
-            self.set_mode(load_runtime_config(CONFIG_FILE).last_mode, force=True)
+            self.set_mode(self.mode_var.get(), force=True)
             self.start()
         elif self.mode_var.get() == "listen":
             self.hotkey_start_mode("speak")

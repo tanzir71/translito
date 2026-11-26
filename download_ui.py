@@ -37,6 +37,8 @@ def initialize(app, colors):
     app.download_progress = ttk.Progressbar(app.download_panel, maximum=1, style="Dark.Horizontal.TProgressbar")
     app.download_progress.grid(row=1, column=0, columnspan=3, sticky="ew", pady=px((5, 0)))
     def changed(job):
+        if job.state == "Paused" and job.pause_reason == "failure" and job.error:
+            app.show_hint(job.error)
         if job.state == "Ready":
             message = f"{job.title} is ready. It will be used from your next session."
             app.show_hint(message)
