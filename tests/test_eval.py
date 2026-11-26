@@ -270,6 +270,13 @@ def test_offline_replay_sentence_timeout_uses_wav_silence_without_real_wait(monk
     from audio_processing import AudioChunkResult
     from engines.types import AsrResult, MtResult
     from unittest.mock import Mock
+    from tools.eval.runtime import ReplayClock
+    class CaptureClock(ReplayClock):
+        def __call__(self):
+            return self.value
+    monkeypatch.setattr("tools.eval.runtime.ReplayClock", CaptureClock)
+    no_sleep = Mock(side_effect=AssertionError("Replay waited for real time"))
+    monkeypatch.setattr("tools.eval.runtime.time.sleep", no_sleep)
     monkeypatch.setattr(main.GLOBAL_MODEL_MANAGER, "load_models", lambda **kwargs:
                         SimpleNamespace(asr=Mock(), translator=Mock()))
     recognizer, translator = Mock(), Mock()
@@ -301,4 +308,4 @@ def test_offline_replay_sentence_timeout_uses_wav_silence_without_real_wait(monk
     monkeypatch.setattr(Capture, "append", append)
     result = runtime.evaluate(np.full(48000, .1, dtype=np.float32), 16000)
     assert .5 <= result["entries"][0]["speech_end_latency_s"] < 1
-    assert result["elapsed_s"] < 1
+    no_sleep.assert_not_called()

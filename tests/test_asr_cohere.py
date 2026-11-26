@@ -61,9 +61,11 @@ def test_gated_load_reads_saved_token_and_never_downloads(monkeypatch, tmp_path)
     model.eval.return_value = model
     processor_factory = Mock(return_value=processor)
     model_factory = Mock(return_value=model)
-    monkeypatch.setattr(transformers.AutoProcessor, "from_pretrained", processor_factory)
-    monkeypatch.setattr(transformers, "CohereAsrForConditionalGeneration",
-                        SimpleNamespace(from_pretrained=model_factory), raising=False)
+    # Patch the lazy module's exports together; resolving the real model class
+    # can otherwise replace AutoProcessor after its method was patched.
+    monkeypatch.setitem(transformers.__dict__, "AutoProcessor", SimpleNamespace(from_pretrained=processor_factory))
+    monkeypatch.setitem(transformers.__dict__, "CohereAsrForConditionalGeneration",
+                        SimpleNamespace(from_pretrained=model_factory))
     download = Mock()
     monkeypatch.setattr(model_loading, "_download_repo_with_progress", download)
     recognizer = CohereLocalRecognizer(offline_only=False, credentials=credentials, cache_dir=tmp_path)
@@ -81,9 +83,9 @@ def test_gated_failure_never_exposes_a_token_in_ui_error(monkeypatch):
     import transformers
     credentials = Mock()
     credentials.get.return_value = "hf_secret"
-    monkeypatch.setattr(transformers.AutoProcessor, "from_pretrained",
-                        Mock(side_effect=RuntimeError("Authorization: hf_secret")))
-    monkeypatch.setattr(transformers, "CohereAsrForConditionalGeneration", Mock(), raising=False)
+    monkeypatch.setitem(transformers.__dict__, "AutoProcessor",
+                        SimpleNamespace(from_pretrained=Mock(side_effect=RuntimeError("Authorization: hf_secret"))))
+    monkeypatch.setitem(transformers.__dict__, "CohereAsrForConditionalGeneration", Mock())
     with pytest.raises(CohereAccessRequired) as error:
         CohereLocalRecognizer(credentials=credentials).load()
     assert "hf_secret" not in str(error.value)

@@ -173,6 +173,30 @@ def test_cancel_stops_all_duplicate_attempts_and_clears_errors(tmp_path):
     manager.close()
 
 
+def test_cancel_while_worker_creation_is_pending_terminates_late_process(tmp_path):
+    import threading
+    from unittest.mock import Mock
+    entered, release, terminated = threading.Event(), threading.Event(), threading.Event()
+    child = Mock()
+    child.terminate.side_effect = terminated.set
+    def spawn(*args, **kwargs):
+        entered.set()
+        release.wait(2)
+        return child
+    root = SimpleNamespace(after=lambda *a: 'timer', after_cancel=lambda *a: None)
+    manager = DownloadManager(root, directory=tmp_path/'jobs', spawn=spawn)
+    job = DownloadJob('pending','fake/pending','Pending',str(tmp_path))
+    manager.enqueue(job)
+    manager.poll()
+    assert entered.wait(1)
+    manager.cancel(job)
+    release.set()
+    assert terminated.wait(2)
+    assert manager.active is None and manager.process is None and job.state == 'Cancelled'
+    child.terminate.assert_called_once()
+    manager.close()
+
+
 @pytest.fixture
 def fake_job(tmp_path):
     fetcher = tmp_path / "fetcher.py"
