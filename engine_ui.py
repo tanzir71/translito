@@ -31,7 +31,6 @@ def initialize(app):
         if app._initializing:
             return
         choice = app.engine_choice_var.get()
-        app.offline_only_var.set(choice == "local")
         app.engine_profile_var.set({"cloud": "Custom", "local": "Offline (private)", "free": "Free (recommended)"}[choice])
         app.change_engine_profile()
         if choice == "cloud" and not app.engine_default_vars["default_asr_provider"].get():

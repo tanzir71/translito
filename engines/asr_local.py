@@ -14,8 +14,13 @@ from engines.cancellation import generation_scope, check_cancelled
 def _lid_model(offline_only):
     from faster_whisper import WhisperModel
     from model_loading import physical_cpu_threads
-    return WhisperModel("base", device="cpu", compute_type="int8",
-                        cpu_threads=physical_cpu_threads(), local_files_only=offline_only)
+    from engines.model_files import whisper_spec, inspect_model, Ready, ModelNotReady, ready_whisper
+    spec = whisper_spec(ready_whisper("openai/whisper-base") or "openai/whisper-base")
+    status = inspect_model(spec)
+    if not isinstance(status, Ready):
+        raise ModelNotReady(spec, status)
+    return WhisperModel(str(status.path), device="cpu", compute_type="int8",
+                        cpu_threads=physical_cpu_threads(), local_files_only=True)
 
 
 @lru_cache(maxsize=2)

@@ -279,9 +279,6 @@ class ArabicAudioTranscriber:
         self.asr = None
         self.translator = None
         self.whisper_model = whisper_model or os.environ.get("WHISPER_MODEL", "openai/whisper-small").strip()
-        if self.offline_only:
-            os.environ.setdefault("HF_HUB_OFFLINE", "1")
-            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
         try:
             loaded_models = GLOBAL_MODEL_MANAGER.load_models(
@@ -298,10 +295,8 @@ class ArabicAudioTranscriber:
             self.translator = loaded_models.translator
             self.loaded_translator_engine = getattr(loaded_models, "translator_engine", None)
             print("Offline models ready.")
-        except Exception as exc:
-            if self.offline_only:
-                print("Offline-only is enabled. Set OFFLINE_ONLY=0 once to allow model downloads.")
-            raise RuntimeError(f"Failed to initialize offline models: {exc}") from exc
+        except Exception:
+            raise
 
         if self.mode == "speak":
             self.speech_player = SpeechOutputPlayer(

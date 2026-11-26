@@ -444,7 +444,7 @@ class TranslatorGUI:
         self.lag_var = tk.StringVar(value="")
         self.active_engines = {"asr": "Local", "mt": "Local"}
         self.active_fallbacks = {"asr": False, "mt": False}
-        self.offline_only_var = tk.BooleanVar(value=offline_default)
+        self.offline_only_var = tk.BooleanVar(value=__import__("app_config").read_config(CONFIG_FILE).getboolean("NETWORK", "block_all", fallback=False))
         self.monitor_var = tk.BooleanVar(value=speak_config.monitor_spoken_audio)
         self.voice_var = tk.StringVar(value=speak_config.voice or "Automatic")
         self.noise_gate_var = tk.DoubleVar(value=runtime_config.mic_noise_gate)
@@ -468,7 +468,7 @@ class TranslatorGUI:
         self.preferences = SettingsState(CONFIG_FILE, writable=lambda: not self.preview_mode and not self._initializing)
         for name in CONTROL_VARIABLES:
             var = getattr(self, name + "_var")
-            self.preferences.bind(var, "UI", name, var.get())
+            self.preferences.bind(var, "NETWORK" if name == "offline_only" else "UI", "block_all" if name == "offline_only" else name, var.get())
         self._capture_source_type = self.listen_source_type_var.get()
         for action, var in self.hotkey_vars.items():
             self.preferences.bind(var, "HOTKEYS", action, var.get())
@@ -526,11 +526,7 @@ class TranslatorGUI:
         self.reply_controller = ReplyController(self, COLORS)
         self._initializing = False
         if not self.preview_mode:
-            from engines.hardware import speed_history_path
-            if speed_history_path().exists():
-                self.root.after(350, self.preload_current_models)
-            else:
-                self.root.after(350, lambda: self.open_speed_check(first_run=True))
+            self.root.after(350, self.preload_current_models)
             self.root.after(3000, self.auto_refresh_devices)
             self.root.after(1000, self.refresh_cost_status)
             if not self.preferences.get("CAPTURE", "default_app_prompted", False):
@@ -831,6 +827,7 @@ class TranslatorGUI:
             wraplength=800,
             pady=8,
         )
+        self.hint_action = ttk.Button(self.hint_frame, style="Mac.TButton")
         self.hint_label.pack(side="left", fill="x", expand=True, padx=(0, 12))
 
         self.error_frame = tk.Frame(self.banner_host, bg=COLORS["red_bg"])
@@ -1117,7 +1114,7 @@ class TranslatorGUI:
         self.chunk_label.pack(side="left")
         offline = tk.Checkbutton(
             recognition,
-            text="Offline mode (use already-downloaded models only)",
+            text="Never connect to the internet (blocks cloud and model downloads)",
             variable=self.offline_only_var,
             command=self.change_offline_mode,
             **self._checkbutton_options(),
@@ -1459,7 +1456,6 @@ class TranslatorGUI:
         open_check(self, COLORS, center_window, first_run=first_run)
 
     def change_engine_profile(self):
-        self.offline_only_var.set(ENGINE_PROFILES[self.engine_profile_var.get()] == "offline")
         self.persist_settings()
 
     def open_provider_settings(self):
@@ -1470,7 +1466,7 @@ class TranslatorGUI:
         open_provider_settings(self, COLORS, center_window)
 
     def change_offline_mode(self):
-        self.engine_profile_var.set("Offline (private)" if self.offline_only_var.get() else "Free (recommended)")
+        self.preferences.set("NETWORK", "block_all", self.offline_only_var.get())
         self.persist_settings()
 
     def selected_listen_choice(self):
@@ -1792,14 +1788,7 @@ class TranslatorGUI:
     # Runtime actions
 
     def configure_offline_env(self):
-        if self.offline_only_var.get():
-            os.environ.setdefault("HF_HUB_OFFLINE", "1")
-            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-            os.environ["OFFLINE_ONLY"] = "1"
-        else:
-            os.environ.pop("HF_HUB_OFFLINE", None)
-            os.environ.pop("TRANSFORMERS_OFFLINE", None)
-            os.environ["OFFLINE_ONLY"] = "0"
+        os.environ["OFFLINE_ONLY"] = "1" if self.offline_only_var.get() else "0"
 
     def current_model_request(self):
         mode = self.mode_var.get()
@@ -1931,6 +1920,14 @@ class TranslatorGUI:
                     self.show_error(str(exc))
                     return
 
+        from engines.model_files import ready_whisper
+        fallback = ready_whisper(request["whisper_model"])
+        if fallback is None:
+            self.download_missing_whisper()
+            return
+        if fallback != request["whisper_model"]:
+            request["whisper_model"] = fallback
+            self.refresh_model_hint()
         self.model_setup_busy = True
         self.lock_controls(True)
         self.set_status("Testing virtual microphone" if request["mode"] == "speak" else "Loading models")
@@ -1991,7 +1988,12 @@ class TranslatorGUI:
         self.lock_controls(False)
         self.set_status("Error")
         self.update_action_button(running=False)
-        self.show_error(str(exc))
+        from engines.model_files import ModelNotReady
+        if isinstance(exc, ModelNotReady):
+            self.refresh_model_hint()
+            self.set_status("Ready")
+        else:
+            self.show_error(str(exc))
         self.update_routing_banner()
 
     def stop(self, after=None):
@@ -2093,6 +2095,10 @@ class TranslatorGUI:
         elif running:
             button.configure(text="■  Stop", style="Stop.TButton", state="normal")
         else:
+            from engines.model_files import ready_whisper
+            if not self.preview_mode and ready_whisper(self.whisper_var.get()) is None:
+                button.configure(text="Download Whisper Small (484 MB) to start", style="Primary.TButton", state="normal")
+                return
             symbol = "●" if self.mode_var.get() == "speak" else "▶"
             button.configure(text=f"{symbol}  Start", style="Primary.TButton", state="normal")
 
@@ -2419,15 +2425,13 @@ class TranslatorGUI:
         except UnsupportedPairError as exc:
             self.show_hint(str(exc))
             return
-        offline_only = False if force_online else self.offline_only_var.get()
-        if offline_only:
-            os.environ.setdefault("HF_HUB_OFFLINE", "1")
-            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-            os.environ["OFFLINE_ONLY"] = "1"
-        else:
-            os.environ.pop("HF_HUB_OFFLINE", None)
-            os.environ.pop("TRANSFORMERS_OFFLINE", None)
-            os.environ["OFFLINE_ONLY"] = "0"
+        if self.engine_choice_var.get() != "local":
+            return
+        from engines.model_files import inspect_model, whisper_spec, Ready
+        if not isinstance(inspect_model(whisper_spec(request["whisper_model"])), Ready):
+            self.refresh_model_hint()
+            return
+        offline_only = True
         torch_device = 0 if (torch and torch.cuda.is_available()) else -1
         torch_dtype = torch.float16 if torch_device == 0 else None
         self.set_status("Loading models")
@@ -2444,12 +2448,34 @@ class TranslatorGUI:
                 )
                 self.root.after(0, lambda: self.set_status("Ready"))
             except Exception as exc:
-                self.root.after(0, lambda exc=exc: self.show_error(f"Model preload failed: {exc}"))
+                self.root.after(0, lambda: self.refresh_model_hint())
                 self.root.after(0, lambda: self.set_status("Ready"))
             finally:
                 self.root.after(0, self.finish_model_progress)
 
         threading.Thread(target=run_preload, daemon=True).start()
+
+    def refresh_model_hint(self):
+        from engines.model_files import whisper_spec, inspect_model, ready_whisper, Ready, model_hint
+        spec = whisper_spec(self.whisper_var.get())
+        status = inspect_model(spec)
+        if not isinstance(status, Ready):
+            fallback = ready_whisper(spec.key)
+            message, action = model_hint(spec, status, whisper_spec(fallback).title if fallback else None)
+            self.show_hint(message)
+            self.hint_action.configure(text=action, command=lambda: self.download_missing_whisper(spec))
+            self.hint_action.pack(side="right", padx=8)
+
+    def download_missing_whisper(self, spec=None):
+        if self.offline_only_var.get():
+            self.show_hint("Internet is blocked. Turn off Never connect to the internet to download models.")
+            return
+        from engines.model_files import whisper_spec
+        spec = spec or whisper_spec("openai/whisper-small")
+        if hasattr(self, "download_manager"):
+            self.download_manager.enqueue_model(spec)
+        else:
+            self.download_models()
 
     def finish_model_progress(self):
         self.progress.stop()
