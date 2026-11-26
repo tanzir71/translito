@@ -1,5 +1,20 @@
 {{ define "main" }}
 {{ $language := index (where .Site.Data.languages "code" .Params.language) 0 }}
-<section class="language-hero dark-band"><div class="container"><p class="eyebrow">Languages / {{ $language.english_name }}</p><h1>Live subtitles between {{ $language.english_name }} and English.</h1><p class="lead">Translito listens to Zoom, Teams or Meet and shows what is said in {{ $language.english_name }} as English subtitles over any window. It works the other way too, from English into {{ $language.english_name }}.</p><a class="btn primary" href="#download">Download for Windows</a></div></section>
+{{ $data := index .Site.Data.language_pages $language.slug }}
+{{ $name := $language.english_name }}
+{{ $links := partial "download-links.html" . }}
+<section class="language-hero dark-band"><div class="container language-hero-row">
+  <div class="language-hero-copy"><p class="eyebrow">Languages / {{ $name }}</p><h1>Live subtitles between {{ $name }} and English.</h1><p class="lead">Translito listens to Zoom, Teams or Meet and shows what is said in {{ $name }} as English subtitles over any window. It works the other way too, from English into {{ $name }}.</p><div class="actions"><a class="btn primary" href="{{ $links.windows }}">Download for Windows</a><a class="btn secondary" href="{{ $links.mac }}">macOS</a></div></div>
+  {{ partial "language-shot.html" (dict "language" $language "data" $data) }}
+</div></section>
+<section id="examples" class="language-samples"><div class="container"><div class="section-heading"><h2>What it looks like in {{ $name }}</h2><p>English words that people say inside {{ $name }}, like deployment or API, are kept as spoken.</p></div>
+  <table class="sample-table"><thead><tr><th scope="col">Said in the meeting</th><th scope="col">Your subtitle</th></tr></thead><tbody>{{ range $data.samples }}<tr><td><bdi lang="{{ $language.bcp47 }}" dir="{{ if $language.rtl }}rtl{{ else }}ltr{{ end }}">{{ .native }}</bdi></td><td>{{ .english }}</td></tr>{{ end }}</tbody></table>
+</div></section>
+<section id="language-replies" class="language-replies"><div class="container"><div class="section-heading"><h2>Reply in {{ $name }}</h2><p>After a question, Translito suggests three short replies. Say one with Ctrl + Alt + 1, 2 or 3.</p></div>
+  <div class="language-reply-grid">{{ range $index, $reply := $data.replies }}<article class="language-reply"><span class="language-reply-number">{{ add $index 1 }}</span><h3 lang="{{ if $reply.romanized }}en{{ else }}{{ $language.bcp47 }}{{ end }}">{{ $reply.romanized | default $reply.native }}</h3><p>{{ $reply.meaning }}</p></article>{{ end }}</div>
+  <p class="language-reply-note">{{ if $language.romanize_replies }}{{ $name }} uses its own script, so replies also come in English letters. Romanization: {{ $language.romanization_system }}.{{ else }}{{ $name }} uses the Latin alphabet, so replies are shown as written. In Arabic, Chinese, Japanese, Korean and the other languages with their own script, replies also come in English letters.{{ end }}</p>
+</div></section>
+<section id="language-quality" class="language-quality"><div class="container"><h2>How well it works in {{ $name }}</h2><div><p>Arabic to English is the pair we measure on every release. {{ $name }} uses the same features and engines. Before you choose an engine, the built-in check plays public {{ $name }} clips through each one and shows the delay, accuracy and cost on your own PC.</p><a class="btn on-paper" href="/#cost">See the speed and accuracy check.</a></div></div></section>
+<section id="other-languages" class="other-languages"><div class="container"><h2>Other languages</h2>{{ partial "language-list.html" (dict "page" . "current" $language.code) }}</div></section>
 {{ partial "downloads.html" . }}
 {{ end }}

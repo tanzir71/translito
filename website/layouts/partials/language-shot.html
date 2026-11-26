@@ -1,0 +1,7 @@
+<figure class="hero-shot language-shot" data-layout="language" dir="ltr" aria-label="{{ .language.english_name }} speech translated into English, with suggested replies">
+  <div class="shot-scene">
+    <img class="meeting-image" src="{{ "img/landing/hero-meeting.webp" | relURL }}" alt="A meeting window and taskbar on a Windows desktop." width="2560" height="1440" fetchpriority="high">
+    <div class="subtitle-bar" dir="ltr"><p class="previous" lang="{{ .language.bcp47 }}" dir="{{ if .language.rtl }}rtl{{ else }}ltr{{ end }}">{{ (index .data.samples 2).native }}</p><p class="current" lang="en" dir="ltr">{{ (index .data.samples 2).english }}</p></div>
+    <div class="demo-reply-tray">{{ range $index, $reply := .data.replies }}<div class="demo-reply"><span class="reply-key">{{ add $index 1 }}</span><div><p class="demo-reply-spoken" lang="{{ if $reply.romanized }}en{{ else }}{{ $.language.bcp47 }}{{ end }}">{{ $reply.romanized | default $reply.native }}</p><p class="demo-reply-meaning" lang="en">{{ $reply.meaning }}</p></div></div>{{ end }}</div>
+  </div>
+</figure>

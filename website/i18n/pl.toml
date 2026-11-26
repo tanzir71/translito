@@ -54,10 +54,10 @@ other = "Bezpłatnie na Twoim komputerze. Silniki chmurowe są opcjonalne; płac
 other = "Okno spotkania i pasek zadań na pulpicie Windows."
 
 [heroPrevious]
-other = "Deployment opóźnił się o dwa dni przez problem z API."
+other = "Kiedy możemy dostarczyć pierwszą wersję?"
 
 [heroCurrent]
-other = "Kiedy możemy dostarczyć pierwszą wersję?"
+other = "When can we deliver the first version?"
 
 [overviewLabel]
 other = "Nowości w Windows"

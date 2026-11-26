@@ -1,0 +1,37 @@
+{
+  "code": "nl",
+  "slug": "dutch",
+  "reviewed": false,
+  "draft_for_native_review": true,
+  "samples": [
+    {
+      "native": "Laten we het budget voor het kwartaal bekijken.",
+      "english": "Let's review the budget for the quarter."
+    },
+    {
+      "native": "De deployment liep twee dagen vertraging op door een API-probleem.",
+      "english": "The deployment slipped two days because of an API issue."
+    },
+    {
+      "native": "Kunnen we de levering op donderdag houden?",
+      "english": "Can we keep the Thursday delivery?"
+    }
+  ],
+  "replies": [
+    {
+      "native": "Ja, donderdag is goed.",
+      "romanized": "",
+      "meaning": "Yes, Thursday is fine"
+    },
+    {
+      "native": "Geef me twee dagen, dan bevestig ik.",
+      "romanized": "",
+      "meaning": "Give me two days and I will confirm"
+    },
+    {
+      "native": "Kunt u de vraag herhalen?",
+      "romanized": "",
+      "meaning": "Could you repeat the question?"
+    }
+  ]
+}

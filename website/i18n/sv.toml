@@ -54,10 +54,10 @@ other = "Gratis på din dator. Molnmotorer är valfria och du betalar bara för 
 other = "Ett mötesfönster och aktivitetsfältet på ett Windows-skrivbord."
 
 [heroPrevious]
-other = "Vår deployment blev två dagar försenad på grund av ett API-problem."
+other = "När kan vi leverera den första versionen?"
 
 [heroCurrent]
-other = "När kan vi leverera den första versionen?"
+other = "When can we deliver the first version?"
 
 [overviewLabel]
 other = "Nytt i Windows"

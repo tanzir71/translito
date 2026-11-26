@@ -1,0 +1,37 @@
+{
+  "code": "ja",
+  "slug": "japanese",
+  "reviewed": false,
+  "draft_for_native_review": true,
+  "samples": [
+    {
+      "native": "四半期の予算を確認しましょう。",
+      "english": "Let's review the budget for the quarter."
+    },
+    {
+      "native": "API の問題で deployment が2日遅れました。",
+      "english": "The deployment slipped two days because of an API issue."
+    },
+    {
+      "native": "木曜日の納品予定を維持できますか？",
+      "english": "Can we keep the Thursday delivery?"
+    }
+  ],
+  "replies": [
+    {
+      "native": "はい、木曜日で大丈夫です。",
+      "romanized": "Hai, mokuyoubi de daijoubu desu.",
+      "meaning": "Yes, Thursday is fine"
+    },
+    {
+      "native": "二日いただければ確認します。",
+      "romanized": "Futsuka itadakereba kakunin shimasu.",
+      "meaning": "Give me two days and I will confirm"
+    },
+    {
+      "native": "質問をもう一度お願いできますか？",
+      "romanized": "Shitsumon o mou ichido onegai dekimasu ka?",
+      "meaning": "Could you repeat the question?"
+    }
+  ]
+}

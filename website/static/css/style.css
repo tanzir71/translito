@@ -133,8 +133,39 @@ h3 { font-size: 1.25rem; line-height: 1.4; }
 .footer-locales a { text-decoration: none; }
 .footer-locales a:hover { color: var(--on-ink); text-decoration: underline; }
 .language-hero { padding-block: 72px 88px; }
-.language-hero h1 { max-width: 680px; margin-block: 18px; }
-.language-hero .lead { max-width: 660px; margin-block-end: 28px; }
+.language-hero-row { display: grid; grid-template-columns: minmax(0, 12fr) minmax(0, 14fr); gap: 80px; align-items: center; }
+.language-hero-copy { display: grid; gap: 18px; }
+.language-hero .lead { max-width: 480px; }
+.language-hero .actions { padding-block-start: 8px; }
+.language-hero .language-shot { aspect-ratio: 560 / 291; height: auto; margin: 0; }
+.language-shot .shot-scene { transform: scale(.8205125); left: -179px; top: -188px; }
+.language-shot .subtitle-bar { left: 560px; top: 441px; transform: translateX(-50%); }
+.demo-reply-tray { position: absolute; left: 560px; top: 523.25px; transform: translateX(-50%); display: flex; align-items: center; width: max-content; max-width: 670px; padding: 7px 5.25px 7.875px; border-radius: 10.5px; background: #000; box-shadow: 0 8.75px 24.5px #0008; }
+.demo-reply { display: flex; align-items: center; gap: 8.75px; padding: 1.75px 12.25px 1.75px 8.75px; min-width: 0; }
+.demo-reply + .demo-reply { border-inline-start: .875px solid #414145; }
+.reply-key { flex-shrink: 0; padding: 1.75px 5.25px; border-radius: 3.5px; background: #2c2c2e; font-size: 9.625px; font-weight: 600; line-height: 12.25px; color: #b1b1b6; }
+.demo-reply .demo-reply-spoken { color: #fff; font-size: 11.375px; font-weight: 500; line-height: 15.75px; }
+.demo-reply-meaning { margin-block-start: .875px; font-size: 9.625px; line-height: 12.25px; }
+.language-samples { padding-block: 72px 40px; }
+.sample-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-block-start: 28px; }
+.sample-table th { font-size: 14px; line-height: 22px; font-weight: 500; color: var(--muted); padding-block-end: 16px; text-align: start; }
+.sample-table td { border-block-start: 1px solid var(--line); padding-block: 16px; vertical-align: top; font-size: 18px; line-height: 28px; }
+.sample-table :is(th, td):first-child { padding-inline-end: 16px; }
+.sample-table :is(th, td):last-child { padding-inline-start: 16px; }
+.sample-table td:last-child { color: var(--muted); }
+.sample-table bdi { display: block; }
+.language-replies { padding-block: 40px 56px; }
+.language-reply-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-block-start: 24px; }
+.language-reply { display: grid; align-content: start; gap: 6px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
+.language-reply-number { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 12px; background: var(--mint); color: var(--mint-deep); font-size: 14px; font-weight: 600; line-height: 20px; }
+.language-reply p, .language-reply-note { color: var(--muted); font-size: 14px; line-height: 22px; }
+.language-reply-note { max-width: 760px; margin-block-start: 24px; }
+.language-quality { padding-block: 56px 72px; }
+.language-quality > .container { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 15fr); gap: 80px; align-items: start; }
+.language-quality p { color: var(--muted); }
+.on-paper { margin-block-start: 16px; border: 1px solid var(--line); background: var(--surface-raised); }
+.other-languages { padding-block: 56px 72px; background: var(--surface-raised); }
+.other-languages .language-grid { margin-block-start: 20px; }
 @media (max-width: 1050px) {
   .nav-links, .nav-right { gap: 20px; }
   .overview-grid { gap: 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -186,5 +217,11 @@ h3 { font-size: 1.25rem; line-height: 1.4; }
   .footer-links { gap: 24px; }
   .site-footer { padding-block: 32px; }
   .language-hero { padding-block: 44px; }
+  .language-hero-row, .language-quality > .container { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .language-samples { padding-block: 44px 24px; }
+  .sample-table td { font-size: 16px; line-height: 26px; }
+  .language-replies { padding-block: 24px 32px; }
+  .language-reply-grid { grid-template-columns: 1fr; gap: 16px; }
+  .language-quality, .other-languages { padding-block: 32px 44px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

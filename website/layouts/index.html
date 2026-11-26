@@ -7,7 +7,7 @@
       <div class="actions"><a class="btn primary" href="{{ $links.windows }}">{{ partial "t.html" "downloadWindows" }}</a><a class="btn secondary" href="{{ $links.mac }}">{{ partial "t.html" "downloadMac" }}</a></div>
       <p class="hero-small">{{ partial "t.html" "heroSmall" }}</p>
     </div>
-    {{ partial "hero-shot.html" (dict "previous" (partial "t.html" "heroPrevious") "current" (partial "t.html" "heroCurrent") "code" $locale.bcp47 "rtl" $locale.rtl "language" $locale.english_name) }}
+    {{ partial "hero-shot.html" (dict "previous" (partial "t.html" "heroPrevious") "current" (partial "t.html" "heroCurrent") "code" $locale.bcp47 "rtl" $locale.rtl "language" "English") }}
   </div>
 </section>
 <section id="features" class="overview"><div class="container"><div class="section-heading"><p class="eyebrow">{{ partial "t.html" "overviewLabel" }}</p><h2>{{ partial "t.html" "overviewTitle" }}</h2></div>

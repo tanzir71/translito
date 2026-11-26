@@ -54,10 +54,10 @@ other = "本机处理免费。云端引擎可选，仅为语音付费。"
 other = "Windows 桌面上的会议窗口和任务栏。"
 
 [heroPrevious]
-other = "由于 API 出现问题，部署推迟了两天。"
+other = "我们什么时候能交付第一个版本？"
 
 [heroCurrent]
-other = "我们什么时候能交付第一个版本？"
+other = "When can we deliver the first version?"
 
 [overviewLabel]
 other = "Windows 新功能"

@@ -9,7 +9,7 @@
       <ul>
         {{ $current := .Site.Language.Lang }}
         {{ range .Site.Sites }}
-        <li><a href="{{ .Home.RelPermalink }}" lang="{{ .Language.LanguageCode }}" hreflang="{{ .Language.LanguageCode }}" data-locale-choice="{{ .Language.Lang }}" {{ if eq .Language.Lang $current }}aria-current="page"{{ end }}><span class="locale-name">{{ .Language.LanguageName }}</span><span class="locale-code">{{ .Language.Lang | upper }}</span></a></li>
+        <li><a href="{{ .Home.RelPermalink }}" lang="{{ .Language.LanguageCode }}" hreflang="{{ .Language.LanguageCode }}" data-locale-choice="{{ .Language.Lang }}" {{ if eq .Language.Lang $current }}aria-current="{{ if $.IsHome }}page{{ else }}true{{ end }}"{{ end }}><span class="locale-name">{{ .Language.LanguageName }}</span><span class="locale-code">{{ .Language.Lang | upper }}</span></a></li>
         {{ end }}
       </ul>
       <p class="locale-remembered">{{ i18n "remembered" }}</p>

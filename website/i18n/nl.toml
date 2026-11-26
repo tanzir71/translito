@@ -54,10 +54,10 @@ other = "Gratis op je pc. Cloudengines zijn optioneel; je betaalt alleen voor sp
 other = "Een vergadervenster en de taakbalk op een Windows-bureaublad."
 
 [heroPrevious]
-other = "De deployment liep twee dagen vertraging op door een API-probleem."
+other = "Wanneer kunnen we de eerste versie opleveren?"
 
 [heroCurrent]
-other = "Wanneer kunnen we de eerste versie opleveren?"
+other = "When can we deliver the first version?"
 
 [overviewLabel]
 other = "Nieuw op Windows"

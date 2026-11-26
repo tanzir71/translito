@@ -1,0 +1,37 @@
+{
+  "code": "zh-Hans",
+  "slug": "chinese-simplified",
+  "reviewed": false,
+  "draft_for_native_review": true,
+  "samples": [
+    {
+      "native": "我们来看看本季度的预算。",
+      "english": "Let's review the budget for the quarter."
+    },
+    {
+      "native": "由于 API 出现问题，deployment 推迟了两天。",
+      "english": "The deployment slipped two days because of an API issue."
+    },
+    {
+      "native": "我们可以保持周四交付吗？",
+      "english": "Can we keep the Thursday delivery?"
+    }
+  ],
+  "replies": [
+    {
+      "native": "好的，周四可以。",
+      "romanized": "Hao de, zhou si keyi.",
+      "meaning": "Yes, Thursday is fine"
+    },
+    {
+      "native": "请给我两天，我会确认。",
+      "romanized": "Qing gei wo liang tian, wo hui queren.",
+      "meaning": "Give me two days and I will confirm"
+    },
+    {
+      "native": "可以请您重复一下问题吗？",
+      "romanized": "Keyi qing nin chongfu yixia wenti ma?",
+      "meaning": "Could you repeat the question?"
+    }
+  ]
+}

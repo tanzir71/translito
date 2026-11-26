@@ -142,12 +142,14 @@ def test_supplied_landing_assets_and_svg_roots_remain_unchanged():
 def test_subtitle_scene_scales_to_the_desktop_and_mobile_design():
     node = shutil.which("node")
     assert node, "Node is required for the landing JavaScript contract check."
-    script = "const fs=require('fs'),vm=require('vm');const c={document:{addEventListener(){}}};vm.createContext(c);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);console.log(JSON.stringify([c.heroGeometry(1120),c.heroGeometry(350)]));"
+    script = "const fs=require('fs'),vm=require('vm');const c={document:{addEventListener(){}}};vm.createContext(c);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);console.log(JSON.stringify([c.heroGeometry(1120),c.heroGeometry(350),c.heroGeometry(560,'language')]));"
     result = subprocess.run([node, "-e", script, str(SITE / "static/js/main.js")], capture_output=True, text=True, check=True)
-    desktop, mobile = json.loads(result.stdout)
+    desktop, mobile, language_page = json.loads(result.stdout)
     assert desktop == dict(scale=1, left=0, top=0)
     assert mobile["scale"] == pytest.approx(396.46 / 1120)
     assert mobile["left"] == -46 and mobile["top"] == -102
+    assert language_page["scale"] == pytest.approx(918.974 / 1120)
+    assert language_page["left"] == -179 and language_page["top"] == -188
 
 
 @pytest.mark.parametrize("entry", PRIORITY, ids=lambda entry: entry.site_locale)
@@ -159,7 +161,7 @@ def test_every_home_has_complete_localized_sections_examples_and_metadata(built_
     shared_words = {("de", "navDownload"), ("fr", "navMenu"), ("fr", "faqTitle"),
                     ("nl", "translitoIn"), ("nl", "navMenu"), ("pl", "navMenu"), ("pt", "navMenu")}
     for key, value in strings.items():
-        if entry.code != "en" and (entry.code, key) not in shared_words:
+        if entry.code != "en" and key != "heroCurrent" and (entry.code, key) not in shared_words:
             assert value["other"] != english[key]["other"], (entry.code, key)
     for key in ("heroTitle", "heroPrevious", "heroCurrent", "overviewTitle", "feature1Title", "feature2Title",
                 "feature3Title", "feature4Title", "feature5Title", "howTitle", "downloadTitle", "faqTitle"):
@@ -168,7 +170,13 @@ def test_every_home_has_complete_localized_sections_examples_and_metadata(built_
     descriptions = [tag["content"] for tag in document.tags("meta") if tag.get("name") == "description"]
     assert descriptions == [strings["description"]["other"]]
     assert "Weekly sync is starting" in document.plain_text
-    assert "Subtitles are on, translating into " + entry.english_name + "." in document.plain_text
+    assert "Subtitles are on, translating into English." in document.plain_text
+    current = [tag for tag in document.tags("p") if tag.get("class") == "current"]
+    assert len(current) == 1
+    assert current[0]["lang"] == "en-US"
+    assert current[0]["dir"] == "ltr"
+    if entry.code != "en":
+        assert strings["heroCurrent"]["other"] == english["heroCurrent"]["other"]
     rows = [tag for tag in document.tags("div") if tag.get("class", "").startswith("reply-row")]
     assert len(rows) == (4 if entry.code == "en" else 3)
     if entry.code != "en":
@@ -177,11 +185,59 @@ def test_every_home_has_complete_localized_sections_examples_and_metadata(built_
         assert "Yes, Thursday is fine" in document.plain_text
 
 
-def test_arabic_and_japanese_reference_heroes_are_used_verbatim():
+def test_reference_native_questions_are_shown_with_english_translations():
     expected = {
-        "ar": ("تابع كل اجتماع بلغتك.", "تأخر الإطلاق يومين بسبب مشكلة في الـ API.", "متى يمكننا تسليم النسخة الأولى؟"),
-        "ja": ("すべての会議を、あなたの言語で。", "API の問題でデプロイが 2 日遅れました。", "最初のバージョンはいつ納品できますか？"),
+        "ar": ("تابع كل اجتماع بلغتك.", "متى يمكننا تسليم النسخة الأولى؟", "When can we deliver the first version?"),
+        "ja": ("すべての会議を、あなたの言語で。", "最初のバージョンはいつ納品できますか？", "When can we deliver the first version?"),
     }
     for code, values in expected.items():
         strings = tomllib.loads((SITE / "i18n" / (code + ".toml")).read_text(encoding="utf-8"))
         assert tuple(strings[key]["other"] for key in ("heroTitle", "heroPrevious", "heroCurrent")) == values
+
+
+@pytest.mark.parametrize("entry", [item for item in PRIORITY if item.slug], ids=lambda entry: entry.slug)
+def test_thirteen_english_language_pages_have_native_to_english_examples(built_site, entry):
+    from tools.site_languages import language_page_source
+    from engines.replies import parse_replies, phrasebook
+    document = Document(built_site / "languages" / entry.slug / "index.html")
+    data = json.loads((SITE / "data/language_pages" / (entry.slug + ".json")).read_text(encoding="utf-8"))
+    source = SITE / "content/languages" / (entry.slug + ".md")
+    assert source.read_text(encoding="utf-8") == language_page_source(entry)
+    assert data["code"] == entry.code and data["reviewed"] is False and data["draft_for_native_review"] is True
+    assert document.tags("html")[0]["lang"] == "en-US"
+    assert document.tags("html")[0]["dir"] == "ltr"
+    name = entry.english_name
+    assert f"Translito for {name}: live {name} and English meeting subtitles" in document.plain_text
+    description = (f"Live subtitles between {name} and English over Zoom, Teams or Meet on Windows. Short replies in {name}" +
+        (", written in English letters" if entry.romanize_replies else "") +
+        ". Free on your PC, with optional pay-as-you-go cloud engines.")
+    assert any(tag.get("name") == "description" and tag["content"] == description for tag in document.tags("meta"))
+    assert [tag["id"] for tag in document.tags("section") if "id" in tag] == ["examples", "language-replies", "language-quality", "other-languages", "download"]
+    assert len(data["samples"]) == 3 and any("API" in row["native"] for row in data["samples"])
+    for row in data["samples"]:
+        assert row["native"] in document.plain_text and row["english"] in document.plain_text
+    parsed = parse_replies({"replies": data["replies"]})
+    assert len(parsed) == 3
+    assert parsed[-1].native == phrasebook(entry.code)[-1].native
+    for reply in parsed:
+        assert reply.spoken in document.plain_text and reply.meaning in document.plain_text
+        assert len(reply.spoken.split()) <= 8 and reply.romanized.isascii()
+    assert "Arabic to English is the pair we measure on every release." in document.plain_text
+    links = [tag for tag in document.tags("a") if tag.get("class") == "language-row" and tag.get("aria-current") == "page"]
+    assert len(links) == 1 and links[0]["href"] == f"/languages/{entry.slug}/"
+    originals = [tag for tag in document.tags("p") if tag.get("class") == "previous"]
+    translated = [tag for tag in document.tags("p") if tag.get("class") == "current"]
+    assert originals[0]["lang"] == entry.bcp47 and translated[0]["lang"] == "en"
+
+
+def test_language_pages_exist_only_for_the_thirteen_priority_languages(built_site):
+    expected = {item.slug for item in PRIORITY if item.slug}
+    assert {path.parent.name for path in (built_site / "languages").glob("*/index.html")} == expected
+    assert {path.stem for path in (SITE / "data/language_pages").glob("*.json")} == expected
+
+
+def test_spanish_language_page_uses_the_reference_examples():
+    data = json.loads((SITE / "data/language_pages/spanish.json").read_text(encoding="utf-8"))
+    assert [row["native"] for row in data["samples"]] == ["Vamos a revisar el presupuesto del trimestre.",
+        "El deployment se retrasó dos días por un problema con la API.", "¿Podemos mantener la entrega del jueves?"]
+    assert [row["native"] for row in data["replies"]] == ["Sí, el jueves está bien", "Deme dos días y le confirmo", "¿Puede repetir la pregunta?"]

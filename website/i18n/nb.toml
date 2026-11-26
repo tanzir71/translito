@@ -54,10 +54,10 @@ other = "Gratis på PC-en. Skymotorer er valgfrie, og du betaler bare for tale."
 other = "Et møtevindu og oppgavelinjen på et Windows-skrivebord."
 
 [heroPrevious]
-other = "Deployment ble to dager forsinket på grunn av et API-problem."
+other = "Når kan vi levere den første versjonen?"
 
 [heroCurrent]
-other = "Når kan vi levere den første versjonen?"
+other = "When can we deliver the first version?"
 
 [overviewLabel]
 other = "Nytt i Windows"

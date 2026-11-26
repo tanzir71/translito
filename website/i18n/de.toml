@@ -54,10 +54,10 @@ other = "Kostenlos auf Ihrem PC. Cloud-Engines sind optional; Sie bezahlen nur f
 other = "Ein Meeting-Fenster und die Taskleiste auf einem Windows-Desktop."
 
 [heroPrevious]
-other = "Das Deployment hat sich wegen eines API-Problems um zwei Tage verzögert."
+other = "Wann können wir die erste Version liefern?"
 
 [heroCurrent]
-other = "Wann können wir die erste Version liefern?"
+other = "When can we deliver the first version?"
 
 [overviewLabel]
 other = "Neu auf Windows"

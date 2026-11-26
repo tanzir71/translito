@@ -1,4 +1,8 @@
-function heroGeometry(width) {
+function heroGeometry(width, layout = "home") {
+    if (layout === "language") {
+        const ratio = width / 560;
+        return { scale: ratio * 918.974 / 1120, left: -179 * ratio, top: -188 * ratio };
+    }
     if (width <= 727) {
         const ratio = width / 350;
         return { scale: ratio * 396.46 / 1120, left: -46 * ratio, top: -102 * ratio };
@@ -10,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".hero-shot").forEach((shot) => {
         const scene = shot.querySelector(".shot-scene");
         const resize = () => {
-            const geometry = heroGeometry(shot.getBoundingClientRect().width);
+            const geometry = heroGeometry(shot.getBoundingClientRect().width, shot.dataset.layout);
             scene.style.transform = `scale(${geometry.scale})`;
             scene.style.left = `${geometry.left}px`;
             scene.style.top = `${geometry.top}px`;
@@ -19,7 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (typeof ResizeObserver !== "undefined") new ResizeObserver(resize).observe(shot);
         else window.addEventListener("resize", resize);
         const bar = shot.querySelector(".subtitle-bar");
-        shot.querySelector("[data-demo-pause]").addEventListener("click", (event) => {
+        shot.querySelector("[data-demo-pause]")?.addEventListener("click", (event) => {
             const paused = bar.classList.toggle("is-paused");
             event.currentTarget.setAttribute("aria-pressed", String(paused));
         });
@@ -28,8 +32,8 @@ document.addEventListener("DOMContentLoaded", () => {
             zoom = Math.max(.75, Math.min(1.25, zoom + Number(button.dataset.demoSize) * .1));
             bar.style.setProperty("--subtitle-zoom", String(zoom));
         }));
-        shot.querySelector("[data-demo-close]").addEventListener("click", () => { bar.hidden = true; });
-        shot.querySelector("[data-demo-dismiss]").addEventListener("click", () => { shot.querySelector(".start-notice").hidden = true; });
+        shot.querySelector("[data-demo-close]")?.addEventListener("click", () => { bar.hidden = true; });
+        shot.querySelector("[data-demo-dismiss]")?.addEventListener("click", () => { shot.querySelector(".start-notice").hidden = true; });
     });
     const mobileMenu = document.querySelector(".mobile-menu");
     const header = document.querySelector(".site-header");

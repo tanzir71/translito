@@ -1,0 +1,37 @@
+{
+  "code": "de",
+  "slug": "german",
+  "reviewed": false,
+  "draft_for_native_review": true,
+  "samples": [
+    {
+      "native": "Sehen wir uns das Budget für das Quartal an.",
+      "english": "Let's review the budget for the quarter."
+    },
+    {
+      "native": "Das Deployment hat sich wegen eines API-Problems um zwei Tage verzögert.",
+      "english": "The deployment slipped two days because of an API issue."
+    },
+    {
+      "native": "Können wir die Lieferung am Donnerstag beibehalten?",
+      "english": "Can we keep the Thursday delivery?"
+    }
+  ],
+  "replies": [
+    {
+      "native": "Ja, Donnerstag passt.",
+      "romanized": "",
+      "meaning": "Yes, Thursday is fine"
+    },
+    {
+      "native": "Geben Sie mir zwei Tage, dann bestätige ich.",
+      "romanized": "",
+      "meaning": "Give me two days and I will confirm"
+    },
+    {
+      "native": "Können Sie die Frage wiederholen?",
+      "romanized": "",
+      "meaning": "Could you repeat the question?"
+    }
+  ]
+}
