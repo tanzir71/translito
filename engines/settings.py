@@ -43,6 +43,7 @@ class EngineSettings:
     engine_choice: str = ""
     fallback_on_budget: str = "local"
     budget_warn_percent: int = 80
+    _baseline: dict = field(default_factory=dict, compare=False, repr=False)
 
     def resolve(self, source, target):
         values = {key: getattr(self, key) for key in ("default_asr_provider", "default_asr_model", "default_mt_provider", "default_mt_model")}
@@ -100,9 +101,11 @@ def load_engine_settings(path=None):
         warning = min(100, max(1, int(section.get("budget_warn_percent", "80"))))
     except ValueError:
         warning = 80
-    return EngineSettings(profile, cap, providers, **defaults, pair_overrides=overrides,
+    settings = EngineSettings(profile, cap, providers, **defaults, pair_overrides=overrides,
         engine_choice=choice if choice in {"cloud", "local", "free"} else "",
         fallback_on_budget=fallback if fallback in {"local", "stop"} else "local", budget_warn_percent=warning)
+    object.__setattr__(settings, "_baseline", _values(settings))
+    return settings
 
 
 def _values(settings):
@@ -140,6 +143,8 @@ def _values(settings):
 def save_engine_settings(settings, path=None):
     from app_config import read_config, write_config, _ensure_section
     values = _values(settings)
+    if settings._baseline:
+        values = {key: value for key, value in values.items() if settings._baseline.get(key) != value}
     config = read_config(path)
     _ensure_section(config, "ENGINES").update(values)
     write_config(config, path)

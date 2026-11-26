@@ -113,9 +113,9 @@ def test_stall_retries_three_times_with_backoff(tmp_path, fake_job):
     assert fake_job.error == "Paused · check your connection"
 
 
-def test_real_tk_heartbeat_during_five_second_child(tmp_path, fake_job):
+def test_real_tk_heartbeat_during_five_second_child(tmp_path, fake_job, tk_parent):
     import tkinter as tk
-    root = tk.Tk()
+    root = tk.Toplevel(tk_parent)
     root.withdraw()
     beats, progress = [], []
     def heartbeat():

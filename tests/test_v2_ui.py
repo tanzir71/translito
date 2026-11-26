@@ -7,7 +7,7 @@ import gui
 
 
 @pytest.fixture(scope="module")
-def app(tmp_path_factory):
+def app(tmp_path_factory, tk_parent):
     tmp_path = tmp_path_factory.mktemp("v2-ui")
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setenv("TRANSLITO_UI_PREVIEW", "1")
@@ -21,7 +21,7 @@ def app(tmp_path_factory):
     import time
     for attempt in range(4):
         try:
-            root = tk.Tk()
+            root = tk.Toplevel(tk_parent)
             break
         except tk.TclError as error:
             if "Can't find a usable" not in str(error) or attempt == 3:

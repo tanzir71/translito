@@ -5,6 +5,7 @@ from tkinter import ttk
 
 from engines.registry import provider_factories
 from engines.settings import budget, load_engine_settings
+from settings_schema import money
 from engines.usage import UsageLedger
 
 
@@ -84,9 +85,43 @@ def field(parent, label, variable, colors, values=None):
     frame = tk.Frame(parent, bg=colors["bg"])
     frame.pack(fill="x", pady=5)
     tk.Label(frame, text=label, bg=colors["bg"], fg=colors["secondary"], anchor="w", font=("Segoe UI", 8)).pack(fill="x", pady=(0, 4))
-    widget = (ttk.Combobox(frame, textvariable=variable, values=values, state="readonly", style="Dark.TCombobox")
+    display = variable
+    labels = getattr(getattr(variable, "setting", None), "labels", {})
+    if values is not None and labels:
+        display = tk.StringVar(parent, value=labels.get(variable.get(), variable.get()))
+        syncing = [False]
+        def from_store(*_):
+            if not syncing[0]:
+                syncing[0] = True
+                display.set(labels.get(variable.get(), variable.get()))
+                syncing[0] = False
+        def to_store(*_):
+            if not syncing[0]:
+                syncing[0] = True
+                variable.set(next((key for key,label in labels.items() if label == display.get()), display.get()))
+                syncing[0] = False
+        variable.trace_add("write", from_store)
+        display.trace_add("write", to_store)
+        values = [labels.get(value, value) for value in values]
+    widget = (ttk.Combobox(frame, textvariable=display, values=values, state="readonly", style="Dark.TCombobox")
               if values is not None else ttk.Entry(frame, textvariable=variable, style="Dark.TEntry"))
     widget.pack(fill="x")
+    owner = getattr(variable, "settings_owner", None)
+    if owner and not variable.setting.live:
+        note = tk.Label(frame, bg=colors["bg"], fg=colors["orange"], anchor="w", font=("Segoe UI", 8))
+        note.pack(fill="x")
+        def next_session(*_):
+            if note.winfo_exists():
+                note.configure(text="Applies when you start the next session" if owner.transcriber is not None else "")
+        variable.trace_add("write", next_session)
+        next_session()
+    if hasattr(variable, "validation_error"):
+        tk.Label(frame, textvariable=variable.validation_error, bg=colors["bg"], fg=colors["red"],
+                 anchor="w", font=("Segoe UI", 8)).pack(fill="x")
+        widget.bind("<FocusOut>", lambda event: variable.save_now())
+        widget.bind("<Return>", lambda event: variable.save_now())
+        if values is not None:
+            widget.bind("<<ComboboxSelected>>", lambda event: variable.save_now())
     return widget
 
 
@@ -139,11 +174,6 @@ def pages(app, colors):
                 choices = (factory.models if factory else
                     (tuple(WHISPER_MODELS) if k == "asr" else ("automatic", "opus", "translategemma")) if v.get() == "local" else ())
                 m.configure(values=choices)
-                selected_model = app.engine_default_vars[f"default_{k}_model"]
-                if choices and selected_model.get() not in choices:
-                    selected_model.set(app.whisper_var.get() if not factory and k == "asr" else choices[0])
-                elif not choices:
-                    selected_model.set("")
         variable.trace_add("write", refresh)
         variable.trace_add("write", lambda *_: refresh_provider_choices(app))
         refresh()
@@ -172,7 +202,7 @@ def pages(app, colors):
 
 def safe_budget(value):
     try:
-        return budget(value)
+        return budget(money(value))
     except ValueError:
         return Decimal(0)
 

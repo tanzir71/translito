@@ -411,6 +411,9 @@ class TranslatorGUI:
         self.latest_translation = ""
         self.synthesizer = LocalSpeechSynthesizer()
 
+        if not self.preview_mode:
+            from settings_store import SettingsStore
+            SettingsStore(CONFIG_FILE).migrate(language_code=lambda value: next((iso for name, bcp, iso in LANGUAGES if value in {name, iso}), value))
         language_config = load_language_config(CONFIG_FILE)
         speak_config = load_speak_config(CONFIG_FILE)
         runtime_config = load_runtime_config(CONFIG_FILE)
@@ -470,9 +473,9 @@ class TranslatorGUI:
 
         from settings_state import SettingsState, CONTROL_VARIABLES
         self.preferences = SettingsState(CONFIG_FILE, writable=lambda: not self.preview_mode and not self._initializing)
+        self.preferences.owner = self
         for name in CONTROL_VARIABLES:
-            var = getattr(self, name + "_var")
-            self.preferences.bind(var, "NETWORK" if name == "offline_only" else "UI", "block_all" if name == "offline_only" else name, var.get())
+            self.preferences.bind_control(self, name)
         self._capture_source_type = self.listen_source_type_var.get()
         for action, var in self.hotkey_vars.items():
             self.preferences.bind(var, "HOTKEYS", action, var.get())
@@ -968,6 +971,8 @@ class TranslatorGUI:
         except tk.TclError:
             pass
         from settings_shell import SettingsShell
+        from settings_feedback import add_footer
+        add_footer(self, window, COLORS)
         from ui_theme import dark_titlebar
         self.settings_shell = SettingsShell(window, COLORS, ScrollableFrame,
             initial=self.preferences.get("UI", "last_settings_page", "Languages"),
@@ -1241,7 +1246,7 @@ class TranslatorGUI:
 
         if self.transcriber is not None:
             self._settings_help(content, "Stop capture to change settings.", color=COLORS["orange"])
-            self._set_settings_controls_state(False)
+            self._settings_help(content, "Applies when you start the next session", color=COLORS["orange"])
         self.update_noise_gate_label()
         self.update_chunk_label()
         center_window(window, self.root, 820, 680)
@@ -1475,6 +1480,7 @@ class TranslatorGUI:
 
     def change_offline_mode(self):
         self.preferences.set("NETWORK", "block_all", self.offline_only_var.get())
+        self.configure_offline_env()
         self.persist_settings()
 
     def selected_listen_choice(self):
@@ -1496,6 +1502,13 @@ class TranslatorGUI:
         return None
 
     def refresh_devices(self, show_error=False):
+        self._restoring_devices = True
+        try:
+            self._refresh_devices(show_error=show_error)
+        finally:
+            self._restoring_devices = False
+
+    def _refresh_devices(self, show_error=False):
         current_listen = self.selected_listen_choice()
         current_is_app = current_listen is not None and getattr(current_listen.raw, "is_process_loopback", False)
         if self.listen_source_type_var.get() == "App audio":
@@ -1734,42 +1747,11 @@ class TranslatorGUI:
     def persist_settings(self):
         if self.preview_mode or self._initializing:
             return
-        from dataclasses import replace
-        engines = load_engine_settings(CONFIG_FILE)
-        save_engine_settings(replace(engines, profile=ENGINE_PROFILES[self.engine_profile_var.get()]), CONFIG_FILE)
-        _listen_name, _listen_bcp, listen_source = self.language_entry_by_name(
-            self.listen_source_var.get()
-        )
-        _target_name, _target_bcp, listen_target = self.language_entry_by_name(
-            self.listen_target_var.get()
-        )
-        _speak_name, _speak_bcp, speak_source = self.language_entry_by_name(
-            self.speak_source_var.get()
-        )
-        _speak_target_name, _speak_target_bcp, speak_target = self.language_entry_by_name(
-            self.speak_target_var.get()
-        )
-        save_language_config(listen_source, listen_target, self.whisper_var.get(), CONFIG_FILE)
-        save_conversation_config(self.current_conversation(), CONFIG_FILE)
-        mic_choice = self.selected_speak_mic_choice()
-        output_choice = self.selected_output_choice()
-        save_speak_config(
-            CONFIG_FILE,
-            source=speak_source,
-            target=speak_target,
-            mic_name=mic_choice.name if mic_choice else self.speak_mic_var.get(),
-            output_device_name=output_choice.name if output_choice else self.speak_output_var.get(),
-            voice=self.voice_var.get(),
-            monitor_spoken_audio=self.monitor_var.get(),
-        )
-        save_runtime_config(
-            CONFIG_FILE,
-            mic_noise_gate=self.noise_gate_var.get(),
-            last_mode=self.mode_var.get(),
-            chunk_duration=self.chunk_duration_var.get(),
-            offline_only=self.offline_only_var.get(),
-            asr_preset=self.quality_var.get().lower(),
-        )
+        from dataclasses import asdict
+        # Control traces already save their own canonical keys. Update only the
+        # derived conversation contract as one transaction.
+        self.preferences.store.update({("CONVERSATION", key): str(int(value)) if isinstance(value, bool) else str(value)
+            for key, value in asdict(self.current_conversation()).items()})
 
     def choose_folder(self):
         selected = filedialog.askdirectory(
@@ -2081,7 +2063,7 @@ class TranslatorGUI:
             *self.capture_kind_buttons.values(),
         ):
             widget.configure(state=normal_state)
-        self._set_settings_controls_state(not locked)
+        self._set_settings_controls_state(True)
         self.update_routing_banner()
 
     def _set_settings_controls_state(self, enabled):
@@ -2645,6 +2627,7 @@ class TranslatorGUI:
                 "Quit and resume the download next time?", parent=self.root):
             return
         self.download_manager.close()
+        self.preferences.close()
         self.is_quitting = True
         self.subtitle_controller.close()
         self.reply_controller.close()

@@ -9,12 +9,12 @@ from model_library_ui import ModelManagerWindow
 
 
 @pytest.fixture(scope="module")
-def tk_root():
+def tk_root(tk_parent):
     import os
     import time
     for attempt in range(6):
         try:
-            root = tk.Tk()
+            root = tk.Toplevel(tk_parent)
             break
         except tk.TclError:
             if attempt == 5:
