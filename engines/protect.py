@@ -7,6 +7,20 @@ import re
 import unicodedata
 
 
+def _word_char(char):
+    # East Asian word boundaries do not require spaces around glossary terms.
+    return bool(char) and (char.isalnum() or char == "_") and not (
+        "CJK" in unicodedata.name(char, "") or "HIRAGANA" in unicodedata.name(char, "")
+        or "KATAKANA" in unicodedata.name(char, ""))
+
+
+def term_matches(text, term):
+    for match in re.finditer(re.escape(term), text, re.IGNORECASE):
+        before, after = text[match.start()-1:match.start()] if match.start() else "", text[match.end():match.end()+1]
+        if not (_word_char(before) and _word_char(term[0])) and not (_word_char(after) and _word_char(term[-1])):
+            yield match
+
+
 def latin_ranges(text):
     ranges, i = [], 0
     while i < len(text):
@@ -38,8 +52,7 @@ def protected_ranges(text, *, latin=False, other_script=False, terms=()):
                 start = None
     for term in terms:
         if term:
-            ranges.extend((match.start(), match.end()) for match in re.finditer(
-                r"(?<!\w)" + re.escape(term) + r"(?!\w)", text, re.IGNORECASE))
+            ranges.extend((match.start(), match.end()) for match in term_matches(text, term))
     merged = []
     for start, end in sorted(ranges):
         if merged and start <= merged[-1][1]:
@@ -53,9 +66,15 @@ def apply_preferred_terms(text, glossary):
     preferred = {term: value for term, value in glossary.items() if term and value}
     if not preferred:
         return text
-    lookup = {term.casefold(): value for term, value in preferred.items()}
-    pattern = r"(?<!\w)(?:" + "|".join(re.escape(term) for term in sorted(preferred, key=len, reverse=True)) + r")(?!\w)"
-    return re.sub(pattern, lambda match: lookup[match[0].casefold()], text, flags=re.IGNORECASE)
+    candidates = sorted((match.start(), match.end(), value)
+        for term, value in preferred.items() for match in term_matches(text, term))
+    pieces, end = [], 0
+    for start, stop, value in sorted(candidates, key=lambda v: (v[0], -v[1])):
+        if start < end:
+            continue
+        pieces.extend((text[end:start], value))
+        end = stop
+    return "".join(pieces) + text[end:]
 
 
 @dataclass(frozen=True)

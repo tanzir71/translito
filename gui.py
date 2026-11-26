@@ -48,7 +48,7 @@ from device_utils import (
     same_physical_device,
 )
 from hotkeys import GlobalHotkeyManager, format_tk_key_event
-from engines.display import display_text, dominant_rtl
+from engines.display import display_text, dominant_rtl, configure_language_text, refresh_language_text
 from engines.mt_local import UnsupportedPairError, resolve_local_mt
 from engines.asr_codeswitch import CODESWITCH_REPO
 from engines.settings import load_engine_settings, migrate_engine_settings, save_engine_settings
@@ -1484,6 +1484,7 @@ class TranslatorGUI:
         for label in tuple(self.transcript_text_labels):
             try:
                 label.configure(wraplength=transcript_wrap)
+                refresh_language_text(label)
             except tk.TclError:
                 self.transcript_text_labels.remove(label)
 
@@ -2406,7 +2407,7 @@ class TranslatorGUI:
         target_language = entry.get("target_language", "")
         tag = entry.get("language_tag", source_language)
         source_rtl = dominant_rtl(source_text) or (source_language in RTL_LANGUAGES and tag != "en")
-        source_anchor = "w" if entry.get("pass_through") else "e"
+        source_anchor = "e" if source_rtl and not entry.get("pass_through") else "w"
         target_anchor = "e" if dominant_rtl(translated_text) else "w"
         source_label = tk.Label(
             card,
@@ -2419,6 +2420,7 @@ class TranslatorGUI:
             font=("Segoe UI", 10),
         )
         source_label.pack(fill="x")
+        configure_language_text(source_label, source_text, source_language, 10)
         self.transcript_text_labels.append(source_label)
         if translated_text or entry.get("id"):
             translated_label = tk.Label(
@@ -2432,6 +2434,7 @@ class TranslatorGUI:
                 font=("Segoe UI", 10),
             )
             translated_label.pack(fill="x", before=source_label, pady=(0, 5))
+            configure_language_text(translated_label, self.transcript_target_text(entry), target_language, 10, displayed=True)
             if not self.transcript_target_text(entry):
                 translated_label.pack_forget()
             self.transcript_text_labels.append(translated_label)
@@ -2471,8 +2474,10 @@ class TranslatorGUI:
         source = stored_entry.get("source_text", "")
         source_rtl = dominant_rtl(source) or (stored_entry.get("source_language") in RTL_LANGUAGES
                      and stored_entry.get("language_tag") != "en")
-        source_label.configure(text=display_text(source), anchor="w" if stored_entry.get("pass_through") else "e",
-                               justify="left" if stored_entry.get("pass_through") else "right")
+        source_label.configure(text=display_text(source), anchor="e" if source_rtl and not stored_entry.get("pass_through") else "w",
+                               justify="right" if source_rtl and not stored_entry.get("pass_through") else "left")
+        configure_language_text(source_label, source, stored_entry.get("source_language"), 10)
+        configure_language_text(label, self.transcript_target_text(stored_entry), stored_entry.get("target_language"), 10, displayed=True)
         translated = stored_entry.get("translated_text", "")
         label.configure(anchor="e" if dominant_rtl(translated) else "w",
                          justify="right" if dominant_rtl(translated) else "left")

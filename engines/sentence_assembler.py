@@ -11,7 +11,7 @@ class Sentence:
 
 
 class SentenceAssembler:
-    terminal = (".", "?", "!", "؟", "。")
+    terminal = (".", "?", "!", "؟", "。", "！", "？")
 
     def __init__(self, idle_seconds=1.5, max_characters=220, clock=time.monotonic):
         self.idle_seconds = idle_seconds

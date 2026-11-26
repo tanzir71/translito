@@ -1,4 +1,5 @@
 """One reply set shared by the main strip, desktop captions and hotkeys."""
+from engines.display import font_family, display_text, wrap_text
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -101,10 +102,9 @@ class ReplyController:
                 card.grid(row=0,column=index,sticky="nsew",padx=(0,8))
                 cards.columnconfigure(index,weight=1,uniform="replies")
                 tk.Label(card,text=f"{index+1}  {reply.spoken}",bg=self.colors["surface_2"],fg=self.colors["text"],font=("Segoe UI Semibold",10),wraplength=210,justify="left",anchor="w").pack(fill="x")
-                tk.Label(card,text=reply.meaning,bg=self.colors["surface_2"],fg=self.colors["secondary"],font=("Segoe UI",9),wraplength=210,justify="left",anchor="w").pack(fill="x",pady=(4,0))
+                tk.Label(card,text=wrap_text(display_text(reply.meaning),self.target,18),bg=self.colors["surface_2"],fg=self.colors["secondary"],font=(font_family(self.target),9),wraplength=210,justify="left",anchor="w").pack(fill="x",pady=(4,0))
                 if self.options["show_native"].get() and reply.romanized:
-                    from engines.display import display_text
-                    tk.Label(card,text=display_text(reply.native),bg=self.colors["surface_2"],fg=self.colors["tertiary"],font=("Segoe UI",9)).pack(fill="x")
+                    tk.Label(card,text=wrap_text(display_text(reply.native),self.language,18),bg=self.colors["surface_2"],fg=self.colors["tertiary"],font=(font_family(self.language),9),wraplength=210).pack(fill="x")
                 self.card_actions(card,index)
         self.render_overlay()
 
@@ -139,7 +139,7 @@ class ReplyController:
             tk.Button(card,text=f"{index+1}  {reply.spoken}",command=lambda i=index:self.say(i),bg=self.colors["black"],
                 fg=self.colors["text"],activebackground=self.colors["field"],activeforeground=self.colors["text"],relief="flat",bd=0,
                 font=("Segoe UI Semibold",size),wraplength=205,anchor="w",justify="left").pack(fill="x")
-            tk.Label(card,text=reply.meaning,bg=self.colors["black"],fg=self.colors["secondary"],font=("Segoe UI",max(8,size-1)),
+            tk.Label(card,text=wrap_text(display_text(reply.meaning),self.target,18),bg=self.colors["black"],fg=self.colors["secondary"],font=(font_family(self.target),max(8,size-1)),
                 wraplength=205,anchor="w",justify="left").pack(fill="x")
         overlay.window.update_idletasks()
         overlay.window.geometry(f"720x{max(64,overlay.window.winfo_reqheight())}")

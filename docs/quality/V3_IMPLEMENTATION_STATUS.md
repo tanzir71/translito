@@ -23,3 +23,10 @@ standard directions remain unavailable. TranslateGemma coverage follows the
 official model card code map. No inference/quality claims were made.
 Verification: `python -m pytest -q` — 573 tests pass. The shared Tcl fixture
 retries only the runner's transient shared-script read error, matching the UI fixture.
+
+A3: script-specific Tk fonts across transcript, captions and reply trays; measured
+character wrapping for Han/kana display copies, including resizing. Stored text
+stays unchanged. Full-width sentence ends flush promptly; glossary terms match
+next to Han/kana without matching inside Latin words.
+Verification: full `python -m pytest -q` — 583 pass; focused typography/UI suite
+— 20 pass, including the added CJK transcript font/preservation integration check.

@@ -172,9 +172,13 @@ class SubtitleOverlay:
             current = index == len(rows)-1
             label.configure(text=display_text(text), font=("Segoe UI Semibold" if current else "Segoe UI", round(size*.75 if current else size*.56)),
                 fg=self.colors["secondary"] if not current or entry.get("translation_pending") else self.colors["text"])
+            from engines.display import configure_language_text
+            code = entry.get("target_language") if entry.get("translated_text") else entry.get("source_language")
+            configure_language_text(label, text, code, round(size*.75 if current else size*.56), semibold=current)
             label.pack(fill="x", pady=2)
         if rows and self.option("show_original", False) and rows[-1].get("translated_text"):
             self.labels[3].configure(text=display_text(rows[-1].get("source_text", "")), fg=self.colors["secondary"], font=("Segoe UI", 10))
+            configure_language_text(self.labels[3], rows[-1].get("source_text", ""), rows[-1].get("source_language"), 10)
             self.labels[3].pack(fill="x", pady=2)
         self.window.update_idletasks()
         self.window.geometry(f"720x{max(64, self.window.winfo_reqheight())}")

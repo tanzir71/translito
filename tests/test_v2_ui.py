@@ -49,6 +49,21 @@ def test_settings_sidebar_dimensions_and_section_layout(app):
         assert all(not widget.winfo_manager() for name, widget in app.settings_shell.pages.items() if name != page)
 
 
+def test_cjk_transcript_uses_script_fonts_and_preserves_stored_text(app):
+    from engines.display import font_family
+    for code, text in (("zh-Hans", "请检查API！"), ("zh-Hant", "請檢查API！"),
+                       ("ja", "このAPIを確認してください。"), ("ko", "API를 확인해 주세요！")):
+        entry = dict(id="font-" + code, source_text=text, translated_text=text,
+                     source_language=code, target_language=code)
+        app.append_transcript_card(entry)
+        stored, target, source = app.transcript_targets[entry["id"]]
+        for label in (target, source):
+            assert font_family(code) in label.cget("font")
+        app.update_transcript_card(dict(id=entry["id"], translated_text=text + text))
+        assert stored["source_text"] == text
+        assert stored["translated_text"] == text + text
+
+
 def test_all_entry_states_are_dark(app):
     for name in ("TEntry", "TCombobox", "TSpinbox", "Dark.TEntry", "Dark.TCombobox"):
         for state in ((), ("readonly",), ("focus",), ("disabled",), ("disabled", "readonly")):
