@@ -132,3 +132,81 @@ def test_real_tk_heartbeat_during_five_second_child(tmp_path, fake_job, tk_paren
     finally:
         manager.close()
         root.destroy()
+
+
+def test_resume_uses_existing_hf_blob_cache(tmp_path,monkeypatch):
+    import app_config
+    import huggingface_hub.constants
+    from engines.model_files import whisper_spec
+    hub=tmp_path/"hub"
+    folder=hub/"models--Systran--faster-whisper-small"/"snapshots"/"revision"
+    folder.mkdir(parents=True)
+    (folder/"config.json").write_text("{}")
+    (folder/"tokenizer.json").write_text("{}")
+    blobs=folder.parent.parent/"blobs"
+    blobs.mkdir()
+    (blobs/"weights.incomplete").write_bytes(b"x"*4096)
+    monkeypatch.setattr(app_config,"CONFIG_FILE",tmp_path/"config.ini")
+    monkeypatch.setattr(huggingface_hub.constants,"HF_HUB_CACHE",str(hub))
+    manager=DownloadManager(directory=tmp_path/"jobs",disk_usage=lambda p:SimpleNamespace(free=10**10))
+    job=manager.enqueue_model(whisper_spec("openai/whisper-small"))
+    assert Path(job.folder)==folder and Path(job.cache_dir)==hub
+    assert job.revision=="revision" and job.bytes==4096
+    manager.close()
+
+
+def test_windowed_frozen_child_can_write_json_to_inherited_pipe(monkeypatch):
+    import ctypes
+    import engines.downloads as downloads
+    captured=[]
+    def write(handle,buffer,length,written,overlap):
+        assert handle==99
+        captured.append(buffer.raw[:length])
+        written._obj.value=length
+        return True
+    api=SimpleNamespace(GetStdHandle=lambda value:99,WriteFile=write)
+    with monkeypatch.context() as context:
+        context.setattr(downloads.sys,"stdout",None)
+        downloads.write_json_line({"bytes":42,"total":100},kernel32=api)
+    assert json.loads(captured[0])=={"bytes":42,"total":100}
+
+
+def test_gemma_first_load_checks_template_before_publishing_ready(tmp_path, fake_job, monkeypatch):
+    from dataclasses import asdict
+    from engines import downloads, mt_translategemma as gemma
+    import llama_cpp
+    import psutil
+    template = "{{ bos_token }}"
+    size = 1000
+    fake_job.gemma = True
+    fake_job.repo = gemma.MANIFEST["repo"]
+    fake_job.files = [{"name": gemma.MANIFEST["filename"], "size": size,
+                       "sha256": hashlib.sha256(b"x" * size).hexdigest()}]
+    closed, events = [], []
+    def first_load(**kwargs):
+        folder = Path(kwargs["model_path"]).parent
+        assert not json.loads((folder / "manifest.json").read_text())["verified"]
+        return SimpleNamespace(metadata={"tokenizer.chat_template": template}, close=lambda: closed.append(True))
+    monkeypatch.setitem(gemma.MANIFEST, "bytes", size)
+    monkeypatch.setitem(gemma.MANIFEST, "template_sha256", hashlib.sha256(template.encode()).hexdigest())
+    monkeypatch.setattr(llama_cpp, "Llama", first_load)
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(total=16 * 2**30))
+    monkeypatch.setattr(downloads, "write_json_line", events.append)
+    path = tmp_path / "job.json"
+    path.write_text(json.dumps(asdict(fake_job)))
+    assert downloads.download_child(path) == 0
+    assert closed and events[-1]["ready"] == fake_job.folder
+    assert json.loads((Path(fake_job.folder) / "manifest.json").read_text())["verified"]
+
+
+def test_atomic_file_rename_cannot_move_visible_progress_backwards(tmp_path):
+    seen = []
+    manager = DownloadManager(directory=tmp_path / "jobs", on_change=lambda job: seen.append(job.bytes))
+    job = DownloadJob("race", "fake/race", "Fake", str(tmp_path), total=100, bytes=80, state="Downloading")
+    manager.active, manager.generation = job, "child"
+    manager.last_progress = manager.clock()
+    for count in (0, 90, 0, 100):
+        manager.events.put(("child", {"bytes": count, "total": 100}))
+    manager.poll()
+    assert seen == [80, 90, 90, 100]
+    manager.close()

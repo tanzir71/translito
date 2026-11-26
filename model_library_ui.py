@@ -1,4 +1,5 @@
 """Model inventory, explicit downloads and confirmed cache deletion."""
+from ui_dispatch import post
 from ui_scale import px, scaled_geometry
 import os
 import subprocess
@@ -81,7 +82,7 @@ class ModelManagerWindow:
     def dispatch(self, callback):
         try:
             if not self.app.is_quitting:
-                self.app.root.after(0, lambda: callback() if self.window.winfo_exists() else None)
+                post(self.app, lambda: callback() if self.window.winfo_exists() else None)
         except (RuntimeError, tk.TclError):
             pass
 
@@ -168,7 +169,7 @@ class ModelManagerWindow:
                 self.refresh()
             # Restore the host even if the manager was closed mid-download.
             try:
-                self.app.root.after(0, lambda: done() if self.window.winfo_exists() else self.finish_closed())
+                post(self.app, lambda: done() if self.window.winfo_exists() else self.finish_closed())
             except (RuntimeError, tk.TclError):
                 pass
         threading.Thread(target=work, daemon=True, name="Translito model operation").start()
@@ -182,7 +183,12 @@ class ModelManagerWindow:
 
     def download(self):
         row = self.selected()
-        if row is None or not self.can_modify():
+        if row is None:
+            return
+        if not hasattr(self.app, "download_manager") and not self.can_modify():
+            return
+        if self.app.preview_mode:
+            self.status.set("Preview only: no model downloads start.")
             return
         if self.app.offline_only_var.get():
             self.status.set("Offline mode is on. Turn it off before downloading models.")

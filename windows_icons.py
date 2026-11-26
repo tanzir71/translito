@@ -46,6 +46,7 @@ def apply_window_icon(window, *, user32=None, path=None, dpi=None):
         if isinstance(user32, ctypes.CDLL):
             user32.GetParent.restype = ctypes.c_void_p
             user32.GetParent.argtypes = [ctypes.c_void_p]
+            user32.DestroyIcon.argtypes = [ctypes.c_void_p]
             user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
         hwnd = user32.GetParent(window.winfo_id()) or window.winfo_id()
         handles = []

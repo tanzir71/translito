@@ -88,6 +88,8 @@ def inspect_model(spec, *, cache_roots=None):
                     return Incomplete(have, total)
                 if file.stat().st_size != f["size"]:
                     return Corrupt()
+            if not manifest.get("verified", True):
+                return Incomplete(have, total)
         if spec.format == "ct2":
             required = [folder / "model.bin", folder / "config.json"]
             tokenizer = (folder / "tokenizer.json").is_file() or any(folder.glob("vocabulary.*"))
@@ -132,6 +134,25 @@ def ready_whisper(chosen, *, inspect=inspect_model):
         if isinstance(inspect(whisper_spec(model)), Ready):
             return model
     return None
+
+
+def mark_corrupt(folder):
+    """Keep future preloads from trying a file the runtime rejected."""
+    path = Path(folder) / "manifest.json"
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {"files": []}
+        manifest["corrupt"] = True
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+    except (OSError, ValueError):
+        pass
+
+
+def missing_translations(source, target):
+    from engines.mt_local import resolve_local_mt
+    from engines.model_library import ModelSpec
+    plan = resolve_local_mt(source, target, offline=True)
+    specs = [ModelSpec(repo, f"Lite translation · {source} → {target}", "Translation", repo, "transformers") for repo in plan.repos]
+    return [spec for spec in specs if not isinstance(inspect_model(spec), Ready)]
 
 
 def model_hint(spec, status, fallback=None):

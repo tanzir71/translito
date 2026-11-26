@@ -1,4 +1,5 @@
 """The 800px comparison dialog. Running a check is always an explicit action."""
+from ui_dispatch import post
 from ui_scale import px, scaled_geometry
 from decimal import Decimal
 import threading
@@ -50,7 +51,7 @@ def open_check(app, colors, center, *, first_run=False):
                     app.model_setup_busy = False
                 if window.winfo_exists():
                     finish(value, error)
-            app.root.after(0, complete)
+            post(app, complete)
         threading.Thread(target=run, daemon=True).start()
     def loaded(value, error):
         load_button.configure(state="normal")

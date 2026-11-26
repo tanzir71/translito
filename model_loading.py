@@ -240,6 +240,9 @@ class ModelLoadManager:
                     cpu_threads=physical_cpu_threads(), local_files_only=True))
             except Exception as error:
                 status = Incomplete() if "Unable to open file 'model.bin'" in str(error) else Corrupt()
+                if isinstance(status, Corrupt):
+                    from engines.model_files import mark_corrupt
+                    mark_corrupt(fast_model_path)
                 raise ModelNotReady(spec, status) from None
             if whisper_model == CODESWITCH_REPO:
                 asr.provider = "arabic-codeswitch-ct2"

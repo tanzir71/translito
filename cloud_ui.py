@@ -72,6 +72,9 @@ def provider_page(app, parent, colors):
     def changed(*_):
         state["provider"] = next((name for name, label in labels.items() if label == provider.get()), state["provider"])
         app.engine_default_vars["default_asr_provider"].set(state["provider"])
+        models = factories[state["provider"]].models
+        if models and app.engine_default_vars["default_asr_model"].get() not in models:
+            app.engine_default_vars["default_asr_model"].set(models[0])
         key.set("")
         refresh()
     chooser.bind("<<ComboboxSelected>>", changed)
@@ -150,13 +153,20 @@ def provider_page(app, parent, colors):
             else:
                 key.set("")
                 app.engine_default_vars["default_asr_provider"].set(name)
+                if factories[name].models and app.engine_default_vars["default_asr_model"].get() not in factories[name].models:
+                    app.engine_default_vars["default_asr_model"].set(factories[name].models[0])
                 refresh()
             from engine_ui import refresh_engine_status
             refresh_engine_status(app)
         parent.after(100, poll)
     app.refresh_cloud_connection = refresh
     # Reading a key is deferred until the owner opens Engine, never at startup.
-    button = app.settings_shell.buttons["Engine"]
-    original = button.cget("command")
-    button.configure(command=lambda: (app.settings_shell.show("Engine"), refresh()))
+    on_page = app.settings_shell.on_page
+    def page_opened(name):
+        on_page(name)
+        if name == "Engine":
+            refresh()
+    app.settings_shell.on_page = page_opened
+    if app.settings_shell.current == "Engine":
+        refresh()
     poll()

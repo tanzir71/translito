@@ -1,4 +1,5 @@
 """One reply set shared by the main strip, desktop captions and hotkeys."""
+from ui_dispatch import post
 from ui_scale import px, scaled_geometry
 import threading
 import tkinter as tk
@@ -80,7 +81,7 @@ class ReplyController:
                 self.replies = result.replies
                 self.status.set("Phrasebook · free" if result.provider == "phrasebook" else "Short replies · usage included in your budget")
                 self.render()
-            self.app.root.after(0,finish)
+            post(self.app,finish)
         threading.Thread(target=work,daemon=True).start()
 
     def render(self):

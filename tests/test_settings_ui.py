@@ -40,6 +40,8 @@ def desktop(tmp_path, monkeypatch, tk_parent):
         root = tk.Toplevel(tk_parent)
         root.withdraw()
         app = gui.TranslatorGUI(root)
+        from types import SimpleNamespace
+        app.credential_store = SimpleNamespace(get=lambda name: None, save=lambda *args: None, delete=lambda *args: None)
         app.open_settings()
         root.update()
         apps.append(app)
@@ -124,6 +126,42 @@ def test_invalid_money_helper_and_opening_engine_does_not_overwrite(desktop):
     app.preferences.store.flush()
     app.settings_shell.show("Engine")
     assert app.engine_default_vars["default_asr_model"].get() == "saved-model-not-in-current-list"
+
+
+def test_speak_controls_restart_with_the_same_runtime_devices_and_voice(desktop, monkeypatch):
+    from device_utils import InputDeviceChoice, OutputDeviceChoice
+    from types import SimpleNamespace
+    inputs = [InputDeviceChoice(name, SimpleNamespace(), False, False) for name in ("First mic", "USB mic")]
+    outputs = [OutputDeviceChoice("Speakers", 0, False), OutputDeviceChoice("CABLE Input", 1, True)]
+    monkeypatch.setattr(gui, "query_input_devices", lambda **kw: inputs)
+    monkeypatch.setattr(gui, "query_output_devices", lambda: outputs)
+    create, path = desktop
+    first = create()
+    edit(first, first.listen_source_var, "Spanish")
+    edit(first, first.listen_target_var, "French")
+    edit(first, first.speak_mic_var, inputs[1].display_name)
+    edit(first, first.speak_output_var, outputs[1].display_name)
+    edit(first, first.speak_source_var, "English")
+    edit(first, first.speak_target_var, "Spanish")
+    first.voice_settings_combo.configure(values=("Automatic", "Spanish voice"))
+    edit(first, first.voice_var, "Spanish voice")
+    edit(first, first.monitor_var, True)
+    first.preferences.store.flush()
+    second = create()
+    speak = app_config.load_speak_config(path)
+    assert (speak.mic_name, speak.output_device_name, speak.voice) == ("USB mic", "CABLE Input", "Spanish voice")
+    assert (speak.source, speak.target, speak.monitor_spoken_audio) == ("en", "es", True)
+    assert second.selected_speak_mic_choice().name == speak.mic_name
+    assert second.selected_output_choice().name == speak.output_device_name
+    assert second.voice_var.get() == speak.voice
+    second._apply_voices(["Automatic"])
+    second.preferences.store.flush()
+    assert app_config.load_speak_config(path).voice == "Spanish voice"
+    # A temporarily disconnected device may change the displayed fallback only.
+    monkeypatch.setattr(gui, "query_input_devices", lambda **kw: inputs[:1])
+    second.refresh_devices()
+    second.preferences.store.flush()
+    assert app_config.load_speak_config(path).mic_name == "USB mic"
 
 
 def test_inline_connect_status_and_remove_during_background_download(desktop, monkeypatch):

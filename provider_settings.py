@@ -99,6 +99,8 @@ def open_provider_settings(app, colors, center):
                 key.set("")
                 kind = "mt" if factories[name].kind == "mt" else "asr"
                 app.engine_default_vars[f"default_{kind}_provider"].set(name)
+                if factories[name].models and app.engine_default_vars[f"default_{kind}_model"].get() not in factories[name].models:
+                    app.engine_default_vars[f"default_{kind}_model"].set(factories[name].models[0])
                 restore()
         window.after(100, poll)
     restore()

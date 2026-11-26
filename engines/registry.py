@@ -127,7 +127,7 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
                 continue
             if not preference.enabled:
                 continue
-            if factory.rate and factory.rate.per_audio_hour and (settings.monthly_cap <= 0 or preference.monthly_cap <= 0):
+            if preference.account_kind == "paid" and (settings.monthly_cap <= 0 or preference.monthly_cap <= 0):
                 continue
             if not preference.tested_signature:
                 emit("hint", f"{factory.name}: Test the key in Settings before enabling cloud requests.")
@@ -222,7 +222,8 @@ def configured_live_interpreter(settings, *, offline_only=False, credentials=Non
         except Exception:
             emit("hint", "The selected cloud engine is unavailable or its tested key changed. Continuing on this PC.")
             return None
-    if offline_only or settings.profile != "live-preview":
+    free_live = settings.engine_choice == "free" and settings.resolve(*(pair or ("", "")))["default_asr_provider"] == "gemini-live"
+    if offline_only or (settings.profile != "live-preview" and not free_live):
         return None
     emit = on_event or (lambda *a: None)
     preference = settings.provider("gemini-live")

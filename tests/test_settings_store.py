@@ -88,3 +88,22 @@ def test_snapshot_delta_preserves_concurrent_sections(tmp_path):
     write_config(second, path)
     assert read_config(path)["SCHEDULE"]["enabled"] == "1"
     assert read_config(path)["REPLIES"]["enabled"] == "0"
+
+
+def test_old_ui_engine_profile_wins_and_never_blocks_model_downloads(tmp_path):
+    path=tmp_path/"config.ini"
+    path.write_text("[UI]\nengine_profile = Custom\n[ENGINES]\nprofile = free\n")
+    SettingsStore(path).migrate()
+    settings=load_engine_settings(path)
+    assert settings.engine_choice=="cloud" and settings.profile=="custom"
+    assert not read_config(path).getboolean("NETWORK","block_all")
+    assert not read_config(path).has_option("UI","engine_profile")
+
+
+def test_legacy_speak_controls_migrate_to_the_runtime_keys(tmp_path):
+    from app_config import load_speak_config
+    path = tmp_path / "config.ini"
+    path.write_text("[UI]\nspeak_mic = USB mic\nspeak_output = CABLE Input\nvoice = Spanish voice\n")
+    SettingsStore(path).migrate()
+    speak = load_speak_config(path)
+    assert (speak.mic_name, speak.output_device_name, speak.voice) == ("USB mic", "CABLE Input", "Spanish voice")

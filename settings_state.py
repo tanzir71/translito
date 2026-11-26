@@ -90,6 +90,12 @@ class SettingsState:
             values = {"passthrough": "Pass my voice through", "voice": "Read it with the voice", "mute": "Mute"}
             encode = lambda v: next((k for k,x in values.items() if x == v), v)
             decode = lambda v: values.get(v, v)
+        elif name in {"listen_device", "speak_mic", "speak_output"}:
+            choices = {"listen_device": "listen_choices", "speak_mic": "speak_mic_choices", "speak_output": "output_choices"}[name]
+            encode = lambda value: next((choice.name for choice in getattr(app, choices, ())
+                                          if choice.display_name == value), value)
+            decode = lambda value: next((choice.display_name for choice in getattr(app, choices, ())
+                                          if choice.name == value), value)
         default = encode(var.get())
         return self.bind(var, entry.section, entry.key, default, encode=encode, decode=decode,
             writable=lambda: not getattr(app, "_restoring_devices", False) if name in {"listen_device", "speak_mic", "speak_output", "voice"} else True)

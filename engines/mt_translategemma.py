@@ -32,9 +32,19 @@ def enough_ram():
 
 
 def gemma_available(source=None, target=None):
-    return (enough_ram() and configured_model_path().is_file()
+    from engines.model_files import DOWNLOADING
+    if MANIFEST["repo"] in DOWNLOADING:
+        return False
+    return (enough_ram() and model_ready(configured_model_path())
             and (source is None or source in LANGUAGES)
             and (target is None or target in LANGUAGES))
+
+
+def model_ready(path):
+    from engines.model_files import inspect_model, Ready
+    from engines.model_library import ModelSpec
+    return isinstance(inspect_model(ModelSpec("gemma", "TranslateGemma", "Translation", MANIFEST["repo"], "gguf",
+                                              Path(path), expected_size=MANIFEST["bytes"])), Ready)
 
 
 def download_model(folder, *, accepted_terms=False, on_event=None, manifest=MANIFEST):
@@ -72,9 +82,16 @@ class TranslateGemma:
         self.warmed = False
 
     def supports(self, source, target):
-        return source in LANGUAGES and target in LANGUAGES and self.ram_check() and self.path.is_file()
+        from engines.model_files import DOWNLOADING
+        if MANIFEST["repo"] in DOWNLOADING:
+            return False
+        return (source in LANGUAGES and target in LANGUAGES and self.ram_check()
+                and (self.path.is_file() if self.loader else model_ready(self.path)))
 
     def load(self):
+        from engines.model_files import DOWNLOADING
+        if MANIFEST["repo"] in DOWNLOADING:
+            raise LocalTranslationUnavailable("TranslateGemma is downloading. Lite translation is used until it finishes.")
         with self.lock:
             if self.model is not None:
                 return self
@@ -82,6 +99,8 @@ class TranslateGemma:
                 raise LocalTranslationUnavailable("TranslateGemma needs at least 8 GB RAM. Using the local Lite translator.")
             if not self.path.is_file():
                 raise LocalTranslationUnavailable("Download TranslateGemma in Settings before using it offline.")
+            if self.loader is None and not model_ready(self.path):
+                raise LocalTranslationUnavailable("TranslateGemma isn't fully verified. Resume or repair its download in Models.")
             import psutil
             from llama_cpp import Llama
             from llama_cpp.llama_chat_format import Jinja2ChatFormatter

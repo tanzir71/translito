@@ -63,11 +63,6 @@ class CohereLocalRecognizer:
             self.on_event("model_progress", {"phase": "Preparing Cohere Transcribe Arabic",
                                                "fraction": None})
             try:
-                if not self.offline_only:
-                    from model_loading import _download_repo_with_progress
-                    _download_repo_with_progress(MODEL_ID, "Cohere Arabic", 0, 1,
-                                                 self.on_event, token=token or False,
-                                                 cache_dir=self.cache_dir)
                 from engines.model_files import local_folder, DOWNLOADING
                 if MODEL_ID in DOWNLOADING:
                     raise CohereAccessRequired("Cohere is downloading. Using local Whisper until it finishes.")

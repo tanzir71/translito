@@ -19,9 +19,10 @@ def initialize(app, colors):
             app.schedule_controller.toast(SimpleNamespace(title=message, download=True))
             if job.gemma:
                 from engines.mt_translategemma import MANIFEST
-                app.preferences.set("ENGINES", "translategemma_path", str(Path(job.folder) / MANIFEST["filename"]))
+                app.preferences.set("ENGINES", "translategemma_path", str(Path(job.ready_path) / MANIFEST["filename"]))
         active = next((j for j in app.download_manager.jobs if j.state in {"Downloading", "Verifying", "Stalled · retrying"}), None)
-        app.download_text.set(f"↓ {active.title} {active.fraction:.0%}" if active else "")
+        app.download_status_text = f"↓ {active.title} {active.fraction:.0%}" if active else ""
+        app.download_text.set(app.download_status_text)
         if active:
             app.download_chip.grid(row=1, column=0, columnspan=4, sticky="w")
         else:
@@ -150,6 +151,8 @@ def models_page(app, parent, colors):
                 app.download_views.remove(refresh)
             return
         for spec in specs:
+            if _job is not None and _job.repo != spec.repo:
+                continue
             text, buttons = rows[spec.key]
             for child in buttons.winfo_children():
                 child.destroy()

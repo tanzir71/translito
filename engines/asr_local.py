@@ -77,7 +77,9 @@ class LocalConversationRecognizer:
         if lid is None:
             self.on_event("model_progress", {"phase": "Preparing per-utterance language detection",
                                                "fraction": None})
-            lid = PairLanguageDetector(_lid_model(offline_only), other_language)
+            detector_model = getattr(whisper, "model", None)
+            detector_model = detector_model if callable(getattr(detector_model, "detect_language", None)) else _lid_model(offline_only)
+            lid = PairLanguageDetector(detector_model, other_language)
         self.lid = lid
         if other_language == "ar":
             self.cohere = cohere or get_cohere_model(device=device, on_event=self.on_event)

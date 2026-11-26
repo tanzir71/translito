@@ -74,6 +74,19 @@ def test_source_partial_revision_replaces_text():
     assert sources[-1]["text"] == "Hola" and sources[-1]["replace"]
 
 
+def test_transport_auth_failure_is_sanitized_and_explained():
+    from engines.stream_transport import SocketStream
+    from engines.provider import AuthenticationError
+    from types import SimpleNamespace
+    errors = []
+    stream = SocketStream(SimpleNamespace(name="soniox"), None, None, errors.append)
+    async def rejected(*args):
+        raise AuthenticationError()
+    stream.run_session = rejected
+    stream._run(None, {}, 1)
+    assert errors == ["The provider key was rejected. Continuing on this PC."]
+
+
 @pytest.mark.parametrize("provider", ["elevenlabs", "speechmatics"])
 def test_streaming_recognizers_support_pair_hints_and_emit_partial_and_final(provider, tmp_path):
     from engines.streaming_protocols import ElevenLabsProtocol, SpeechmaticsProtocol

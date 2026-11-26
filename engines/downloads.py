@@ -47,6 +47,7 @@ class DownloadJob:
     credential: str = ""
     registry_path: str = ""
     ready_path: str = ""
+    cache_dir: str = ""
 
     @property
     def fraction(self):
@@ -96,12 +97,24 @@ class DownloadManager:
             self.resume(existing)
             return existing
         from app_config import CONFIG_FILE
+        from engines.model_files import local_folder, inspect_model, Incomplete
+        cached = local_folder(spec.repo, local_path=spec.local_path)
+        options = dict(options)
+        if (folder is None and cached is not None and cached.parent.name == "snapshots" and spec.format != "gguf"
+                and (spec.local_path is None or spec.key.startswith(("whisper-", "openai/whisper-")))):
+            folder = cached
+            options.setdefault("cache_dir", str(cached.parent.parent.parent))
+            options.setdefault("revision", cached.name)
         folder = Path(folder or spec.local_path or CONFIG_FILE.parent / "models" / spec.repo.replace("/", "--"))
         if spec.format == "gguf" and folder.suffix == ".gguf":
             folder = folder.parent
         registry = CONFIG_FILE.parent / "models" / "manifest.json"
+        status = inspect_model(spec)
         job = DownloadJob(uuid4().hex, spec.repo, spec.title, str(folder), spec.format,
                           total=spec.expected_size, registry_path=str(registry), **options)
+        if isinstance(status, Incomplete):
+            job.bytes = status.have_bytes
+            job.total = status.total_bytes or job.total
         self.enqueue(job)
         return job
 
@@ -203,7 +216,8 @@ class DownloadManager:
                 # Byte growth, not repeated heartbeat lines, resets a stall.
                 if data["bytes"] > job.bytes:
                     self.last_progress = self.clock()
-                job.bytes, job.total = data["bytes"], data["total"]
+                job.total = data["total"]
+                job.bytes = min(job.total, max(job.bytes, data["bytes"]))
                 job.bytes_per_s = data.get("bytes_per_s", 0)
             if data.get("stage") == "Verifying":
                 self.last_progress = self.clock()
@@ -256,20 +270,46 @@ def _plan(job, token):
             continue
         lfs = item.lfs
         result.append({"name": name, "size": item.size or 0, "sha256": getattr(lfs, "sha256", None)})
+    if job.format == "transformers" and any(f["name"].endswith(".safetensors") for f in result):
+        result = [f for f in result if not (f["name"].startswith("pytorch_model") and f["name"].endswith(".bin"))]
     if job.gemma:
         from engines.mt_translategemma import MANIFEST
         result = [{"name": MANIFEST["filename"], "size": MANIFEST["bytes"], "sha256": MANIFEST["sha256"]}]
     return info.sha, result
 
 
+def write_json_line(value, *, stream=None, kernel32=None):
+    """Windowed PyInstaller children can have sys.stdout=None with a valid pipe."""
+    line = json.dumps(value) + "\n"
+    stream = sys.stdout if stream is None else stream
+    if stream is not None:
+        stream.write(line)
+        stream.flush()
+        return
+    import ctypes
+    api = kernel32 or ctypes.windll.kernel32
+    if isinstance(api, ctypes.CDLL):
+        api.GetStdHandle.restype = ctypes.c_void_p
+        api.WriteFile.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32,
+                                  ctypes.POINTER(ctypes.c_uint32), ctypes.c_void_p]
+    payload = line.encode("utf-8")
+    buffer = ctypes.create_string_buffer(payload)
+    written = ctypes.c_uint32()
+    if not api.WriteFile(api.GetStdHandle(-11), buffer, len(payload), ctypes.byref(written), None):
+        raise BrokenPipeError("The download progress pipe is closed")
+
+
 def download_child(path):
     """Early GUI dispatch target; never imports Tk, tray, hotkeys or audio."""
     def emit(value):
-        print(json.dumps(value), flush=True)
+        write_json_line(value)
     try:
         job = DownloadJob(**json.loads(Path(path).read_text(encoding="utf-8")))
         folder = Path(job.folder).resolve()
-        folder.mkdir(parents=True, exist_ok=True)
+        if not job.cache_dir:
+            folder.mkdir(parents=True, exist_ok=True)
+        from native_tls import configure_native_tls
+        configure_native_tls()
         token = False
         if job.credential:
             from engines.secrets import CredentialStore
@@ -283,14 +323,18 @@ def download_child(path):
         else:
             revision, files = _plan(job, token)
             fetcher = None
+        if job.cache_dir:
+            folder = Path(job.cache_dir) / ("models--" + job.repo.replace("/", "--")) / "snapshots" / revision
+            folder.mkdir(parents=True, exist_ok=True)
         if not files:
             raise ValueError("No inference files were found for this model.")
         total = sum(f["size"] for f in files)
         have = sum(min((folder / f["name"]).stat().st_size, f["size"]) for f in files if (folder / f["name"]).is_file())
-        partial = sum(p.stat().st_size for p in folder.rglob("*.incomplete"))
+        partial_root = folder.parent.parent / "blobs" if job.cache_dir else folder
+        partial = sum(p.stat().st_size for p in partial_root.rglob("*.incomplete"))
         if shutil.disk_usage(folder).free < max(0, total-have-partial) + 500000000:
             raise ValueError(f"Not enough disk space. Free at least {(max(0,total-have-partial)+500000000)/1e9:.2f} GB in the selected folder.")
-        manifest = {"repo": job.repo, "revision": revision, "files": files}
+        manifest = {"repo": job.repo, "revision": revision, "files": files, "verified": False}
         repair = False
         if (folder / "manifest.json").is_file():
             try:
@@ -311,8 +355,9 @@ def download_child(path):
                         result.append(fetcher.fetch(job, file, folder))
                     else:
                         from huggingface_hub import hf_hub_download
-                        result.append(hf_hub_download(job.repo, name, revision=revision, local_dir=folder,
-                                                      token=token, force_download=repair))
+                        result.append(hf_hub_download(job.repo, name, revision=revision,
+                            **({"cache_dir": job.cache_dir} if job.cache_dir else {"local_dir": folder}),
+                            token=token, force_download=repair))
                 except Exception:
                     errors.append(True)
                 finally:
@@ -323,8 +368,12 @@ def download_child(path):
                 finished = done.wait(.25)
                 final = folder / name
                 size = final.stat().st_size if final.is_file() else 0
-                partials = list(folder.rglob("*.incomplete"))
+                partials = ([partial_root / (file["sha256"] + ".incomplete")] if job.cache_dir and file.get("sha256")
+                            else list(partial_root.rglob("*.incomplete")))
                 size = max(size, max((p.stat().st_size for p in partials if p.is_file()), default=0))
+                # A fetcher can atomically rename .incomplete between the two
+                # probes above. That is completion, not lost download progress.
+                size = max(previous, size)
                 now = time.monotonic()
                 emit({"file": name, "bytes": completed + min(size, file["size"]), "total": total,
                       "bytes_per_s": max(0, size-previous)/max(.001, now-at)})
@@ -348,7 +397,10 @@ def download_child(path):
             completed += file["size"]
         if job.gemma:
             from engines.mt_translategemma import TranslateGemma, MANIFEST
-            model = TranslateGemma(folder / MANIFEST["filename"])
+            from llama_cpp import Llama
+            # The bytes above have passed SHA-256. The manifest stays unavailable
+            # to sessions until this first load also verifies the chat template.
+            model = TranslateGemma(folder / MANIFEST["filename"], loader=Llama)
             model.load()
             model.model.close()
         if job.repo == "Seif-Eldeen-Sameh/whisper-medium-arabic-codeswitched-ct2":
@@ -360,7 +412,10 @@ def download_child(path):
             registry_path = Path(job.registry_path)
             registry = json.loads(registry_path.read_text()) if registry_path.is_file() else {}
             registry[job.repo] = {"path": str(folder), **manifest}
+            registry[job.repo]["verified"] = True
             _write(registry_path, registry)
+        manifest["verified"] = True
+        _write(folder / "manifest.json", manifest)
         emit({"ready": str(folder), "bytes": total, "total": total})
         return 0
     except Exception as error:

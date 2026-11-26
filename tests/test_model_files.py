@@ -54,6 +54,13 @@ def test_manifest_sizes_and_legacy_files(tmp_path, monkeypatch):
     assert isinstance(inspect_model(spec, cache_roots=[tmp_path]), Corrupt)
 
 
+def test_downloaded_bytes_are_not_ready_until_verified(tmp_path,monkeypatch):
+    folder=snapshot(tmp_path,monkeypatch)
+    spec=whisper_spec("openai/whisper-large-v3-turbo")
+    (folder/"manifest.json").write_text(json.dumps({"verified":False,"files":[{"name":"model.bin","size":4}]}))
+    assert inspect_model(spec,cache_roots=[tmp_path])==Incomplete(4,4)
+
+
 def test_missing_and_local_fallback_order(tmp_path, monkeypatch):
     monkeypatch.setenv("TRANSLITO_WHISPER_MODEL_DIR", str(tmp_path / "missing"))
     assert isinstance(inspect_model(whisper_spec("openai/whisper-small"), cache_roots=[tmp_path]), Missing)

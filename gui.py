@@ -247,10 +247,15 @@ class ScrollableFrame(tk.Frame):
         self.canvas.bind("<Leave>", self._unbind_wheel)
 
     def _update_scrollregion(self, _event=None):
+        self._fit_content_width()
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-    def _fit_content_width(self, event):
-        self.canvas.itemconfigure(self.window_id, width=event.width)
+    def _fit_content_width(self, _event=None):
+        # Hidden pages can receive queued Configure events after being resized.
+        # Use the current canvas size rather than a stale event's old width.
+        width = self.canvas.winfo_width()
+        if width > 1 and int(float(self.canvas.itemcget(self.window_id, "width"))) != width:
+            self.canvas.itemconfigure(self.window_id, width=width)
 
     def _bind_wheel(self, _event=None):
         self.canvas.bind_all("<MouseWheel>", self._on_wheel)
@@ -371,6 +376,9 @@ class MacScale(tk.Canvas):
 class TranslatorGUI:
     def __init__(self, root):
         self.root = root
+        import queue
+        self._ui_events = queue.Queue()
+        self.root.after(50, self._drain_ui)
         from tk_lifecycle import confine_tk_collection
         confine_tk_collection(root)
         self.root.title(APP_NAME)
@@ -505,15 +513,15 @@ class TranslatorGUI:
 
         self.hotkey_manager = GlobalHotkeyManager(
             callbacks={
-                "toggle": lambda: self.root.after(0, self.hotkey_toggle),
-                "listen": lambda: self.root.after(0, lambda: self.hotkey_start_mode("listen")),
-                "speak": lambda: self.root.after(0, lambda: self.hotkey_start_mode("speak")),
-                "stop": lambda: self.root.after(0, self.stop),
-                "subtitles": lambda: self.root.after(0, self.toggle_subtitles),
-                "replies": lambda: self.root.after(0, self.reply_controller.show_and_request),
-                **{f"reply_{i+1}": lambda i=i: self.root.after(0,lambda:self.reply_controller.say(i)) for i in range(3)},
+                "toggle": lambda: self.post_ui( self.hotkey_toggle),
+                "listen": lambda: self.post_ui( lambda: self.hotkey_start_mode("listen")),
+                "speak": lambda: self.post_ui( lambda: self.hotkey_start_mode("speak")),
+                "stop": lambda: self.post_ui( self.stop),
+                "subtitles": lambda: self.post_ui( self.toggle_subtitles),
+                "replies": lambda: self.post_ui( self.reply_controller.show_and_request),
+                **{f"reply_{i+1}": lambda i=i: self.post_ui(lambda:self.reply_controller.say(i)) for i in range(3)},
             },
-            on_error=lambda message: self.root.after(0, lambda: self.show_error(message)),
+            on_error=lambda message: self.post_ui( lambda: self.show_error(message)),
         )
         if not self.preview_mode:
             from login import migrate_startup_command
@@ -546,6 +554,24 @@ class TranslatorGUI:
 
     # ------------------------------------------------------------------
     # Window construction
+
+    def post_ui(self, callback):
+        from ui_dispatch import post
+        post(self, callback)
+
+    def _drain_ui(self):
+        import queue
+        for _ in range(200):
+            try:
+                callback = self._ui_events.get_nowait()
+            except queue.Empty:
+                break
+            callback()
+        try:
+            if self.root.winfo_exists():
+                self.root.after(50, self._drain_ui)
+        except tk.TclError:
+            pass
 
     def apply_styles(self):
         from ui_theme import apply_theme
@@ -1455,16 +1481,10 @@ class TranslatorGUI:
             self.show_error(f"Could not open Terms: {exc}")
 
     def open_arabic_model_setup(self):
-        if self.transcriber is not None or self.model_setup_busy:
-            self.show_hint("Stop the current session before setting up a model.")
-            return
         from quality_settings import open_cohere_setup
         open_cohere_setup(self, COLORS, center_window)
 
     def open_translation_model_setup(self):
-        if self.transcriber is not None or self.model_setup_busy:
-            self.show_hint("Finish the current session or model setup first.")
-            return
         from quality_settings import open_translategemma_setup
         open_translategemma_setup(self, COLORS, center_window)
 
@@ -1646,7 +1666,7 @@ class TranslatorGUI:
                 self.set_status("Ready")
             if not self.is_quitting:
                 try:
-                    self.root.after(0, done)
+                    self.post_ui( done)
                 except (RuntimeError, tk.TclError):
                     pass
         threading.Thread(target=run, daemon=True, name="Translito device refresh").start()
@@ -1709,7 +1729,7 @@ class TranslatorGUI:
         def load():
             voices = self.synthesizer.available_voices(target_iso)
             try:
-                self.root.after(0, lambda: self._apply_voices(voices))
+                self.post_ui( lambda: self._apply_voices(voices))
             except (RuntimeError, tk.TclError):
                 pass
 
@@ -1719,7 +1739,12 @@ class TranslatorGUI:
         if hasattr(self, "voice_settings_combo") and self.voice_settings_combo.winfo_exists():
             self.voice_settings_combo["values"] = voices
         if self.voice_var.get() not in voices:
-            self.voice_var.set("Automatic")
+            restoring = getattr(self, "_restoring_devices", False)
+            self._restoring_devices = True
+            try:
+                self.voice_var.set("Automatic")
+            finally:
+                self._restoring_devices = restoring
 
     def update_capture_switch(self):
         for kind, button in self.capture_kind_buttons.items():
@@ -1820,8 +1845,15 @@ class TranslatorGUI:
         cloud_available = (not self.offline_only_var.get() and self.engine_profile_var.get() != "Offline (private)" and
             any(p.enabled and p.tested_signature and (settings.engine_choice != "free" or p.account_kind != "paid")
                 for name,p in settings.providers.items() if name in {"azure","deepl","google","gemini","gemini-live","soniox","elevenlabs","speechmatics"}))
-        translation_model = translation_model_for(src_iso, tgt_iso, cloud_available=cloud_available)
-        if defaults["default_mt_provider"] == "local" and defaults["default_mt_model"] == "opus":
+        native_cloud = (settings.engine_choice == "cloud" and (defaults["default_asr_provider"] or "soniox") == "soniox"
+            and settings.monthly_cap > 0 and settings.provider("soniox").enabled and settings.provider("soniox").monthly_cap > 0 and bool(settings.provider("soniox").tested_signature)
+            and not self.offline_only_var.get())
+        text_cloud = cloud_available and any(p.enabled and p.tested_signature and
+            (p.account_kind != "paid" or (settings.monthly_cap > 0 and p.monthly_cap > 0)) for name,p in settings.providers.items()
+            if name in {"azure", "deepl", "google", "gemini"})
+        translation_model = (f"cloud:{src_iso}:{tgt_iso}" if native_cloud or text_cloud else
+                             translation_model_for(src_iso, tgt_iso, cloud_available=cloud_available))
+        if defaults["default_mt_provider"] == "local" and defaults["default_mt_model"] == "opus" and not native_cloud:
             translation_model = resolve_local_mt(src_iso,tgt_iso,offline=True).model_id
         return {
             "mode": mode,
@@ -1831,6 +1863,7 @@ class TranslatorGUI:
             "whisper_model": whisper_model,
             "variety": self.variety_var.get(),
             "translation_model": translation_model,
+            "cloud_translation": native_cloud or text_cloud,
             "conversation": conversation,
         }
 
@@ -1929,21 +1962,34 @@ class TranslatorGUI:
         if fallback != request["whisper_model"]:
             request["whisper_model"] = fallback
             self.refresh_model_hint()
+        if not request.get("cloud_translation") and not request["translation_model"].startswith(("translategemma:", "identity:")):
+            from engines.model_files import missing_translations
+            needed = missing_translations(request["src_iso"], request["tgt_iso"])
+            if needed:
+                for spec in needed:
+                    self.download_missing_whisper(spec)
+                self.show_hint("Lite translation is downloading. It will be used from your next session.")
+                return
         self.model_setup_busy = True
         self.lock_controls(True)
         self.set_status("Testing virtual microphone" if request["mode"] == "speak" else "Loading models")
         self.update_action_button(running=False, loading=True)
+
+        session_options = dict(speech_voice=self.voice_var.get(), monitor_spoken_audio=self.monitor_var.get(),
+            chunk_duration=self.chunk_duration_var.get(), transcript_folder=self.transcript_folder_var.get(),
+            asr_preset=self.quality_var.get().lower(),
+            engine_settings=load_engine_settings(self.preferences.path) if hasattr(self, "preferences") else None)
 
         def run_start():
             try:
                 if request["mode"] == "speak":
                     from engines.virtual_mic import self_test
                     result = self_test(output_choice)
-                    self.root.after(0, lambda: self.virtual_mic_setup.test_result(output_choice, result))
+                    self.post_ui( lambda: self.virtual_mic_setup.test_result(output_choice, result))
                     if not result.passed:
-                        self.root.after(0, lambda: self.start_failed(RuntimeError(result.message)))
+                        self.post_ui( lambda: self.start_failed(RuntimeError(result.message)))
                         return
-                    self.root.after(0, lambda: self.set_status("Loading models"))
+                    self.post_ui( lambda: self.set_status("Loading models"))
                 transcriber = ArabicAudioTranscriber(
                     selected_device=selected_device,
                     on_event=self.on_event,
@@ -1953,18 +1999,14 @@ class TranslatorGUI:
                     mode=request["mode"],
                     target_language=request["tgt_iso"],
                     speech_output_device_name=output_name,
-                    speech_voice=self.voice_var.get(),
-                    monitor_spoken_audio=self.monitor_var.get(),
                     mic_noise_gate=mic_noise_gate,
-                    chunk_duration=self.chunk_duration_var.get(),
-                    transcript_folder=self.transcript_folder_var.get(),
                     conversation=request["conversation"],
-                    asr_preset=self.quality_var.get().lower(),
+                    **session_options,
                     variety=request.get("variety", ""),
                     whisper_model=request.get("whisper_model"),
                 )
             except Exception as exc:
-                self.root.after(0, lambda exc=exc: self.start_failed(exc))
+                self.post_ui( lambda exc=exc: self.start_failed(exc))
                 return
 
             def finish_start():
@@ -1980,7 +2022,7 @@ class TranslatorGUI:
                 self.update_action_button(running=True)
                 transcriber.start_background(enable_keyboard_shortcuts=False)
 
-            self.root.after(0, finish_start)
+            self.post_ui( finish_start)
 
         threading.Thread(target=run_start, daemon=True).start()
 
@@ -1991,7 +2033,11 @@ class TranslatorGUI:
         self.update_action_button(running=False)
         from engines.model_files import ModelNotReady
         if isinstance(exc, ModelNotReady):
-            self.refresh_model_hint()
+            from engines.model_files import model_hint
+            message, action = model_hint(exc.spec, exc.status)
+            self.show_hint(message)
+            self.hint_action.configure(text=action, command=lambda: self.download_missing_whisper(exc.spec))
+            self.hint_action.pack(side="right")
             self.set_status("Ready")
         else:
             self.show_error(str(exc))
@@ -2030,7 +2076,7 @@ class TranslatorGUI:
                 if callable(after):
                     after()
 
-            self.root.after(0, done)
+            self.post_ui( done)
 
         threading.Thread(target=finalize, daemon=True).start()
 
@@ -2100,6 +2146,16 @@ class TranslatorGUI:
             if not self.preview_mode and ready_whisper(self.whisper_var.get()) is None:
                 button.configure(text="Download Whisper Small (484 MB) to start", style="Primary.TButton", state="normal")
                 return
+            if not self.preview_mode:
+                try:
+                    request = self.current_model_request()
+                    if not request.get("cloud_translation") and not request["translation_model"].startswith(("translategemma:", "identity:")):
+                        from engines.model_files import missing_translations
+                        if missing_translations(request["src_iso"], request["tgt_iso"]):
+                            button.configure(text="Download Lite translation to start", style="Primary.TButton", state="normal")
+                            return
+                except UnsupportedPairError:
+                    pass
             symbol = "●" if self.mode_var.get() == "speak" else "▶"
             button.configure(text=f"{symbol}  Start", style="Primary.TButton", state="normal")
 
@@ -2164,7 +2220,7 @@ class TranslatorGUI:
                         self.active_fallbacks[stage] = payload["fallback"]
                     self.engine_label.configure(fg=COLORS["orange"] if any(self.active_fallbacks.values()) else COLORS["secondary"])
 
-        self.root.after(0, handle)
+        self.post_ui( handle)
 
     def pretty_status(self, status):
         return {
@@ -2214,6 +2270,7 @@ class TranslatorGUI:
         self.peak_var.set(f"peak {peak:.4f}")
 
     def show_hint(self, message):
+        self.hint_action.pack_forget()
         self.hint_var.set(message)
         self.hint_frame.pack(fill="x")
 
@@ -2460,12 +2517,12 @@ class TranslatorGUI:
                     offline_only=offline_only,
                     on_event=self.on_event,
                 )
-                self.root.after(0, lambda: self.set_status("Ready"))
+                self.post_ui( lambda: self.set_status("Ready"))
             except Exception as exc:
-                self.root.after(0, lambda: self.refresh_model_hint())
-                self.root.after(0, lambda: self.set_status("Ready"))
+                self.post_ui( lambda: self.refresh_model_hint())
+                self.post_ui( lambda: self.set_status("Ready"))
             finally:
-                self.root.after(0, self.finish_model_progress)
+                self.post_ui( self.finish_model_progress)
 
         threading.Thread(target=run_preload, daemon=True).start()
 
@@ -2570,36 +2627,36 @@ class TranslatorGUI:
                     enabled=False,
                 ),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Subtitles on screen", lambda _icon, _item: self.root.after(0, self.toggle_subtitles),
-                                checked=lambda _item: self.subtitles_enabled_var.get()),
+                pystray.MenuItem("Subtitles on screen", lambda _icon, _item: self.post_ui( self.toggle_subtitles),
+                                checked=lambda _item: getattr(self, "_tray_subtitles_enabled", False)),
                 pystray.MenuItem(
                     lambda _item: "Stop" if self.transcriber is not None else "Start Listening",
-                    lambda _icon, _item: self.root.after(0, self.tray_primary_action),
+                    lambda _icon, _item: self.post_ui( self.tray_primary_action),
                 ),
                 pystray.MenuItem(
                     "Start Speak Mode",
-                    lambda _icon, _item: self.root.after(0, self.tray_start_speak),
+                    lambda _icon, _item: self.post_ui( self.tray_start_speak),
                     visible=lambda _item: self.transcriber is None,
                 ),
                 pystray.MenuItem(
                     "Open Translito Window",
-                    lambda _icon, _item: self.root.after(0, self.show_main_window),
+                    lambda _icon, _item: self.post_ui( self.show_main_window),
                     default=True,
                 ),
                 pystray.MenuItem(
                     "Save Transcript",
-                    lambda _icon, _item: self.root.after(0, self.save_transcript),
+                    lambda _icon, _item: self.post_ui( self.save_transcript),
                     enabled=lambda _item: bool(self.transcript_entries),
                 ),
-                pystray.MenuItem(lambda item: self.download_text.get() or "No downloads running", lambda *args: None, enabled=False),
+                pystray.MenuItem(lambda item: getattr(self, "download_status_text", "") or "No downloads running", lambda *args: None, enabled=False),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
                     "Settings…",
-                    lambda _icon, _item: self.root.after(0, self.show_settings_from_tray),
+                    lambda _icon, _item: self.post_ui( self.show_settings_from_tray),
                 ),
                 pystray.MenuItem(
                     "Quit",
-                    lambda _icon, _item: self.root.after(0, self.quit_app),
+                    lambda _icon, _item: self.post_ui( self.quit_app),
                 ),
             )
             from windows_icons import tray_icon_class
@@ -2616,6 +2673,8 @@ class TranslatorGUI:
         return text if len(text) <= 72 else text[:69] + "…"
 
     def refresh_tray_menu(self):
+        if hasattr(self, "subtitles_enabled_var"):
+            self._tray_subtitles_enabled = self.subtitles_enabled_var.get()
         if self.tray_icon is not None:
             try:
                 state = ("paused" if any(word in self.current_status.lower() for word in ("budget", "paused", "error")) else

@@ -146,7 +146,8 @@ class SettingsStore:
             changes[entry.section, entry.key] = value
         offline = any(config.get(section, key, fallback="0").lower() in {"1", "true"} for section, key in
                       (("UI", "offline_only"), ("RUNTIME", "offline_only")))
-        choice = config.get("ENGINES", "engine_choice", fallback="") or ("local" if offline or
+        profiles = {"Custom": "cloud", "Free (recommended)": "free", "Offline (private)": "local"}
+        choice = profiles.get(config.get("UI", "engine_profile", fallback="")) or config.get("ENGINES", "engine_choice", fallback="") or ("local" if offline or
             config.get("ENGINES", "profile", fallback="free") == "offline" else "free")
         changes["ENGINES", "engine_choice"] = "local" if offline else choice
         changes["ENGINES", "profile"] = {"cloud": "custom", "local": "offline", "free": "free"}.get(changes["ENGINES", "engine_choice"], "free")

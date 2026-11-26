@@ -86,6 +86,10 @@ def test_settings_and_dialogs_fit_at_one_and_a_half_scale(desktop,monkeypatch):
     for page in app.settings_shell.pages:
         app.settings_shell.show(page)
         window.update()
+        scroll = app.settings_shell.pages[page]
+        scroll._fit_content_width(SimpleNamespace(width=scroll.canvas.winfo_width()+200))
+        window.update_idletasks()
+        assert scroll.content.winfo_width() == scroll.canvas.winfo_width()
         assert_fit(window)
     for factory in (open_translategemma_setup,open_provider_settings,open_check):
         dialog=factory(app,gui.COLORS,gui.center_window)

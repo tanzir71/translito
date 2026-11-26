@@ -1,4 +1,5 @@
 """Opt-in Windows virtual-mic setup; kept out of Listen Mode."""
+from ui_dispatch import post
 from ui_scale import px, scaled_geometry
 import os
 import threading
@@ -97,7 +98,7 @@ class VirtualMicSetup:
         if self.host.is_quitting:
             return
         try:
-            self.host.root.after(0, callback)
+            post(self.host, callback)
         except (RuntimeError, tk.TclError):
             pass
 

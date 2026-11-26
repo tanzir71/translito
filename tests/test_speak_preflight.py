@@ -21,6 +21,7 @@ def start_fixture(monkeypatch, output_name="CABLE Input (VB-Audio)"):
     request = {"mode": "speak", "src_iso": "en", "tgt_iso": "ar", "src_bcp47": "en-US",
                "translation_model": "local", "conversation": None, "whisper_model": "openai/whisper-small"}
     monkeypatch.setattr("engines.model_files.ready_whisper", lambda model: model)
+    monkeypatch.setattr("engines.model_files.missing_translations", lambda *args: [])
     host.current_model_request = lambda: request
     host.configure_offline_env = host.persist_settings = host.hide_banners = Mock()
     host.engine_label = SimpleNamespace(configure=Mock())
