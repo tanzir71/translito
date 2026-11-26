@@ -34,7 +34,14 @@ The Windows packages reuse the verified native runtime and rebuild the changed
 Python archives. Both added imports already exist in the bundled dependency
 archive. Both the entry-point and importable GUI copies match the source; the
 other **9,747 Python modules** and **14 archive entries** are unchanged.
-Native rendering confirmed a zero-pixel horizontal offset for the
-single action and equal-size paired actions. Packaged source, archive CRC and
-resource checks precede publication. The existing macOS 1.0 DMG is retained.
-Windows binaries remain unsigned.
+Native rendering confirmed a zero-pixel horizontal offset for the single action
+and equal-size paired actions. The portable ZIP passed complete CRC verification;
+all 19 checked production modules and the importable GUI copy match the tested
+source. Bundled engine data and VB-CABLE files match their sources. The existing
+macOS 1.0 DMG is retained. Windows binaries remain unsigned.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| TranslitoSetup-2.0.4.exe | 256,925,431 | `42586a1d36c2adb7297dc8db9eb97702d6180358ab54b4f93d94f8626afc2d1f` |
+| TranslitoPortable-2.0.4.zip | 374,095,166 | `f4c00fde77a31af9d320d73489dc1c863f24a1f5f3e977267367df7a2f99356a` |
+| Translito.dmg (retained 1.0) | 6,044,398 | `b8f94af1df5425fc3d3d31c8775e9ac013d7db64ca0364d2d8730e0d1fa4ba73` |
