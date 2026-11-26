@@ -29,6 +29,11 @@ class ProviderFactory:
     rate_checked_on: str = ""
     min_billed_seconds: float = 0
 
+    @property
+    def display_hourly_rate(self):
+        from decimal import Decimal
+        return Decimal(".18") if self.name == "soniox" else self.rate.per_audio_hour if self.rate else Decimal(0)
+
     def unavailable_reason(self, source, target):
         if self.source_languages and source not in self.source_languages:
             return f"Recognition is unavailable for {source}."
@@ -91,7 +96,7 @@ def provider_factories():
         ProviderFactory("speechmatics", "live", build_speechmatics, "Speechmatics Melia + translator", "paid",
             privacy_note="Gated speech is sent to Speechmatics; recognized text goes to the selected translator.",
             setup_url="https://portal.speechmatics.com/", mixed_speech=True, streaming=True,
-            billing_mode="open_stream", models=("melia-1",), rate=Rate(per_audio_hour=Decimal(".20")), rate_checked_on=RATE_CHECKED_ON),
+            billing_mode="open_stream", models=("melia-1",), rate=Rate(per_audio_hour=Decimal(".40")), rate_checked_on=RATE_CHECKED_ON),
     )
     return tuple(replace(factory, **metadata.get(factory.name, {})) for factory in factories)
 
@@ -121,6 +126,8 @@ def build_session_routers(recognizer, translator, settings, *, offline_only=Fals
             if pair and factory.unavailable_reason(*pair):
                 continue
             if not preference.enabled:
+                continue
+            if factory.rate and factory.rate.per_audio_hour and (settings.monthly_cap <= 0 or preference.monthly_cap <= 0):
                 continue
             if not preference.tested_signature:
                 emit("hint", f"{factory.name}: Test the key in Settings before enabling cloud requests.")
@@ -186,6 +193,12 @@ def configured_live_interpreter(settings, *, offline_only=False, credentials=Non
         defaults = settings.resolve(*(pair or ("", "")))
         name = defaults["default_asr_provider"] or "soniox"
         if name == "local" or any(f.name == name and f.kind == "asr" for f in provider_factories()):
+            return None
+        from engines.engine_status import engine_status
+        status = engine_status(settings, pair or ("", ""), block_all=offline_only,
+                               usage=ledger.snapshot() if ledger else None)
+        if status.reason:
+            emit("engine_fallback", status.reason)
             return None
         preference = settings.provider(name)
         if not preference.enabled or not preference.tested_signature:

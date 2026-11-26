@@ -81,10 +81,10 @@ def test_main_dimensions_app_bar_and_translation_order(app):
     assert original.cget("fg") == gui.COLORS["secondary"]
 
 
-def test_budget_pages_share_one_value_and_connect_has_one_provider_picker(app):
-    assert str(app.engine_budget_entry.cget("textvariable")) == str(app.cost_budget_entry.cget("textvariable"))
+def test_budget_lives_on_engine_and_connect_has_one_provider_picker(app):
+    assert not hasattr(app, "cost_budget_entry")
     app.monthly_budget_var.set("5.00")
-    assert app.engine_budget_entry.get() == app.cost_budget_entry.get() == "5.00"
+    assert app.engine_budget_entry.get() == "5.00"
     from provider_settings import open_provider_settings
     window = open_provider_settings(app, gui.COLORS, gui.center_window)
     window.update_idletasks()
@@ -119,22 +119,21 @@ def test_overlay_reply_tray_shares_current_set_and_shortcuts(app):
     assert not tray.winfo_manager()
 
 
-def test_engine_cards_restore_measured_results_for_the_current_pair_only(app):
-    from engines.checks import CheckStore
-    from engine_ui import pair, refresh_measurements
-    source, target = pair(app)
-    store = CheckStore(app.preferences.path.parent/"checks.json")
-    store.save(source,target,[dict(engine="soniox",delay_p50_s=1.2,words_right=90,cost_per_speech_hour=".2")])
-    refresh_measurements(app)
-    assert "measured" in app.engine_card_descriptions["cloud"].get()
-    assert "1.2 s" in app.engine_card_descriptions["cloud"].get()
-    app.listen_source_var.set("Spanish" if source != "es" else "French")
-    from engine_ui import refresh_provider_choices
-    refresh_provider_choices(app)
-    assert "cohere-api" not in app.engine_provider_widgets["asr"].cget("values")
-    refresh_measurements(app)
-    assert "not measured" in app.engine_card_descriptions["cloud"].get()
-    app.listen_source_var.set(app.language_name_for_iso(source))
+def test_engine_cards_keep_setup_simple_and_checks_live_only_under_models(app):
+    app.open_settings()
+    texts = []
+    def visit(widget):
+        if "text" in widget.keys():
+            texts.append(str(widget.cget("text")))
+        for child in widget.winfo_children():
+            visit(child)
+    visit(app.root)
+    assert not {"Run check", "Check this PC's speed", "Compare engines", "Connect providers"} & set(texts)
+    assert "Tools · Compare engines on a sample" in texts
+    assert "not measured" not in " ".join(v.get() for v in app.engine_card_descriptions.values())
+    app.engine_default_vars["default_asr_model"].set("saved-future-model")
+    app.settings_shell.show("Engine")
+    assert app.engine_default_vars["default_asr_model"].get() == "saved-future-model"
 
 
 def test_main_capture_switch_remembers_device_and_app_and_cancels_default_wait(app,monkeypatch):

@@ -1,127 +1,106 @@
-"""One cloud connection dialog; secrets are saved only by the explicit Test action."""
-from dataclasses import replace
-from decimal import Decimal
+"""Advanced provider connections; checks metadata instead of running a sample."""
+import queue
 import threading
 import tkinter as tk
 from tkinter import ttk
 import webbrowser
 
-from app_config import CONFIG_FILE
+from engines.cloud_connect import CloudConnector, ConnectionError, TITLES
 from engines.registry import provider_factories
-from engines.settings import ProviderSettings, budget, load_engine_settings
-from engines.setup import ProviderSetup, SetupError
-from engine_ui import field, heading, pair
+from engines.settings import load_engine_settings
+from engine_ui import field, heading
 from quality_settings import _window
 
 
 def open_provider_settings(app, colors, center):
-    window = _window(app, "Connect a cloud provider", colors, center, 560, 524)
-    from gui import ScrollableFrame
-    from ui_theme import dark_titlebar
-    window.after_idle(lambda: dark_titlebar(window))
-    scroll = ScrollableFrame(window, background=colors["bg"])
-    scroll.pack(fill="both", expand=True)
-    body = scroll.content
-    body.configure(padx=24, pady=22)
-    heading(body, "Connect a cloud provider", "Paste a key, test it on a public sample, and set a monthly limit.", colors)
-    factories = {factory.name: factory for factory in provider_factories()}
-    provider = tk.StringVar(value=app.engine_default_vars["default_asr_provider"].get())
+    window = _window(app, "Advanced cloud providers", colors, center, 560, 524)
+    body = tk.Frame(window, bg=colors["bg"], padx=24, pady=22)
+    body.pack(fill="both", expand=True)
+    heading(body, "Advanced cloud providers", "Connect a saved key or replace it. No audio is sent by Connect.", colors)
+    factories = {f.name: f for f in provider_factories()}
+    provider = tk.StringVar(window, value=app.engine_default_vars["default_asr_provider"].get() or "soniox")
     if provider.get() not in factories:
-        provider.set(next(iter(factories)))
-    field(body, "Provider", provider, colors, list(factories))
-    details = tk.StringVar()
-    tk.Label(body, textvariable=details, bg=colors["bg"], fg=colors["tertiary"], wraplength=500, justify="left", anchor="w").pack(fill="x", pady=8)
-    key, limit, account = tk.StringVar(), tk.StringVar(), tk.StringVar()
-    field(body, "API key (leave blank to use its saved copy)", key, colors).configure(show="•")
-    ttk.Button(body, text="Get a key", style="Mac.TButton", command=lambda: webbrowser.open(factories[provider.get()].setup_url)).pack(anchor="e")
-    field(body, "Account tier", account, colors, ("unconfirmed", "free", "trial", "paid"))
-    field(body, "Monthly limit for this provider (USD)", limit, colors)
-    consent, enabled = tk.BooleanVar(), tk.BooleanVar()
-    tk.Checkbutton(body, text="I accept the provider's data-use terms for free/trial use", variable=consent,
-        **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=6)
-    tk.Checkbutton(body, text="Use this tested provider", variable=enabled,
-        **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=6)
-    make_default = tk.BooleanVar(value=True)
-    tk.Checkbutton(body, text="Make this my default provider", variable=make_default,
-        **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=6)
-    region = tk.StringVar()
-    region_entry = field(body, "Region (Azure only)", region, colors)
-    status = tk.StringVar()
-    tk.Label(body, textvariable=status, bg=colors["green_bg"], fg=colors["text"], wraplength=480, justify="left", anchor="w", padx=12, pady=10).pack(fill="x", pady=8)
-    controller = ProviderSetup(path=CONFIG_FILE, on_event=app.on_event)
-    loading = [False]
+        provider.set("soniox")
+    field(body, "Cloud provider", provider, colors, tuple(factories))
+    key, limit, region = tk.StringVar(window), tk.StringVar(window), tk.StringVar(window)
+    field(body, "API key (blank uses its saved copy)", key, colors).configure(show="•")
+    field(body, "Provider limit (blank: Use the monthly budget)", limit, colors)
+    field(body, "Azure region", region, colors)
+    consent = tk.BooleanVar(window)
+    tk.Checkbutton(body, text="I accept the provider's free-tier data-use terms", variable=consent,
+        **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=8)
+    details, status = tk.StringVar(window), tk.StringVar(window)
+    tk.Label(body, textvariable=details, bg=colors["bg"], fg=colors["secondary"], wraplength=500, justify="left").pack(fill="x", pady=8)
+    tk.Label(body, textvariable=status, bg=colors["bg"], fg=colors["text"], wraplength=500, justify="left").pack(fill="x", pady=8)
+    loading, events = [False], queue.Queue()
+    def controller():
+        from engines.secrets import CredentialStore
+        return CloudConnector(app.preferences.path, getattr(app, "credential_store", None) or CredentialStore())
     def restore(*_):
         loading[0] = True
-        factory = factories[provider.get()]
-        saved = load_engine_settings(CONFIG_FILE).provider(factory.name)
-        key.set("")
-        limit.set(str(saved.monthly_cap))
-        account.set(saved.account_kind)
-        consent.set(saved.training_consent)
-        enabled.set(saved.enabled)
+        name = provider.get()
+        saved = load_engine_settings(app.preferences.path).provider(name)
+        limit.set("" if saved.inherit_monthly_cap else str(saved.monthly_cap))
         region.set(saved.region)
-        unavailable = factory.unavailable_reason(*pair(app))
-        details.set(factory.privacy_note + (" Rate checked " + factory.rate_checked_on + "; list estimate." if factory.rate_checked_on else " Free allowance/account limits apply.") + (" " + unavailable if unavailable else ""))
-        region_entry.configure(state="normal" if factory.name == "azure" else "disabled")
-        button.configure(state="disabled" if unavailable else "normal")
-        status.set("Tested key saved" if saved.tested_signature else "Connect starts disabled. Test is required before use.")
+        consent.set(saved.training_consent)
+        details.set(factories[name].privacy_note + (" Connect sends one character of public text to Azure." if name == "azure" else " Connect checks authenticated metadata without sending audio."))
+        if not app.preview_mode:
+            try:
+                ending, checked, valid = controller().status(name)
+                status.set((f"Connected to {TITLES[name]} · key ending {ending}" if valid else "Saved key found · Check again") if ending else "Paste a key to connect.")
+            except Exception:
+                status.set("Could not read the saved key. Try Connect.")
         loading[0] = False
     provider.trace_add("write", restore)
-    def preference():
-        return ProviderSettings(enabled=enabled.get(), monthly_cap=budget(limit.get()), region=region.get().strip(),
-            account_kind=account.get(), training_consent=consent.get())
-    def save_changed(*_):
-        if loading[0] or app.preview_mode:
+    def save(*_):
+        if loading[0]:
             return
-        try:
-            controller.save_preference(provider.get(), preference())
-        except (ValueError, SetupError) as error:
-            status.set(str(error))
-    for variable in (limit, account, consent, enabled, region):
-        variable.trace_add("write", save_changed)
-    def test():
+        prefix = provider.get().replace("-", "_") + "_"
+        good = app.preferences.set("ENGINES", prefix + "monthly_cap_usd", limit.get(), delay=.4)
+        app.preferences.set("ENGINES", prefix + "region", region.get(), delay=.4)
+        app.preferences.set("ENGINES", prefix + "training_consent", consent.get())
+        status.set("" if good else "Enter an amount like 5 or 12.50")
+    for variable in (limit, region, consent):
+        variable.trace_add("write", save)
+    def connect():
         if app.preview_mode:
-            status.set("Preview: no keys, network requests or settings writes.")
+            status.set("Preview only: no keys, network requests or writes.")
             return
-        if app.transcriber is not None or app.model_setup_busy:
-            status.set("Finish the current session first.")
-            return
-        try:
-            chosen, selected = provider.get(), replace(preference(), enabled=True)
-        except ValueError as error:
-            status.set(str(error))
-            return
-        entered = key.get()
-        key.set("")
-        app.configure_offline_env()
-        button.configure(state="disabled")
-        app.model_setup_busy = True
-        status.set("Testing the bundled public sample…")
+        name, entered = provider.get(), key.get()
+        factory = factories[name]
+        kind = "paid" if name in {"soniox", "elevenlabs", "speechmatics"} or (name == "gemini" and app.engine_choice_var.get() == "cloud") else factory.account_kind
+        action.configure(state="disabled")
+        connection = controller()
         def work():
             try:
-                result = controller.test(chosen, selected, key=entered)
-                message = f"Test passed in {result.latency_s:.2f} s. Provider connected."
-                success = True
-            except Exception as error:
-                message = str(error) if isinstance(error, SetupError) else "Provider test failed. Check the key and account."
-                success = False
-            def finish():
-                app.model_setup_busy = False
-                if window.winfo_exists():
-                    button.configure(state="normal")
-                    loading[0] = True
-                    enabled.set(success)
-                    loading[0] = False
-                    status.set(message)
-                if success and make_default.get():
-                    kind = "mt" if factories[chosen].kind == "mt" else "asr"
-                    app.engine_default_vars[f"default_{kind}_provider"].set(chosen)
-                    if factories[chosen].models:
-                        app.engine_default_vars[f"default_{kind}_model"].set(factories[chosen].models[0])
-            app.root.after(0, finish)
+                connection.connect(name, entered, account_kind=kind)
+                events.put((name, ""))
+            except ConnectionError as error:
+                events.put((name, str(error)))
+            except Exception:
+                events.put((name, "Couldn't save the key. Check Credential Manager and retry."))
         threading.Thread(target=work, daemon=True).start()
-    button = ttk.Button(body, text="Test and connect", style="Primary.TButton", command=test)
-    button.pack(anchor="e", pady=10)
+    action = ttk.Button(body, text="Connect", style="Primary.TButton", command=connect)
+    action.pack(anchor="e", pady=10)
+    ttk.Button(body, text="Get a key ↗", style="Mac.TButton", command=lambda: webbrowser.open(factories[provider.get()].setup_url)).pack(anchor="w")
+    def poll():
+        if not window.winfo_exists():
+            return
+        while True:
+            try:
+                name, error = events.get_nowait()
+            except queue.Empty:
+                break
+            action.configure(state="normal")
+            if error:
+                status.set(error)
+            else:
+                key.set("")
+                kind = "mt" if factories[name].kind == "mt" else "asr"
+                app.engine_default_vars[f"default_{kind}_provider"].set(name)
+                restore()
+        window.after(100, poll)
     restore()
+    poll()
     window.provider_var, window.key_var = provider, key
     return window

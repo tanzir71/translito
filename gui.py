@@ -909,10 +909,11 @@ class TranslatorGUI:
             font=("Segoe UI", 9),
         )
         self.empty_help_label.pack(pady=(5, 0))
-        self.empty_measurements_var = tk.StringVar(value="Delay and accuracy: not measured for this pair.")
+        self.empty_measurements_var = tk.StringVar(value="")
         tk.Label(self.empty_state, textvariable=self.empty_measurements_var, bg=COLORS["bg"], fg=COLORS["tertiary"],
                  wraplength=460, justify="center", font=("Segoe UI", 9)).pack(pady=(12, 0))
-        ttk.Button(self.empty_state, text="Compare engines", command=self.open_speed_check, style="Mac.TButton").pack(pady=10)
+        ttk.Button(self.empty_state, text="Set up cloud", command=self.open_cloud_setup, style="Mac.TButton").pack(pady=10)
+        ttk.Button(self.empty_state, text="Keep using this PC", command=lambda: self.engine_choice_var.set("local"), style="Mac.TButton").pack()
 
     def _build_bottom_bar(self):
         bar = tk.Frame(self.root, bg=COLORS["bg"], padx=12, pady=12)
@@ -1066,10 +1067,6 @@ class TranslatorGUI:
                                     command=self.download_models)
         cohere_button.pack(anchor="w", pady=(3, 8))
         self.settings_controls.append(cohere_button)
-        speed_button = ttk.Button(recognition, text="Check this PC's speed", style="Mac.TButton",
-                                  command=self.open_speed_check)
-        speed_button.pack(anchor="w", pady=(0, 8))
-        self.settings_controls.append(speed_button)
         quality_settings = self._settings_combo(recognition, "Quality", self.quality_var,
                                                 ["Fast", "Balanced", "Best"])
         quality_settings.bind("<<ComboboxSelected>>", lambda _event: self.change_quality_preset())
@@ -1471,12 +1468,16 @@ class TranslatorGUI:
     def change_engine_profile(self):
         self.persist_settings()
 
+    def open_cloud_setup(self):
+        self.open_settings()
+        self.engine_choice_var.set("cloud")
+        self.settings_shell.show("Engine")
+        self.refresh_cloud_connection()
+        self.cloud_key_entry.focus_set()
+
     def open_provider_settings(self):
-        if self.transcriber is not None or self.model_setup_busy:
-            self.show_hint("Finish the current session or setup first.")
-            return
         from provider_settings import open_provider_settings
-        open_provider_settings(self, COLORS, center_window)
+        return open_provider_settings(self, COLORS, center_window)
 
     def change_offline_mode(self):
         self.preferences.set("NETWORK", "block_all", self.offline_only_var.get())
@@ -2111,6 +2112,13 @@ class TranslatorGUI:
                 self.handle_model_progress(payload or {})
             elif event_type == "hint":
                 self.show_hint(str(payload))
+            elif event_type == "engine_fallback":
+                from engine_ui import refresh_engine_status
+                self._engine_fallback_reason = str(payload)
+                status = refresh_engine_status(self, str(payload))
+                self.show_hint(status.text)
+                tk.Label(self.transcript_scroll.content, text=status.text, bg=COLORS["bg"], fg=COLORS["orange"],
+                         wraplength=600, justify="left").pack(fill="x", pady=8)
             elif event_type == "gap":
                 seconds = round((payload or {}).get("seconds", 0))
                 tk.Label(self.transcript_scroll.content, text=f"{seconds//60} min {seconds%60} s · nothing sent",
@@ -2132,7 +2140,13 @@ class TranslatorGUI:
                 for key in ("asr", "mt"):
                     if (payload or {}).get(key):
                         self.active_engines[key] = payload[key]
-                self.engine_var.set(f"Engine  {self.active_engines['asr']} / {self.active_engines['mt']}")
+                if self.engine_choice_var.get() == "cloud":
+                    from engine_ui import refresh_engine_status
+                    if (payload or {}).get("fallback") is False:
+                        self._engine_fallback_reason = ""
+                    refresh_engine_status(self, getattr(self, "_engine_fallback_reason", ""))
+                else:
+                    self.engine_var.set(f"Engine  {self.active_engines['asr']} / {self.active_engines['mt']}")
                 if "fallback" in (payload or {}):
                     stages = [payload["stage"]] if payload.get("stage") in {"asr", "mt"} else [
                         key for key in ("asr", "mt") if payload.get(key)]

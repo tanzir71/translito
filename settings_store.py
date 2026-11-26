@@ -153,4 +153,11 @@ class SettingsStore:
         changes["NETWORK", "block_all"] = config.get("NETWORK", "block_all", fallback="0")
         changes["MIGRATION", "settings_201"] = "1"
         remove.append(("RUNTIME", "offline_only"))
+        from engines.settings import PROVIDERS
+        for provider in PROVIDERS:
+            prefix = provider.replace("-", "_") + "_"
+            if config.has_option("ENGINES", prefix + "account_kind"):
+                if config.get("ENGINES", prefix + "account_kind") == "unconfirmed" and config.get("ENGINES", prefix + "monthly_cap_usd", fallback="0") == "0":
+                    changes["ENGINES", prefix + "monthly_cap_usd"] = ""
+                remove.append(("ENGINES", prefix + "account_kind"))
         self.update(changes, remove=remove, sync=True)

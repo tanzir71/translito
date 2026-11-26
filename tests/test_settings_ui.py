@@ -123,3 +123,37 @@ def test_invalid_money_helper_and_opening_engine_does_not_overwrite(desktop):
     app.preferences.store.flush()
     app.settings_shell.show("Engine")
     assert app.engine_default_vars["default_asr_model"].get() == "saved-model-not-in-current-list"
+
+
+def test_inline_connect_status_and_remove_during_background_download(desktop, monkeypatch):
+    from types import SimpleNamespace
+    from engines.cloud_connect import CloudConnector
+    import httpx
+    import cloud_ui
+    create, path = desktop
+    app = create()
+    keys, requests = {}, []
+    fake_store = SimpleNamespace(get=keys.get, save=lambda p,k: keys.update({p:k}), delete=lambda p: keys.pop(p, None))
+    def response(request):
+        requests.append(request)
+        return httpx.Response(200, json={})
+    with httpx.Client(transport=httpx.MockTransport(response)) as client:
+        controller = CloudConnector(path, fake_store, client=client)
+        monkeypatch.setattr(cloud_ui, "CloudConnector", lambda *a, **kw: controller)
+        app.credential_store = fake_store
+        app.engine_choice_var.set("cloud")
+        app.cloud_key_var.set("mock-only-7f3a")
+        app.cloud_connect_button.invoke()
+        end = time.monotonic() + 3
+        while "Connected to Soniox" not in app.cloud_connection_status.get() and time.monotonic() < end:
+            app.root.update()
+            time.sleep(.01)
+        assert "Connected to Soniox" in app.cloud_connection_status.get()
+        assert "Key ending 7f3a" in app.cloud_connection_status.get()
+        assert app.cloud_key_var.get() == ""
+        assert len(requests) == 1 and not requests[0].content
+        assert not app.model_setup_busy
+        assert str(app.listen_action_button.cget("state")) == "normal"
+        assert app.engine_var.get() == "On this PC · needs a monthly budget"
+        app.cloud_remove()
+        assert not keys

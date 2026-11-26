@@ -142,7 +142,6 @@ def open_check(app, colors, center, *, first_run=False):
         text.configure(state="disabled")
     bottom = tk.Frame(body, bg=colors["bg"])
     bottom.pack(fill="x")
-    ttk.Button(bottom, text="Connect providers", command=app.open_provider_settings, style="Mac.TButton").pack(side="left")
     ttk.Button(bottom, text="View transcripts", command=transcripts, style="Mac.TButton").pack(side="left", padx=8)
     run_button = ttk.Button(bottom, text="Run check", command=run, style="Primary.TButton", state="disabled")
     run_button.pack(side="right")

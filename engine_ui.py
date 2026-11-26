@@ -72,7 +72,7 @@ def refresh_provider_choices(app):
     reasons = []
     for kind, widget in getattr(app, "engine_provider_widgets", {}).items():
         candidates = [f for f in factories if f.kind == kind or (kind == "asr" and f.kind == "live")]
-        widget.configure(values=["local"] + [f.name for f in candidates if not f.unavailable_reason(source,target)])
+        widget.configure(values=[getattr(widget, "display_labels", {}).get(name, name) for name in ["local"] + [f.name for f in candidates]])
         chosen = app.engine_default_vars[f"default_{kind}_provider"].get()
         factory = next((f for f in candidates if f.name == chosen), None)
         if factory and factory.unavailable_reason(source,target):
@@ -87,6 +87,8 @@ def field(parent, label, variable, colors, values=None):
     tk.Label(frame, text=label, bg=colors["bg"], fg=colors["secondary"], anchor="w", font=("Segoe UI", 8)).pack(fill="x", pady=(0, 4))
     display = variable
     labels = getattr(getattr(variable, "setting", None), "labels", {})
+    if values is not None and label.casefold().endswith(" provider"):
+        labels = {"local": "On this PC", **{f.name: f.title for f in provider_factories()}}
     if values is not None and labels:
         display = tk.StringVar(parent, value=labels.get(variable.get(), variable.get()))
         syncing = [False]
@@ -105,6 +107,7 @@ def field(parent, label, variable, colors, values=None):
         values = [labels.get(value, value) for value in values]
     widget = (ttk.Combobox(frame, textvariable=display, values=values, state="readonly", style="Dark.TCombobox")
               if values is not None else ttk.Entry(frame, textvariable=variable, style="Dark.TEntry"))
+    widget.display_labels = labels
     widget.pack(fill="x")
     owner = getattr(variable, "settings_owner", None)
     if owner and not variable.setting.live:
@@ -134,68 +137,84 @@ def heading(parent, title, description, colors):
 def pages(app, colors):
     engine = app.settings_shell.contents["Engine"]
     cost = app.settings_shell.contents["Cost & usage"]
-    heading(engine, "Engine", "Where speech is recognized and translated. Run a check for measured figures for your pair.", colors)
-    app.engine_cards = []
-    app.engine_card_descriptions = {}
-    for value, title, description in (
-        ("cloud", "Cloud, pay as you go", "Sends gated speech. Delay and accuracy: not measured. Cost: list estimate; see provider."),
-        ("local", "On this PC", "Free and private. Delay and accuracy: run a check on this PC."),
-        ("free", "Free cloud allowances", "Tested free accounts, then local fallback. Delay and accuracy: not measured.")):
-        card = tk.Frame(engine, bg=colors["bg"], highlightthickness=1, highlightbackground=colors["border"], padx=12, pady=10, takefocus=True)
+    heading(engine, "Engine", "Where speech is recognized and translated. Prices are per hour of speech sent.", colors)
+    app.engine_cards, app.engine_card_descriptions = [], {}
+    chosen = load_engine_settings(app.preferences.path).resolve(*pair(app))["default_asr_provider"] or "soniox"
+    factory = next((f for f in provider_factories() if f.name == chosen), None)
+    rate = factory.display_hourly_rate if factory else Decimal(".18")
+    for value, title, description, price in (
+        ("cloud", "Cloud, pay as you go", "Most accurate. Sends only speech in your languages.", f"${rate:.2f} per hour"),
+        ("local", "On this PC", "Free and private. Nothing leaves this computer.", "Free · no limit"),
+        ("free", "Free cloud allowances", "Free tiers with limits. Some providers reuse your data.", "Free · limited")):
+        card = tk.Frame(engine, bg=colors["surface"], highlightthickness=1, highlightbackground=colors["border"], padx=12, pady=10)
         card.pack(fill="x", pady=(0, 8))
-        radio = tk.Radiobutton(card, text=title, variable=app.engine_choice_var, value=value, bg=colors["bg"], fg=colors["text"],
-            selectcolor=colors["field"], activebackground=colors["bg"], activeforeground=colors["text"], font=("Segoe UI", 10), anchor="w")
-        radio.pack(fill="x")
+        tk.Radiobutton(card, text=title, variable=app.engine_choice_var, value=value, bg=colors["surface"], fg=colors["text"],
+            selectcolor=colors["field"], activebackground=colors["surface"], activeforeground=colors["text"],
+            font=("Segoe UI", 10), anchor="w").pack(side="left")
+        tk.Label(card, text=price, bg=colors["surface"], fg=colors["text"], font=("Segoe UI", 9)).pack(side="right")
+        app.engine_cards.append((value, card))
         description_var = tk.StringVar(app.root, value=description)
         app.engine_card_descriptions[value] = description_var
-        tk.Label(card, textvariable=description_var, bg=colors["bg"], fg=colors["tertiary"], anchor="w", wraplength=510, justify="left", font=("Segoe UI", 8)).pack(fill="x", padx=25)
-        app.engine_cards.append((value, card))
-    def selected(*_):
-        for value, card in app.engine_cards:
-            if card.winfo_exists():
-                card.configure(highlightbackground=colors["blue"] if app.engine_choice_var.get() == value else colors["border"])
-    app.engine_choice_var.trace_add("write", selected)
-    selected()
-    actions = tk.Frame(engine, bg=colors["bg"])
-    actions.pack(fill="x", pady=8)
-    ttk.Button(actions, text="Run check", command=app.open_speed_check, style="Mac.TButton").pack(side="left")
-    ttk.Button(actions, text="Manage keys", command=app.open_provider_settings, style="Mac.TButton").pack(side="right")
+        tk.Label(engine, textvariable=description_var, bg=colors["bg"], fg=colors["secondary"],
+                 anchor="w", wraplength=520, font=("Segoe UI", 8)).pack(fill="x", pady=(0, 6))
+    cloud = tk.Frame(engine, bg=colors["bg"])
+    cloud.pack(fill="x", pady=10)
+    from cloud_ui import provider_page
+    provider_page(app, cloud, colors)
+    free = tk.Frame(engine, bg=colors["bg"])
+    tk.Label(free, text="Connect a free account and review its data-use terms in Advanced.", bg=colors["bg"], fg=colors["secondary"], wraplength=520).pack(anchor="w")
+    ttk.Button(free, text="Connect a free provider", style="Mac.TButton", command=app.open_provider_settings).pack(anchor="w", pady=8)
+    advanced_button = ttk.Button(engine, text="Advanced ▸", style="Mac.TButton")
+    advanced_button.pack(fill="x", pady=8)
+    advanced = tk.Frame(engine, bg=colors["bg"])
+    advanced_button.configure(command=lambda: advanced.pack_forget() if advanced.winfo_manager() else advanced.pack(fill="x", after=advanced_button))
+    ttk.Button(advanced, text="Provider limits, keys and data-use terms", style="Mac.TButton", command=app.open_provider_settings).pack(anchor="w", pady=8)
     factories = provider_factories()
     app.engine_provider_widgets = {}
     for kind, label in (("asr", "Recognition"), ("mt", "Translation")):
         providers = ["local"] + [f.name for f in factories if f.kind == kind or (kind == "asr" and f.kind == "live")]
         variable = app.engine_default_vars[f"default_{kind}_provider"]
-        app.engine_provider_widgets[kind] = field(engine, label + " provider", variable, colors, providers)
-        model = field(engine, label + " model", app.engine_default_vars[f"default_{kind}_model"], colors, [])
+        app.engine_provider_widgets[kind] = field(advanced, label + " provider", variable, colors, providers)
+        model = field(advanced, label + " model", app.engine_default_vars[f"default_{kind}_model"], colors, [])
         def refresh(*_, v=variable, m=model, k=kind):
             if m.winfo_exists():
                 factory = next((f for f in factories if f.name == v.get()), None)
                 from gui import WHISPER_MODELS
-                choices = (factory.models if factory else
-                    (tuple(WHISPER_MODELS) if k == "asr" else ("automatic", "opus", "translategemma")) if v.get() == "local" else ())
+                choices = factory.models if factory else tuple(WHISPER_MODELS) if k == "asr" else ("automatic", "opus", "translategemma")
                 m.configure(values=choices)
         variable.trace_add("write", refresh)
-        variable.trace_add("write", lambda *_: refresh_provider_choices(app))
         refresh()
     app.engine_support_var = tk.StringVar(app.root)
-    tk.Label(engine, textvariable=app.engine_support_var, bg=colors["bg"], fg=colors["orange"],
-             wraplength=510, justify="left", anchor="w").pack(fill="x")
-    refresh_provider_choices(app)
-    app.engine_budget_entry = field(engine, "Monthly budget (USD)", app.monthly_budget_var, colors)
-    field(engine, "If the budget is reached", app.budget_fallback_var, colors, ("local", "stop"))
-    field(engine, "Use these defaults for", app.engine_scope_var, colors, ("all", "pair"))
-    heading(cost, "Cost & usage", "You pay providers for usage. Figures are estimates or conservative reservations until billing is known.", colors)
+    tk.Label(advanced, textvariable=app.engine_support_var, bg=colors["bg"], fg=colors["orange"], wraplength=520).pack(fill="x")
+    field(advanced, "Use these defaults for", app.engine_scope_var, colors, ("all", "pair"))
+    def selected(*_):
+        choice = app.engine_choice_var.get()
+        for value, card in app.engine_cards:
+            if card.winfo_exists():
+                card.configure(highlightbackground=colors["blue"] if value == choice else colors["border"])
+        if choice == "cloud":
+            cloud.pack(fill="x", before=advanced_button)
+            free.pack_forget()
+        elif choice == "free":
+            cloud.pack_forget()
+            free.pack(fill="x", before=advanced_button)
+        else:
+            cloud.pack_forget()
+            free.pack_forget()
+        refresh_engine_status(app)
+    app.engine_choice_var.trace_add("write", selected)
+    selected()
+    heading(cost, "Cost & usage", "Figures are estimates or conservative reservations until billing is known.", colors)
     app.cost_summary_var = tk.StringVar(value="This month $0.00 · speech sent 0 min of 0 min captured")
-    tk.Label(cost, textvariable=app.cost_summary_var, bg=colors["bg"], fg=colors["text"], wraplength=560,
-             justify="left", anchor="w", font=("Segoe UI Semibold", 11)).pack(fill="x", pady=(0, 16))
-    app.cost_budget_entry = field(cost, "Monthly budget (USD)", app.monthly_budget_var, colors)
-    field(cost, "When it is reached", app.budget_fallback_var, colors, ("local", "stop"))
-    field(cost, "Warn at percent", app.budget_warning_var, colors, ("50", "75", "80", "90", "100"))
+    tk.Label(cost, textvariable=app.cost_summary_var, bg=colors["bg"], fg=colors["text"], wraplength=540, justify="left").pack(fill="x", pady=12)
+    ttk.Button(cost, text="Change the monthly budget in Engine", style="Mac.TButton", command=lambda: app.settings_shell.show("Engine")).pack(anchor="w")
+    field(cost, "Warn at", app.budget_warning_var, colors, ("50", "75", "80", "90", "100"))
     for title, variable in (("Skip silence, music and noise", app.skip_non_speech_var), ("Skip speech outside the selected languages", app.skip_other_languages_var)):
         tk.Checkbutton(cost, text=title, variable=variable, **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=6)
     field(cost, "Close idle connections after seconds (8–10)", app.close_idle_var, colors, ("8", "9", "10"))
     app.provider_totals_var = tk.StringVar()
     tk.Label(cost, textvariable=app.provider_totals_var, bg=colors["bg"], fg=colors["secondary"], anchor="w", justify="left").pack(fill="x", pady=16)
+    refresh_provider_choices(app)
     refresh_measurements(app)
     refresh_usage(app)
 
@@ -208,34 +227,24 @@ def safe_budget(value):
 
 
 def refresh_measurements(app):
-    from engines.checks import CheckStore
-    descriptions = getattr(app, "engine_card_descriptions", {})
-    try:
-        rows = CheckStore(app.preferences.path.parent / "checks.json").results(*pair(app))
-    except (ValueError, OSError, KeyError):
-        rows = []
-    latest = {row["engine"]: row for row in rows}
-    defaults = load_engine_settings(app.preferences.path).resolve(*pair(app))
-    chosen = defaults["default_asr_provider"] or "soniox"
     if hasattr(app, "empty_measurements_var"):
-        recent = rows[-1] if rows else None
-        app.empty_measurements_var.set((f"{recent['engine']} · measured {recent['checked_on'][:10]} · Delay "
-            + (f"{recent['delay_p50_s']:.1f} s" if recent.get("delay_p50_s") is not None else "not measured"))
-            if recent else "Delay and accuracy: not measured for this pair. Compare cloud and on-PC engines.")
-    for kind, variable in descriptions.items():
-        row = (latest.get(chosen) if kind == "cloud" else next((r for r in reversed(rows)
-               if r["engine"].startswith("local:")), None) if kind == "local" else None)
-        if row:
-            delay = row.get("delay_p50_s")
-            accuracy = row.get("words_right")
-            variable.set(f"{row['engine']} · measured {row['checked_on'][:10]}\nDelay: "
-                + (f"{delay:.1f} s" if delay is not None else "not measured")
-                + " · Words right: " + (f"{accuracy:.1f}%" if accuracy is not None else "not measured")
-                + f" · Cost: ${Decimal(row.get('cost_per_speech_hour', '0')):.3f}/speech h")
-        else:
-            variable.set({"cloud": "Delay and accuracy: not measured. Cost: provider list estimate; run a check.",
-                "local": "Delay and accuracy: not measured on this PC. Cost: free, on this PC.",
-                "free": "Delay and accuracy: not measured. Cost: free account allowances, then on this PC."}[kind])
+        app.empty_measurements_var.set("On this PC, meeting audio and text stay private. Connect cloud for faster subtitles; list prices apply only to speech sent.")
+    if hasattr(app, "engine_label"):
+        refresh_engine_status(app)
+
+
+def refresh_engine_status(app, failure=""):
+    from engines.engine_status import engine_status
+    settings = load_engine_settings(app.preferences.path)
+    if app.preview_mode:
+        from dataclasses import replace
+        settings = replace(settings, engine_choice=app.engine_choice_var.get())
+    status = engine_status(settings, pair(app), block_all=app.offline_only_var.get(),
+        usage=None if app.preview_mode else UsageLedger().snapshot(), failure=failure)
+    app.engine_var.set(status.text)
+    app.engine_label.configure(fg=__import__("gui").COLORS["orange" if status.reason else "secondary"], cursor="hand2")
+    app.engine_label.bind("<Button-1>", lambda event: app.open_cloud_setup())
+    return status
 
 
 def apply_budget(app):

@@ -28,6 +28,7 @@ class ProviderSettings:
     account_kind: str = "unconfirmed"
     tested_signature: str = ""
     training_consent: bool = False
+    inherit_monthly_cap: bool = False
 
 
 @dataclass(frozen=True)
@@ -55,10 +56,9 @@ class EngineSettings:
 
 
 def credential_signature(provider, key, settings):
-    # A key/account/region/privacy change invalidates Test immediately. This is
-    # a fingerprint of a high-entropy credential, never a copy of the key.
-    data = [provider, key.strip(), settings.region, settings.account_kind, settings.training_consent]
+    data = [provider, key.strip()]
     return hashlib.sha256(json.dumps(data, ensure_ascii=True).encode()).hexdigest()
+
 
 
 def load_engine_settings(path=None):
@@ -75,17 +75,20 @@ def load_engine_settings(path=None):
     for name in PROVIDERS:
         prefix = name.replace("-", "_") + "_"
         try:
-            provider_cap = budget(section.get(prefix + "monthly_cap_usd", "0"))
+            raw_cap = section.get(prefix + "monthly_cap_usd", "")
+            provider_cap = budget(raw_cap) if raw_cap.strip() else cap
             enabled = str(section.get(prefix + "enabled", "0")).lower() in {"1", "true", "yes", "on"}
         except ValueError:
             provider_cap, enabled = Decimal(0), False
         signature = section.get(prefix + "tested_signature", "")
         region = section.get(prefix + "region", "")
-        account_kind = section.get(prefix + "account_kind", "unconfirmed")
+        account_kind = ("paid" if name in {"soniox", "elevenlabs", "speechmatics"} or
+                        (name == "gemini" and section.get("engine_choice") == "cloud") else
+                        "trial" if name == "cohere-api" else "free")
         if not re.fullmatch(r"[a-zA-Z0-9_-]{0,80}", region) or account_kind not in {"unconfirmed", "free", "paid", "trial"}:
             region, account_kind, enabled = "", "unconfirmed", False
         providers[name] = ProviderSettings(
-            enabled=enabled, monthly_cap=provider_cap, region=region,
+            enabled=enabled, monthly_cap=provider_cap, region=region, inherit_monthly_cap=not section.get(prefix + "monthly_cap_usd", "").strip(),
             account_kind=account_kind,
             tested_signature=signature if re.fullmatch(r"[a-f0-9]{64}", signature) else "",
             training_consent=str(section.get(prefix + "training_consent", "0")).lower() in {"1", "true", "yes", "on"})
@@ -133,8 +136,8 @@ def _values(settings):
             raise ValueError("Invalid tested-key fingerprint")
         prefix = name.replace("-", "_") + "_"
         values.update({prefix + "enabled": str(int(provider.enabled)),
-                       prefix + "monthly_cap_usd": str(budget(provider.monthly_cap)),
-                       prefix + "region": provider.region, prefix + "account_kind": provider.account_kind,
+                       prefix + "monthly_cap_usd": "" if provider.inherit_monthly_cap or name not in settings.providers else str(budget(provider.monthly_cap)),
+                       prefix + "region": provider.region,
                        prefix + "tested_signature": provider.tested_signature,
                        prefix + "training_consent": str(int(provider.training_consent))})
     return values
