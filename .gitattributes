@@ -1,3 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 native_windows/process_loopback.cpp text eol=lf
+website/static/img/landing/icons/*.svg -text

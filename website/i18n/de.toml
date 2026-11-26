@@ -1,393 +1,393 @@
-# Draft for native review. Non-English copy is scaffolded pending W3; reviewed = false.
+# Draft for native review. reviewed = false; the owner arranges native review before publication.
 [seoTitle]
-other = "Translito: live meeting subtitles in 18 languages for Windows and macOS"
+other = "Translito: Live-Untertitel für Meetings in 18 Sprachen für Windows und macOS"
 
 [description]
-other = "Live meeting subtitles in 18 languages on Windows and macOS. Free on your PC, with optional pay-as-you-go cloud engines."
+other = "Live-Untertitel für Meetings in 18 Sprachen auf Windows und macOS. Kostenlos auf Ihrem PC, mit optionalen Cloud-Engines nach Verbrauch."
 
 [chooseLanguage]
-other = "Choose site language"
+other = "Sprache der Website wählen"
 
 [languageLabel]
-other = "LANGUAGE"
+other = "SPRACHE"
 
 [remembered]
-other = "REMEMBERED ON THIS DEVICE"
+other = "AUF DIESEM GERÄT GESPEICHERT"
 
 [translitoIn]
-other = "Translito in"
+other = "Translito auf"
 
 [navFeatures]
-other = "Features"
+other = "Funktionen"
 
 [navHow]
-other = "How it works"
+other = "So funktioniert es"
 
 [navCost]
-other = "Cost"
+other = "Kosten"
 
 [navDownload]
 other = "Download"
 
 [navMenu]
-other = "Menu"
+other = "Menü"
 
 [heroLabel]
-other = "Live translation for Windows and macOS"
+other = "Live-Übersetzung für Windows und macOS"
 
 [heroTitle]
-other = "Follow every meeting in your language."
+other = "Folgen Sie jedem Meeting in Ihrer Sprache."
 
 [heroLead]
-other = "Translito listens to your meeting app and shows the translation as subtitles over any window, even when the app is minimized. 18 languages, in either direction, with English terms kept as spoken."
+other = "Translito hört Ihrer Meeting-App zu und zeigt die Übersetzung als Untertitel über jedem Fenster, auch wenn die App minimiert ist. 18 Sprachen in beide Richtungen; englische Fachbegriffe bleiben wie gesprochen erhalten."
 
 [downloadWindows]
-other = "Download for Windows"
+other = "Für Windows herunterladen"
 
 [downloadMac]
-other = "Download for macOS"
+other = "Für macOS herunterladen"
 
 [heroSmall]
-other = "Free on your PC. Cloud engines are optional, and you pay only for speech."
+other = "Kostenlos auf Ihrem PC. Cloud-Engines sind optional; Sie bezahlen nur für Sprache."
 
 [heroImageAlt]
-other = "A meeting window and taskbar on a Windows desktop."
+other = "Ein Meeting-Fenster und die Taskleiste auf einem Windows-Desktop."
 
 [heroPrevious]
-other = "The deployment slipped two days because of an API issue."
+other = "Das Deployment hat sich wegen eines API-Problems um zwei Tage verzögert."
 
 [heroCurrent]
-other = "When can we deliver the first version?"
+other = "Wann können wir die erste Version liefern?"
 
 [overviewLabel]
-other = "New on Windows"
+other = "Neu auf Windows"
 
 [overviewTitle]
-other = "Built for live meetings."
+other = "Für Live-Meetings gemacht."
 
 [overview1Title]
-other = "Subtitles on screen"
+other = "Untertitel auf dem Bildschirm"
 
 [overview1Body]
-other = "Over any window, even with Translito minimized."
+other = "Über jedem Fenster, auch wenn Translito minimiert ist."
 
 [overview2Title]
-other = "Starts with your meeting"
+other = "Startet mit Ihrem Meeting"
 
 [overview2Body]
-other = "From a calendar link or set times, in your usual meeting app."
+other = "Über einen Kalenderlink oder feste Zeiten in Ihrer gewohnten Meeting-App."
 
 [overview3Title]
-other = "Reply in their language"
+other = "In der Sprache der anderen antworten"
 
 [overview3Body]
-other = "Short replies in English letters, with what they mean."
+other = "Kurze Antworten in englischen Buchstaben, mit ihrer Bedeutung."
 
 [overview4Title]
-other = "Clear cost and speed"
+other = "Klare Kosten und Geschwindigkeit"
 
 [overview4Body]
-other = "See the delay and cost of each engine. Set a monthly budget."
+other = "Verzögerung und Kosten jeder Engine sehen. Ein Monatsbudget festlegen."
 
 [feature1Title]
-other = "Subtitles that stay on top"
+other = "Untertitel, die im Vordergrund bleiben"
 
 [feature1Body]
-other = "Keep the meeting full screen and Translito in the tray. The translation sits in a slim bar over everything, with the previous line above the current one."
+other = "Lassen Sie das Meeting im Vollbild und Translito im Infobereich. Die Übersetzung steht in einer schmalen Leiste über allem, mit der vorherigen Zeile über der aktuellen."
 
 [feature1Bullet1]
-other = "Clicks pass through, so the meeting stays usable"
+other = "Klicks gehen durch die Leiste hindurch; das Meeting bleibt bedienbar"
 
 [feature1Bullet2]
-other = "Drag it anywhere; its place is remembered for each screen"
+other = "Ziehen Sie sie an eine beliebige Stelle; die Position wird pro Bildschirm gespeichert"
 
 [feature1Bullet3]
-other = "Switch it on from the app, the tray, a shortcut or settings"
+other = "Über App, Infobereich, Tastenkürzel oder Einstellungen einschalten"
 
 [feature1Bullet4]
-other = "Text size, number of lines and the original line are your choice"
+other = "Textgröße, Zeilenzahl und Anzeige des Originals selbst wählen"
 
 [feature1Alt]
-other = "Translito subtitle settings for placement, text size and displayed lines."
+other = "Translito-Untertiteleinstellungen für Position, Textgröße und angezeigte Zeilen."
 
 [feature2Title]
-other = "Starts when your meeting does"
+other = "Startet, wenn Ihr Meeting beginnt"
 
 [feature2Body]
-other = "Paste your calendar's private link or set weekly times. Translito starts a minute before, listens to your default meeting app and stops when the meeting ends."
+other = "Fügen Sie den privaten Link Ihres Kalenders ein oder legen Sie wöchentliche Zeiten fest. Translito startet eine Minute vorher, hört Ihrer Standard-Meeting-App zu und stoppt nach dem Meeting."
 
 [feature2Bullet1]
-other = "Waits until the meeting app plays sound, so a no-show costs nothing"
+other = "Wartet, bis die Meeting-App Ton abspielt; ein ausgefallenes Meeting kostet nichts"
 
 [feature2Bullet2]
-other = "Your meeting app is remembered: Zoom, Teams or a browser"
+other = "Merkt sich Ihre Meeting-App: Zoom, Teams oder einen Browser"
 
 [feature2Bullet3]
-other = "A notice with Stop appears at every automatic start"
+other = "Bei jedem automatischen Start erscheint ein Hinweis mit Stop"
 
 [feature2Alt]
-other = "Translito schedule settings for a calendar link, weekly times and a meeting app."
+other = "Translito-Zeitplaneinstellungen für Kalenderlink, wöchentliche Zeiten und Meeting-App."
 
 [feature3Title]
-other = "Reply in their language"
+other = "In der Sprache der anderen antworten"
 
 [feature3Body]
-other = "When someone asks you something, Translito suggests three short replies in their language, written in English letters with the meaning underneath."
+other = "Wenn Sie jemand etwas fragt, schlägt Translito drei kurze Antworten in dessen Sprache vor, in englischen Buchstaben geschrieben und mit der Bedeutung darunter."
 
 [feature3Bullet1]
-other = "Say one with Ctrl + Alt + 1, 2 or 3, through Speak mode"
+other = "Mit Ctrl + Alt + 1, 2 oder 3 im Speak-Modus eine Antwort sprechen"
 
 [feature3Bullet2]
-other = "Shortcuts are yours to change"
+other = "Tastenkürzel nach Wunsch ändern"
 
 [feature3Bullet3]
-other = "Shown under the subtitle bar too, so they work with the app minimized"
+other = "Auch unter der Untertitelleiste sichtbar, damit sie bei minimierter App nutzbar bleiben"
 
 [feature3Bullet4]
-other = "A small built-in phrasebook covers you without a cloud engine"
+other = "Ein kleines integriertes Sprachbuch hilft auch ohne Cloud-Engine"
 
 [replyCardTitle]
-other = "Could you repeat the question?"
+other = "Können Sie die Frage wiederholen?"
 
 [replyCardCaption]
-other = "The same suggested reply in four languages"
+other = "Englische Antworten mit ihrer deutschen Bedeutung"
 
 [replyLatinNote]
-other = "Latin script, so the reply is shown as written"
+other = "Lateinische Schrift: Die Antwort erscheint so, wie sie geschrieben wird"
 
 [replyFootnote]
-other = "Languages written in another script also get the reply in English letters, so you can say it."
+other = "Sprachen mit anderen Schriftsystemen erhalten die Antwort zusätzlich in englischen Buchstaben, damit Sie sie aussprechen können."
 
 [replyMeaning1]
-other = "Yes, Thursday is fine"
+other = "Ja, Donnerstag passt"
 
 [replyMeaning2]
-other = "Give me two days and I will confirm"
+other = "Geben Sie mir zwei Tage zur Bestätigung"
 
 [replyMeaning3]
-other = "Could you repeat the question?"
+other = "Können Sie die Frage wiederholen?"
 
 [feature4Title]
-other = "Know the cost and speed before you choose"
+other = "Kosten und Geschwindigkeit vor der Auswahl kennen"
 
 [feature4Body]
-other = "Run Translito free on your PC, or connect a cloud engine with your own key when you need more speed and accuracy. You pay the provider directly, only for the speech Translito sends."
+other = "Nutzen Sie Translito kostenlos auf Ihrem PC oder verbinden Sie mit Ihrem eigenen Schlüssel eine Cloud-Engine für mehr Geschwindigkeit und Genauigkeit. Sie bezahlen den Anbieter direkt, nur für die von Translito gesendete Sprache."
 
 [feature4Bullet1]
-other = "A built-in check measures delay and accuracy on your PC"
+other = "Ein integrierter Test misst Verzögerung und Genauigkeit auf Ihrem PC"
 
 [feature4Bullet2]
-other = "Silence, music and other languages are never sent"
+other = "Stille, Musik und andere Sprachen werden nie gesendet"
 
 [feature4Bullet3]
-other = "A monthly budget you set, then back to your PC or stop"
+other = "Sie legen ein Monatsbudget fest; danach lokal weiterarbeiten oder stoppen"
 
 [feature4Bullet4]
-other = "Choose your default provider and model for each language pair"
+other = "Standardanbieter und Modell für jedes Sprachpaar wählen"
 
 [feature4Alt]
-other = "Translito engine settings comparing local and cloud speed, accuracy and cost."
+other = "Translito-Engine-Einstellungen zum Vergleich von lokaler und cloudbasierter Geschwindigkeit, Genauigkeit und Kosten."
 
 [feature5Title]
-other = "Settings that make sense, and stay put"
+other = "Verständliche Einstellungen, die erhalten bleiben"
 
 [feature5Body]
-other = "Settings are grouped by what you are doing: languages, engine, cost, subtitles, schedule and audio. Every switch and choice is saved the moment you change it."
+other = "Die Einstellungen sind nach Aufgaben gruppiert: Sprachen, Engine, Kosten, Untertitel, Zeitplan und Audio. Jeder Schalter und jede Auswahl wird sofort beim Ändern gespeichert."
 
 [feature5Bullet1]
-other = "One picker for what is spoken and what you want to read"
+other = "Eine Auswahl für die gesprochene und die gewünschte Lesesprache"
 
 [feature5Bullet2]
-other = "English spoken in the meeting is shown as is, never translated"
+other = "Im Meeting gesprochenes Englisch wird unverändert angezeigt, nie übersetzt"
 
 [feature5Bullet3]
-other = "Your own terms list for names and jargon"
+other = "Eine eigene Begriffsliste für Namen und Fachsprache"
 
 [feature5Alt]
-other = "Translito language settings and the grouped settings sidebar."
+other = "Translito-Spracheinstellungen und die nach Themen gegliederte Seitenleiste."
 
 [alsoTitle]
-other = "Also in Translito"
+other = "Außerdem in Translito"
 
 [also1Title]
-other = "Speak into calls"
+other = "In Anrufe sprechen"
 
 [also1Body]
-other = "Your translated voice goes into Zoom, Teams or Meet through a virtual microphone."
+other = "Ihre übersetzte Stimme gelangt über ein virtuelles Mikrofon in Zoom, Teams oder Meet."
 
 [also2Title]
-other = "Any app's audio"
+other = "Audio jeder App"
 
 [also2Body]
-other = "Listen to one app, or to everything your computer plays."
+other = "Einer App zuhören oder allem, was Ihr Computer abspielt."
 
 [also3Title]
-other = "Transcripts, saved"
+other = "Gespeicherte Transkripte"
 
 [also3Body]
-other = "Every session is saved with timestamps in a folder you choose."
+other = "Jede Sitzung wird mit Zeitstempeln in einem Ordner Ihrer Wahl gespeichert."
 
 [also4Title]
-other = "Private on your PC"
+other = "Privat auf Ihrem PC"
 
 [also4Body]
-other = "On this PC, nothing leaves your computer once the models are downloaded."
+other = "Bei der Verarbeitung auf diesem PC verlässt nach dem Herunterladen der Modelle nichts den Computer."
 
 [also5Title]
-other = "Shortcuts you choose"
+other = "Eigene Tastenkürzel"
 
 [also5Body]
-other = "Start, stop, subtitles and replies, all recordable."
+other = "Start, Stopp, Untertitel und Antworten: Alle Kürzel lassen sich aufzeichnen."
 
 [also6Title]
-other = "Menu bar and tray"
+other = "Menüleiste und Infobereich"
 
 [also6Body]
-other = "Controls stay one click away on macOS and Windows."
+other = "Die Steuerung ist unter macOS und Windows nur einen Klick entfernt."
 
 [languagesTitle]
-other = "18 languages, in either direction"
+other = "18 Sprachen, in beide Richtungen"
 
 [languagesIntro]
-other = "Pick any two. English spoken in the meeting can pass through as is. Chinese works in Simplified and Traditional characters."
+other = "Wählen Sie zwei beliebige Sprachen. Im Meeting gesprochenes Englisch kann unverändert erscheinen. Chinesisch unterstützt vereinfachte und traditionelle Zeichen."
 
 [languagesAlso]
-other = "Also supported"
+other = "Auch unterstützt"
 
 [languagesAccuracy]
-other = "Coverage and measured accuracy are separate. Arabic to English is the pair we measure on every release. For any other pair, the built-in check measures delay and accuracy on your own PC before you pay for anything."
+other = "Sprachabdeckung und gemessene Genauigkeit sind nicht dasselbe. Arabisch nach Englisch messen wir bei jeder Veröffentlichung. Für andere Sprachpaare misst der integrierte Test Verzögerung und Genauigkeit auf Ihrem eigenen PC, bevor Sie etwas bezahlen."
 
 [howTitle]
-other = "Set it up once"
+other = "Einmal einrichten"
 
 [how1Title]
-other = "Install"
+other = "Installieren"
 
 [how1Body]
-other = "A Windows installer or portable ZIP, or one universal app for Mac."
+other = "Ein Windows-Installer oder portables ZIP, oder eine Universal-App für Mac."
 
 [how2Title]
-other = "Choose languages and your app"
+other = "Sprachen und App wählen"
 
 [how2Body]
-other = "Pick what is spoken and what you want to read. Translito remembers both."
+other = "Wählen Sie, was gesprochen wird und was Sie lesen möchten. Translito merkt sich beides."
 
 [how3Title]
-other = "Join your meeting"
+other = "Dem Meeting beitreten"
 
 [how3Body]
-other = "Press Start, or let your schedule start it. Subtitles appear on top."
+other = "Drücken Sie Start oder lassen Sie den Zeitplan starten. Untertitel erscheinen im Vordergrund."
 
 [faqTitle]
-other = "Questions"
+other = "Fragen"
 
 [faq1Question]
-other = "Which languages work?"
+other = "Welche Sprachen werden unterstützt?"
 
 [faq1Answer]
-other = "English, German, Spanish, French, Dutch, Norwegian, Polish, Portuguese, Swedish, Arabic, Chinese (Simplified and Traditional), Japanese and Korean, plus Italian, Russian, Turkish, Persian and Urdu, in either direction. Arabic to English is measured on every release; the check measures any other pair on your PC."
+other = "Englisch, Deutsch, Spanisch, Französisch, Niederländisch, Norwegisch, Polnisch, Portugiesisch, Schwedisch, Arabisch, Chinesisch mit vereinfachten und traditionellen Zeichen, Japanisch und Koreanisch sowie Italienisch, Russisch, Türkisch, Persisch und Urdu, in beide Richtungen. Arabisch nach Englisch wird bei jeder Veröffentlichung gemessen; andere Paare testet die Prüfung auf Ihrem PC."
 
 [faq2Question]
-other = "Do I have to pay?"
+other = "Muss ich bezahlen?"
 
 [faq2Answer]
-other = "No. On this PC Translito is free. Cloud engines are optional: you add your own key, pay the provider only for the speech Translito sends, and set a monthly budget."
+other = "Nein. Auf diesem PC ist Translito kostenlos. Cloud-Engines sind optional: Sie fügen Ihren eigenen Schlüssel hinzu, bezahlen dem Anbieter nur die von Translito gesendete Sprache und legen ein Monatsbudget fest."
 
 [faq3Question]
-other = "Does it work with Zoom, Teams and Meet?"
+other = "Funktioniert es mit Zoom, Teams und Meet?"
 
 [faq3Answer]
-other = "Yes. Choose your meeting app once and Translito listens to its audio. For meetings in a browser, it listens to the browser."
+other = "Ja. Wählen Sie Ihre Meeting-App einmal aus; Translito hört deren Audio zu. Bei Meetings im Browser hört es dem Browser zu."
 
 [faq4Question]
-other = "Where does my audio go?"
+other = "Wohin geht mein Audio?"
 
 [faq4Answer]
-other = "On this PC, nowhere. With a cloud engine, only speech in your two languages goes to the provider you connected."
+other = "Bei lokaler Verarbeitung nirgendwohin. Mit einer Cloud-Engine geht nur Sprache in Ihren zwei Sprachen an den von Ihnen verbundenen Anbieter."
 
 [downloadLabel]
-other = "Latest release"
+other = "Aktuelle Version"
 
 [downloadTitle]
-other = "Download Translito"
+other = "Translito herunterladen"
 
 [windowsMeta]
-other = "Windows 10 and 11, 64-bit"
+other = "Windows 10 und 11, 64 Bit"
 
 [windowsNote]
-other = "Includes subtitles on screen, schedule, reply suggestions and cost controls."
+other = "Mit Bildschirmuntertiteln, Zeitplan, Antwortvorschlägen und Kostenkontrolle."
 
 [macMeta]
-other = "macOS 26.4 or later, Apple silicon and Intel"
+other = "macOS 26.4 oder neuer, Apple silicon und Intel"
 
 [macNote]
-other = "Listen, Speak and saved transcripts. The features listed under New on Windows are not in the Mac app."
+other = "Listen, Speak und gespeicherte Transkripte. Die unter „Neu auf Windows“ genannten Funktionen sind nicht in der Mac-App enthalten."
 
 [downloadInstaller]
-other = "Download installer"
+other = "Installer herunterladen"
 
 [downloadPortable]
-other = "Portable ZIP"
+other = "Portables ZIP"
 
 [firstLaunchNotice]
-other = "These builds are not code-signed yet, so Windows or macOS may warn you on first launch."
+other = "Diese Versionen sind noch nicht codesigniert. Windows oder macOS kann deshalb beim ersten Start eine Warnung anzeigen."
 
 [firstLaunchToggle]
-other = "Show what to do"
+other = "Vorgehensweise anzeigen"
 
 [firstLaunchIntro]
-other = "Only continue when you downloaded Translito from the buttons on this page."
+other = "Fahren Sie nur fort, wenn Sie Translito über die Schaltflächen auf dieser Seite heruntergeladen haben."
 
 [macBlockTitle]
-other = "If macOS blocks Translito"
+other = "Wenn macOS Translito blockiert"
 
 [macStep1]
-other = "Try to open Translito once and dismiss the warning."
+other = "Versuchen Sie einmal, Translito zu öffnen, und schließen Sie die Warnung."
 
 [macStep2]
-other = "Open System Settings → Privacy & Security, scroll to Security, then click Open Anyway."
+other = "Öffnen Sie Systemeinstellungen → Datenschutz & Sicherheit, scrollen Sie zu Sicherheit und wählen Sie „Dennoch öffnen“."
 
 [macStep3]
-other = "Confirm Open and enter your Mac password. The option appears for about an hour after the first attempt."
+other = "Bestätigen Sie „Öffnen“ und geben Sie Ihr Mac-Passwort ein. Die Option erscheint etwa eine Stunde nach dem ersten Versuch."
 
 [macGuide]
-other = "Apple's first-launch guidance"
+other = "Apples Anleitung zum ersten Start"
 
 [winBlockTitle]
-other = "If Windows SmartScreen warns"
+other = "Wenn Windows SmartScreen warnt"
 
 [winStep1]
-other = "On Windows protected your PC, click More info."
+other = "Klicken Sie bei „Der Computer wurde durch Windows geschützt“ auf „Weitere Informationen“."
 
 [winStep2]
-other = "Check that the file is the Translito download you expected, then click Run anyway."
+other = "Prüfen Sie, ob es sich um den erwarteten Translito-Download handelt, und wählen Sie „Trotzdem ausführen“."
 
 [winStep3]
-other = "If Windows gives no override, a device policy or Smart App Control may be blocking unsigned apps. Do not disable security; contact your administrator."
+other = "Wenn Windows keine Fortsetzung erlaubt, blockiert möglicherweise eine Geräterichtlinie oder Smart App Control unsignierte Apps. Deaktivieren Sie keine Sicherheitsfunktionen; wenden Sie sich an Ihre Administration."
 
 [winGuide]
-other = "Microsoft's app-security guidance"
+other = "Microsofts Hinweise zur App-Sicherheit"
 
 [footerTagline]
-other = "Live translation for your desktop."
+other = "Live-Übersetzung für Ihren Desktop."
 
 [footerBuilt]
-other = "Built by Tanzir in Bangladesh."
+other = "Entwickelt von Tanzir in Bangladesch."
 
 [controlPause]
-other = "Pause the subtitle example"
+other = "Untertitelbeispiel pausieren"
 
 [controlSmaller]
-other = "Smaller subtitle text"
+other = "Untertiteltext verkleinern"
 
 [controlLarger]
-other = "Larger subtitle text"
+other = "Untertiteltext vergrößern"
 
 [controlMove]
-other = "Move subtitles in the app"
+other = "Untertitel in der App verschieben"
 
 [controlOpen]
-other = "Open the subtitle settings section"
+other = "Abschnitt mit Untertiteleinstellungen öffnen"
 
 [controlClose]
-other = "Hide the subtitle example"
+other = "Untertitelbeispiel ausblenden"

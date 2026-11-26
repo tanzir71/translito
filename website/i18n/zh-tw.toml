@@ -1,393 +1,393 @@
-# Draft for native review. Non-English copy is scaffolded pending W3; reviewed = false.
+# Draft for native review. reviewed = false; the owner arranges native review before publication.
 [seoTitle]
-other = "Translito: live meeting subtitles in 18 languages for Windows and macOS"
+other = "Translito：適用於 Windows 和 macOS 的 18 種語言即時會議字幕"
 
 [description]
-other = "Live meeting subtitles in 18 languages on Windows and macOS. Free on your PC, with optional pay-as-you-go cloud engines."
+other = "在 Windows 和 macOS 上使用 18 種語言的即時會議字幕。本機處理免費，也可選用按用量付費的雲端引擎。"
 
 [chooseLanguage]
-other = "Choose site language"
+other = "選擇網站語言"
 
 [languageLabel]
-other = "LANGUAGE"
+other = "語言"
 
 [remembered]
-other = "REMEMBERED ON THIS DEVICE"
+other = "已在此裝置上記住"
 
 [translitoIn]
-other = "Translito in"
+other = "Translito 的網站語言"
 
 [navFeatures]
-other = "Features"
+other = "功能"
 
 [navHow]
-other = "How it works"
+other = "使用方式"
 
 [navCost]
-other = "Cost"
+other = "費用"
 
 [navDownload]
-other = "Download"
+other = "下載"
 
 [navMenu]
-other = "Menu"
+other = "選單"
 
 [heroLabel]
-other = "Live translation for Windows and macOS"
+other = "適用於 Windows 和 macOS 的即時翻譯"
 
 [heroTitle]
-other = "Follow every meeting in your language."
+other = "用你的語言，跟上每一場會議。"
 
 [heroLead]
-other = "Translito listens to your meeting app and shows the translation as subtitles over any window, even when the app is minimized. 18 languages, in either direction, with English terms kept as spoken."
+other = "Translito 聆聽會議應用程式的音訊，將譯文以字幕顯示在任何視窗上方，即使程式已最小化也能看見。支援 18 種語言雙向翻譯，英語術語按原話保留。"
 
 [downloadWindows]
-other = "Download for Windows"
+other = "下載 Windows 版"
 
 [downloadMac]
-other = "Download for macOS"
+other = "下載 macOS 版"
 
 [heroSmall]
-other = "Free on your PC. Cloud engines are optional, and you pay only for speech."
+other = "本機處理免費。雲端引擎可自由選用，只需支付語音的費用。"
 
 [heroImageAlt]
-other = "A meeting window and taskbar on a Windows desktop."
+other = "Windows 桌面上的會議視窗和工作列。"
 
 [heroPrevious]
-other = "The deployment slipped two days because of an API issue."
+other = "由於 API 發生問題，部署延後了兩天。"
 
 [heroCurrent]
-other = "When can we deliver the first version?"
+other = "我們什麼時候能交付第一個版本？"
 
 [overviewLabel]
-other = "New on Windows"
+other = "Windows 新功能"
 
 [overviewTitle]
-other = "Built for live meetings."
+other = "為即時會議而設計。"
 
 [overview1Title]
-other = "Subtitles on screen"
+other = "螢幕字幕"
 
 [overview1Body]
-other = "Over any window, even with Translito minimized."
+other = "顯示在任何視窗上方，Translito 最小化後也不受影響。"
 
 [overview2Title]
-other = "Starts with your meeting"
+other = "隨會議自動開始"
 
 [overview2Body]
-other = "From a calendar link or set times, in your usual meeting app."
+other = "透過行事曆連結或指定時間，在慣用的會議應用程式中啟動。"
 
 [overview3Title]
-other = "Reply in their language"
+other = "用對方的語言回覆"
 
 [overview3Body]
-other = "Short replies in English letters, with what they mean."
+other = "以英文字母顯示簡短回覆，並附上意思。"
 
 [overview4Title]
-other = "Clear cost and speed"
+other = "費用和速度一目了然"
 
 [overview4Body]
-other = "See the delay and cost of each engine. Set a monthly budget."
+other = "查看各引擎的延遲與費用，設定每月預算。"
 
 [feature1Title]
-other = "Subtitles that stay on top"
+other = "始終顯示在最上層的字幕"
 
 [feature1Body]
-other = "Keep the meeting full screen and Translito in the tray. The translation sits in a slim bar over everything, with the previous line above the current one."
+other = "讓會議保持全螢幕，將 Translito 收到系統匣。譯文會顯示在所有視窗上方的窄字幕列中，上一行位於目前這一行上方。"
 
 [feature1Bullet1]
-other = "Clicks pass through, so the meeting stays usable"
+other = "點擊可穿透字幕列，不影響會議操作"
 
 [feature1Bullet2]
-other = "Drag it anywhere; its place is remembered for each screen"
+other = "拖曳到任意位置，分別記住每個螢幕上的位置"
 
 [feature1Bullet3]
-other = "Switch it on from the app, the tray, a shortcut or settings"
+other = "可從應用程式、系統匣、快捷鍵或設定開啟"
 
 [feature1Bullet4]
-other = "Text size, number of lines and the original line are your choice"
+other = "自由選擇文字大小、行數及是否顯示原文"
 
 [feature1Alt]
-other = "Translito subtitle settings for placement, text size and displayed lines."
+other = "Translito 字幕設定：位置、文字大小和顯示行數。"
 
 [feature2Title]
-other = "Starts when your meeting does"
+other = "會議開始時自動啟動"
 
 [feature2Body]
-other = "Paste your calendar's private link or set weekly times. Translito starts a minute before, listens to your default meeting app and stops when the meeting ends."
+other = "貼上行事曆的私人連結，或設定每週時間。Translito 會提早一分鐘啟動，聆聽預設會議應用程式，並在會議結束時停止。"
 
 [feature2Bullet1]
-other = "Waits until the meeting app plays sound, so a no-show costs nothing"
+other = "等到會議應用程式播放聲音才開始，因此無人出席的會議不會產生費用"
 
 [feature2Bullet2]
-other = "Your meeting app is remembered: Zoom, Teams or a browser"
+other = "記住會議應用程式：Zoom、Teams 或瀏覽器"
 
 [feature2Bullet3]
-other = "A notice with Stop appears at every automatic start"
+other = "每次自動啟動都會顯示附有 Stop 按鈕的通知"
 
 [feature2Alt]
-other = "Translito schedule settings for a calendar link, weekly times and a meeting app."
+other = "Translito 排程設定：行事曆連結、每週時間和會議應用程式。"
 
 [feature3Title]
-other = "Reply in their language"
+other = "用對方的語言回覆"
 
 [feature3Body]
-other = "When someone asks you something, Translito suggests three short replies in their language, written in English letters with the meaning underneath."
+other = "有人提問時，Translito 會用對方的語言建議三則簡短回覆，以英文字母顯示讀法，並在下方附上意思。"
 
 [feature3Bullet1]
-other = "Say one with Ctrl + Alt + 1, 2 or 3, through Speak mode"
+other = "在 Speak 模式中，按 Ctrl + Alt + 1、2 或 3 朗讀回覆"
 
 [feature3Bullet2]
-other = "Shortcuts are yours to change"
+other = "快捷鍵可以自行變更"
 
 [feature3Bullet3]
-other = "Shown under the subtitle bar too, so they work with the app minimized"
+other = "字幕列下方也會顯示，應用程式最小化後仍然可用"
 
 [feature3Bullet4]
-other = "A small built-in phrasebook covers you without a cloud engine"
+other = "內建小型常用語手冊，不用雲端引擎也能使用"
 
 [replyCardTitle]
-other = "Could you repeat the question?"
+other = "可以請您重複一下問題嗎？"
 
 [replyCardCaption]
-other = "The same suggested reply in four languages"
+other = "英語回覆及其中文意思"
 
 [replyLatinNote]
-other = "Latin script, so the reply is shown as written"
+other = "這類語言使用拉丁字母，因此按原文顯示回覆"
 
 [replyFootnote]
-other = "Languages written in another script also get the reply in English letters, so you can say it."
+other = "使用其他文字系統的語言，也會提供英文字母讀法，方便你說出回覆。"
 
 [replyMeaning1]
-other = "Yes, Thursday is fine"
+other = "好的，週四可以"
 
 [replyMeaning2]
-other = "Give me two days and I will confirm"
+other = "給我兩天，我會確認"
 
 [replyMeaning3]
-other = "Could you repeat the question?"
+other = "可以請您重複一下問題嗎？"
 
 [feature4Title]
-other = "Know the cost and speed before you choose"
+other = "選擇之前，先瞭解費用與速度"
 
 [feature4Body]
-other = "Run Translito free on your PC, or connect a cloud engine with your own key when you need more speed and accuracy. You pay the provider directly, only for the speech Translito sends."
+other = "可在本機免費執行 Translito，也可在需要更快速度與更高準確率時，用自己的金鑰連接雲端引擎。你直接向服務供應商付費，只支付 Translito 傳送的語音費用。"
 
 [feature4Bullet1]
-other = "A built-in check measures delay and accuracy on your PC"
+other = "內建檢查可測量本機的延遲與準確率"
 
 [feature4Bullet2]
-other = "Silence, music and other languages are never sent"
+other = "不會傳送靜音、音樂或其他語言"
 
 [feature4Bullet3]
-other = "A monthly budget you set, then back to your PC or stop"
+other = "設定每月預算，用完後切回本機處理或停止"
 
 [feature4Bullet4]
-other = "Choose your default provider and model for each language pair"
+other = "為每種語言組合選擇預設服務供應商與模型"
 
 [feature4Alt]
-other = "Translito engine settings comparing local and cloud speed, accuracy and cost."
+other = "Translito 引擎設定：比較本機與雲端的速度、準確率和費用。"
 
 [feature5Title]
-other = "Settings that make sense, and stay put"
+other = "設定清楚易懂，變更立即儲存"
 
 [feature5Body]
-other = "Settings are grouped by what you are doing: languages, engine, cost, subtitles, schedule and audio. Every switch and choice is saved the moment you change it."
+other = "依工作分類設定：語言、引擎、費用、字幕、排程和音訊。每個開關和選項都會在變更時立即儲存。"
 
 [feature5Bullet1]
-other = "One picker for what is spoken and what you want to read"
+other = "在同一處選擇說話的語言和想閱讀的語言"
 
 [feature5Bullet2]
-other = "English spoken in the meeting is shown as is, never translated"
+other = "會議中的英語按原話顯示，不做翻譯"
 
 [feature5Bullet3]
-other = "Your own terms list for names and jargon"
+other = "為姓名與專業詞彙建立自己的術語表"
 
 [feature5Alt]
-other = "Translito language settings and the grouped settings sidebar."
+other = "Translito 語言設定與分類設定側邊欄。"
 
 [alsoTitle]
-other = "Also in Translito"
+other = "Translito 還有這些功能"
 
 [also1Title]
-other = "Speak into calls"
+other = "在通話中使用翻譯語音"
 
 [also1Body]
-other = "Your translated voice goes into Zoom, Teams or Meet through a virtual microphone."
+other = "透過虛擬麥克風，將翻譯後的聲音送入 Zoom、Teams 或 Meet。"
 
 [also2Title]
-other = "Any app's audio"
+other = "聆聽任意應用程式的音訊"
 
 [also2Body]
-other = "Listen to one app, or to everything your computer plays."
+other = "只聆聽一個應用程式，或聆聽電腦播放的全部聲音。"
 
 [also3Title]
-other = "Transcripts, saved"
+other = "儲存轉寫紀錄"
 
 [also3Body]
-other = "Every session is saved with timestamps in a folder you choose."
+other = "每次工作階段都附帶時間戳記，儲存在你選擇的資料夾中。"
 
 [also4Title]
-other = "Private on your PC"
+other = "本機隱私保護"
 
 [also4Body]
-other = "On this PC, nothing leaves your computer once the models are downloaded."
+other = "下載模型後，使用本機處理時，資料不會離開電腦。"
 
 [also5Title]
-other = "Shortcuts you choose"
+other = "自行設定快捷鍵"
 
 [also5Body]
-other = "Start, stop, subtitles and replies, all recordable."
+other = "可錄製開始、停止、字幕和回覆的快捷鍵。"
 
 [also6Title]
-other = "Menu bar and tray"
+other = "選單列與系統匣"
 
 [also6Body]
-other = "Controls stay one click away on macOS and Windows."
+other = "在 macOS 和 Windows 上，點一下即可找到控制項。"
 
 [languagesTitle]
-other = "18 languages, in either direction"
+other = "18 種語言，雙向翻譯"
 
 [languagesIntro]
-other = "Pick any two. English spoken in the meeting can pass through as is. Chinese works in Simplified and Traditional characters."
+other = "任選兩種語言。會議中的英語可按原話顯示，中文同時支援簡體與繁體。"
 
 [languagesAlso]
-other = "Also supported"
+other = "也支援"
 
 [languagesAccuracy]
-other = "Coverage and measured accuracy are separate. Arabic to English is the pair we measure on every release. For any other pair, the built-in check measures delay and accuracy on your own PC before you pay for anything."
+other = "語言涵蓋範圍與實測準確率是兩回事。我們在每次發佈時都會測量阿拉伯語到英語的效果。其他語言組合可在付費前，使用內建檢查測量自己電腦上的延遲與準確率。"
 
 [howTitle]
-other = "Set it up once"
+other = "設定一次即可"
 
 [how1Title]
-other = "Install"
+other = "安裝"
 
 [how1Body]
-other = "A Windows installer or portable ZIP, or one universal app for Mac."
+other = "可選 Windows 安裝程式、可攜式 ZIP，或適用於 Mac 的通用應用程式。"
 
 [how2Title]
-other = "Choose languages and your app"
+other = "選擇語言與應用程式"
 
 [how2Body]
-other = "Pick what is spoken and what you want to read. Translito remembers both."
+other = "選擇說話的語言和想閱讀的語言，Translito 會記住兩者。"
 
 [how3Title]
-other = "Join your meeting"
+other = "加入會議"
 
 [how3Body]
-other = "Press Start, or let your schedule start it. Subtitles appear on top."
+other = "按 Start，或讓排程自動啟動。字幕會顯示在視窗上方。"
 
 [faqTitle]
-other = "Questions"
+other = "常見問題"
 
 [faq1Question]
-other = "Which languages work?"
+other = "支援哪些語言？"
 
 [faq1Answer]
-other = "English, German, Spanish, French, Dutch, Norwegian, Polish, Portuguese, Swedish, Arabic, Chinese (Simplified and Traditional), Japanese and Korean, plus Italian, Russian, Turkish, Persian and Urdu, in either direction. Arabic to English is measured on every release; the check measures any other pair on your PC."
+other = "支援英語、德語、西班牙語、法語、荷蘭語、挪威語、波蘭語、葡萄牙語、瑞典語、阿拉伯語、簡體與繁體中文、日語、韓語，以及義大利語、俄語、土耳其語、波斯語和烏爾都語，皆可雙向使用。阿拉伯語到英語每次發佈都會測量；其他組合可在自己的電腦上檢查。"
 
 [faq2Question]
-other = "Do I have to pay?"
+other = "需要付費嗎？"
 
 [faq2Answer]
-other = "No. On this PC Translito is free. Cloud engines are optional: you add your own key, pay the provider only for the speech Translito sends, and set a monthly budget."
+other = "不需要。在本機執行 Translito 免費。雲端引擎可自由選用：加入自己的金鑰，設定每月預算，只向服務供應商支付 Translito 傳送的語音費用。"
 
 [faq3Question]
-other = "Does it work with Zoom, Teams and Meet?"
+other = "能與 Zoom、Teams 和 Meet 一起使用嗎？"
 
 [faq3Answer]
-other = "Yes. Choose your meeting app once and Translito listens to its audio. For meetings in a browser, it listens to the browser."
+other = "可以。只需選擇一次會議應用程式，Translito 就會聆聽它的音訊。若會議在瀏覽器中進行，則聆聽瀏覽器。"
 
 [faq4Question]
-other = "Where does my audio go?"
+other = "我的音訊會傳到哪裡？"
 
 [faq4Answer]
-other = "On this PC, nowhere. With a cloud engine, only speech in your two languages goes to the provider you connected."
+other = "使用本機處理時，不會傳到外部。使用雲端引擎時，只會將你選擇的兩種語言的語音，傳給已連接的服務供應商。"
 
 [downloadLabel]
-other = "Latest release"
+other = "最新版本"
 
 [downloadTitle]
-other = "Download Translito"
+other = "下載 Translito"
 
 [windowsMeta]
-other = "Windows 10 and 11, 64-bit"
+other = "Windows 10 和 11，64 位元"
 
 [windowsNote]
-other = "Includes subtitles on screen, schedule, reply suggestions and cost controls."
+other = "包含螢幕字幕、排程、回覆建議和費用控制。"
 
 [macMeta]
-other = "macOS 26.4 or later, Apple silicon and Intel"
+other = "macOS 26.4 或更新版本，支援 Apple silicon 和 Intel"
 
 [macNote]
-other = "Listen, Speak and saved transcripts. The features listed under New on Windows are not in the Mac app."
+other = "支援 Listen、Speak 和儲存轉寫紀錄。「Windows 新功能」中列出的功能尚未包含在 Mac 應用程式中。"
 
 [downloadInstaller]
-other = "Download installer"
+other = "下載安裝程式"
 
 [downloadPortable]
-other = "Portable ZIP"
+other = "可攜式 ZIP"
 
 [firstLaunchNotice]
-other = "These builds are not code-signed yet, so Windows or macOS may warn you on first launch."
+other = "這些版本尚未進行程式碼簽署，因此 Windows 或 macOS 可能在首次啟動時顯示警告。"
 
 [firstLaunchToggle]
-other = "Show what to do"
+other = "查看處理步驟"
 
 [firstLaunchIntro]
-other = "Only continue when you downloaded Translito from the buttons on this page."
+other = "只有透過本頁按鈕下載 Translito 後，才請繼續操作。"
 
 [macBlockTitle]
-other = "If macOS blocks Translito"
+other = "如果 macOS 阻擋 Translito"
 
 [macStep1]
-other = "Try to open Translito once and dismiss the warning."
+other = "嘗試開啟 Translito 一次，然後關閉警告。"
 
 [macStep2]
-other = "Open System Settings → Privacy & Security, scroll to Security, then click Open Anyway."
+other = "開啟「系統設定」→「隱私權與安全性」，捲動到「安全性」，然後按「強制打開」。"
 
 [macStep3]
-other = "Confirm Open and enter your Mac password. The option appears for about an hour after the first attempt."
+other = "確認「打開」並輸入 Mac 密碼。此選項會在首次嘗試後顯示約一小時。"
 
 [macGuide]
-other = "Apple's first-launch guidance"
+other = "Apple 首次啟動指南"
 
 [winBlockTitle]
-other = "If Windows SmartScreen warns"
+other = "如果 Windows SmartScreen 顯示警告"
 
 [winStep1]
-other = "On Windows protected your PC, click More info."
+other = "在「Windows 已保護您的電腦」中按「其他資訊」。"
 
 [winStep2]
-other = "Check that the file is the Translito download you expected, then click Run anyway."
+other = "確認檔案是你預期下載的 Translito，然後按「仍要執行」。"
 
 [winStep3]
-other = "If Windows gives no override, a device policy or Smart App Control may be blocking unsigned apps. Do not disable security; contact your administrator."
+other = "如果 Windows 沒有提供繼續選項，可能是裝置原則或 Smart App Control 阻擋了未簽署的應用程式。請勿關閉安全防護；請聯絡系統管理員。"
 
 [winGuide]
-other = "Microsoft's app-security guidance"
+other = "Microsoft 應用程式安全指南"
 
 [footerTagline]
-other = "Live translation for your desktop."
+other = "桌面上的即時翻譯。"
 
 [footerBuilt]
-other = "Built by Tanzir in Bangladesh."
+other = "由孟加拉的 Tanzir 開發。"
 
 [controlPause]
-other = "Pause the subtitle example"
+other = "暫停字幕範例"
 
 [controlSmaller]
-other = "Smaller subtitle text"
+other = "縮小字幕文字"
 
 [controlLarger]
-other = "Larger subtitle text"
+other = "放大字幕文字"
 
 [controlMove]
-other = "Move subtitles in the app"
+other = "在應用程式中移動字幕"
 
 [controlOpen]
-other = "Open the subtitle settings section"
+other = "開啟字幕設定區段"
 
 [controlClose]
-other = "Hide the subtitle example"
+other = "隱藏字幕範例"

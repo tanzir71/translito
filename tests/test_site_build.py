@@ -21,6 +21,7 @@ class Document(HTMLParser):
     def __init__(self, path):
         super().__init__(convert_charrefs=True)
         self.elements = []
+        self.text_parts = []
         self.text = path.read_text(encoding="utf-8")
         self.feed(self.text)
 
@@ -29,6 +30,13 @@ class Document(HTMLParser):
 
     def tags(self, name):
         return [attributes for tag, attributes in self.elements if tag == name]
+
+    def handle_data(self, data):
+        self.text_parts.append(data)
+
+    @property
+    def plain_text(self):
+        return " ".join("".join(self.text_parts).split())
 
 
 @pytest.fixture(scope="session")
@@ -140,3 +148,40 @@ def test_subtitle_scene_scales_to_the_desktop_and_mobile_design():
     assert desktop == dict(scale=1, left=0, top=0)
     assert mobile["scale"] == pytest.approx(396.46 / 1120)
     assert mobile["left"] == -46 and mobile["top"] == -102
+
+
+@pytest.mark.parametrize("entry", PRIORITY, ids=lambda entry: entry.site_locale)
+def test_every_home_has_complete_localized_sections_examples_and_metadata(built_site, entry):
+    folder = built_site / ("" if entry.code == "en" else entry.site_locale)
+    document = Document(folder / "index.html")
+    strings = tomllib.loads((SITE / "i18n" / (entry.site_locale + ".toml")).read_text(encoding="utf-8"))
+    english = tomllib.loads((SITE / "i18n/en.toml").read_text(encoding="utf-8"))
+    shared_words = {("de", "navDownload"), ("fr", "navMenu"), ("fr", "faqTitle"),
+                    ("nl", "translitoIn"), ("nl", "navMenu"), ("pl", "navMenu"), ("pt", "navMenu")}
+    for key, value in strings.items():
+        if entry.code != "en" and (entry.code, key) not in shared_words:
+            assert value["other"] != english[key]["other"], (entry.code, key)
+    for key in ("heroTitle", "heroPrevious", "heroCurrent", "overviewTitle", "feature1Title", "feature2Title",
+                "feature3Title", "feature4Title", "feature5Title", "howTitle", "downloadTitle", "faqTitle"):
+        assert strings[key]["other"] in document.plain_text, (entry.code, key)
+    assert strings["seoTitle"]["other"] in document.plain_text
+    descriptions = [tag["content"] for tag in document.tags("meta") if tag.get("name") == "description"]
+    assert descriptions == [strings["description"]["other"]]
+    assert "Weekly sync is starting" in document.plain_text
+    assert "Subtitles are on, translating into " + entry.english_name + "." in document.plain_text
+    rows = [tag for tag in document.tags("div") if tag.get("class", "").startswith("reply-row")]
+    assert len(rows) == (4 if entry.code == "en" else 3)
+    if entry.code != "en":
+        for index in range(1, 4):
+            assert strings[f"replyMeaning{index}"]["other"] in document.plain_text
+        assert "Yes, Thursday is fine" in document.plain_text
+
+
+def test_arabic_and_japanese_reference_heroes_are_used_verbatim():
+    expected = {
+        "ar": ("تابع كل اجتماع بلغتك.", "تأخر الإطلاق يومين بسبب مشكلة في الـ API.", "متى يمكننا تسليم النسخة الأولى؟"),
+        "ja": ("すべての会議を、あなたの言語で。", "API の問題でデプロイが 2 日遅れました。", "最初のバージョンはいつ納品できますか？"),
+    }
+    for code, values in expected.items():
+        strings = tomllib.loads((SITE / "i18n" / (code + ".toml")).read_text(encoding="utf-8"))
+        assert tuple(strings[key]["other"] for key in ("heroTitle", "heroPrevious", "heroCurrent")) == values
