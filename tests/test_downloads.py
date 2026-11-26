@@ -223,6 +223,25 @@ def test_next_file_returns_to_downloading_after_verifying_previous_file(tmp_path
     manager.close()
 
 
+def test_resumed_worker_activity_below_saved_progress_does_not_look_stalled(tmp_path):
+    now = [0]
+    manager = DownloadManager(directory=tmp_path / "jobs", clock=lambda: now[0])
+    job = DownloadJob("resume", "fake/resume", "Partial", str(tmp_path), total=100, bytes=80, state="Downloading")
+    manager.jobs, manager.active, manager.generation = [job], job, "child"
+    now[0] = 59
+    manager.events.put(("child", {"file": "model.bin", "bytes": 20, "total": 100}))
+    manager.poll()
+    assert job.state == "Downloading" and job.bytes == 80
+    now[0] = 110
+    manager.events.put(("child", {"file": "model.bin", "bytes": 20, "total": 100}))
+    manager.poll()
+    assert job.state == "Downloading"
+    now[0] = 120
+    manager.poll()
+    assert job.state == "Stalled · retrying"  # A repeated heartbeat is still idle.
+    manager.close()
+
+
 def test_buffered_sdk_reports_transfer_before_files_are_written(tmp_path, monkeypatch):
     """Xet can receive chunks for over a minute before flushing its first file."""
     from dataclasses import asdict

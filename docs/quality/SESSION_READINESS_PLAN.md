@@ -34,6 +34,8 @@ model preparation and temporary recovery are presented as setup progress.
   Only automatically resumed work remains eligible for automatic preemption.
 - Progress includes network transfer callbacks before buffered files reach disk,
   so receiving model data does not look like an idle/stalled download.
+  After Resume, fresh worker byte growth resets stall detection even while its
+  counters catch up to saved progress; repeated idle heartbeats do not.
 - Language and engine edits during capture apply to the next session. The
   running route retains its original snapshot while the new pair can prepare.
 - Internet blocking stops active/background transfers immediately. Automatic

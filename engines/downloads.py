@@ -77,6 +77,7 @@ class DownloadManager:
         self.clock, self.spawn, self.disk_usage = clock, spawn, disk_usage
         self.jobs, self.events = [], queue.Queue()
         self.process, self.active, self.last_progress = None, None, 0
+        self.last_child_bytes = 0
         self.retry_at, self.closed, self.timer = 0, False, None
         self.generation = ""
         for path in sorted(self.directory.glob("*.json")):
@@ -155,6 +156,7 @@ class DownloadManager:
             self.on_change(job)
             return
         self.active, self.last_progress = job, self.clock()
+        self.last_child_bytes = 0
         _locks.add(job.repo)
         process = self.process
         self.generation = generation = uuid4().hex
@@ -230,8 +232,9 @@ class DownloadManager:
                 if "file" in data:
                     job.state = "Downloading"
                 # Byte growth, not repeated heartbeat lines, resets a stall.
-                if data["bytes"] > job.bytes:
+                if data["bytes"] > self.last_child_bytes:
                     self.last_progress = self.clock()
+                    self.last_child_bytes = data["bytes"]
                 job.total = data["total"]
                 job.bytes = min(job.total, max(job.bytes, data["bytes"]))
                 job.bytes_per_s = data.get("bytes_per_s", 0)

@@ -4,7 +4,7 @@ Explicit Resume now keeps a download user-controlled across automatic setup
 refreshes, language changes and restart. Buffered HTTP/Xet progress prevents
 false stalls; transient server failures retry with bounded backoff. Startup opens
 Listen, and single setup actions are centered without changing the equal-size
-paired layout. Verified with 859 regression tests, 15 final download checks,
+paired layout. Verified with 861 regression tests,
 19 frozen runtime checks, and a real frozen Pause/Resume transfer. See
 [Windows 2.0.4 notes](RELEASE_2_0_4.md).
 
