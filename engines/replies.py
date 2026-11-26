@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import unicodedata
+from engines.languages import canonical_code
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ def parse_replies(value):
 
 
 def phrasebook(language, meaning_language="en"):
+    language, meaning_language = canonical_code(language), canonical_code(meaning_language)
     data = json.loads((Path(__file__).parent / "data/replies.json").read_text(encoding="utf-8"))
     source, target = data.get(language), data.get(meaning_language, data["en"])
     if not source:

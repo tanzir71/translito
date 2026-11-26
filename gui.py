@@ -90,19 +90,8 @@ COLORS = {
     "desktop": "#0f1114",
 }
 
-LANGUAGES = [
-    ("Arabic", "ar-AR", "ar"),
-    ("English", "en-US", "en"),
-    ("French", "fr-FR", "fr"),
-    ("Spanish", "es-ES", "es"),
-    ("German", "de-DE", "de"),
-    ("Italian", "it-IT", "it"),
-    ("Portuguese", "pt-PT", "pt"),
-    ("Russian", "ru-RU", "ru"),
-    ("Turkish", "tr-TR", "tr"),
-    ("Persian", "fa-IR", "fa"),
-    ("Urdu", "ur-PK", "ur"),
-]
+from engines.languages import gui_entries, RTL_CODES, pair_default_variety, language as catalog_language
+LANGUAGES = gui_entries()
 
 WHISPER_MODELS = [
     "openai/whisper-tiny",
@@ -126,7 +115,7 @@ HOTKEY_LABELS = {
     "reply_3": "Say reply 3",
 }
 
-RTL_LANGUAGES = {"ar", "fa", "ur"}
+RTL_LANGUAGES = RTL_CODES
 
 
 def translation_model_for(source_code, target_code, *, cloud_available=False):
@@ -478,7 +467,10 @@ class TranslatorGUI:
 
         self.english_passthrough_var = self.preferences.bind(tk.BooleanVar(value=not conversation.one_way),
             "LANGUAGE", "english_passthrough", not conversation.one_way)
-        self.variety_var = self.preferences.bind(tk.StringVar(), "LANGUAGE", "variety", "")
+        self.variety_var = self.preferences.bind(tk.StringVar(), "LANGUAGE", "variety",
+            pair_default_variety(language_config.source,language_config.target))
+        if not self.variety_var.get():
+            self.variety_var.set(pair_default_variety(language_config.source,language_config.target))
 
         self.subtitles_enabled_var = self.preferences.bind(tk.BooleanVar(), "UI", "subtitles_enabled", False)
         self.delay_var = tk.StringVar(value="Delay —")
@@ -1509,6 +1501,11 @@ class TranslatorGUI:
 
     def apply_language_pair(self):
         from app_config import conversation_for_pair
+        source = self.language_entry_by_name(self.listen_source_var.get())[2]
+        target = self.language_entry_by_name(self.listen_target_var.get())[2]
+        variety = self.variety_var.get()
+        if not variety or variety.split("-")[0] not in {catalog_language(source).base_code,catalog_language(target).base_code}:
+            self.variety_var.set(pair_default_variety(source,target))
         pair = conversation_for_pair(self.language_entry_by_name(self.listen_source_var.get())[2],
             self.language_entry_by_name(self.listen_target_var.get())[2], self.english_passthrough_var.get(),
             previous=self.current_conversation())

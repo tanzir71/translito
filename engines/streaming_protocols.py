@@ -237,7 +237,8 @@ class ElevenLabsProtocol:
                 if isinstance(speaker, str) and speaker not in speakers:
                     speakers.append(speaker)
             language = message.get("language_code")
-            language = {"ara": "ar", "eng": "en"}.get(language, language) if isinstance(language, str) else None
+            from engines.languages import canonical_code
+            language = canonical_code(language) if isinstance(language, str) else None
             language = language if language in self.languages else None
             annotation = StreamPiece(_text(message.get("text")), True, language=language,
                 speaker=speakers[0] if len(speakers) == 1 else None,

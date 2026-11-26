@@ -154,7 +154,9 @@ class SampleCatalog:
                 sample.label = spec["label"]
                 samples.append(sample)
             return samples
-        config = manifest["fleurs_configs"].get(source)
+        from engines.languages import language
+        entry = language(source)
+        config = entry.fleurs_config if entry else None
         if not config:
             raise ValueError("No public sample for this language. Use a recording.")
         url = "https://datasets-server.huggingface.co/rows?" + urlencode(dict(dataset="google/fleurs", config=config, split="test", offset=0, length=3))

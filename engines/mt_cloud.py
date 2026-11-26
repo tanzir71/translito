@@ -8,7 +8,8 @@ from engines.types import MtResult
 from engines.usage import Units
 
 
-LANGUAGES = frozenset({"en", "ar", "fr", "de", "es", "it", "pt", "ru", "tr", "fa", "ur"})
+from engines.languages import CODES
+LANGUAGES = CODES
 
 
 @dataclass

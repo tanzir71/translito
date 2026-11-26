@@ -564,18 +564,6 @@ def read_wav_mono_float32(path):
 
 
 def _culture_for_language(language):
-    mapping = {
-        "ar": "ar-SA",
-        "en": "en-US",
-        "fr": "fr-FR",
-        "es": "es-ES",
-        "de": "de-DE",
-        "it": "it-IT",
-        "pt": "pt-PT",
-        "ru": "ru-RU",
-        "tr": "tr-TR",
-        "fa": "fa-IR",
-        "ur": "ur-PK",
-    }
-    language = (language or "en").split("-")[0].lower()
-    return mapping.get(language, "en-US")
+    from engines.languages import language as lookup
+    entry = lookup(language)
+    return entry.bcp47 if entry else "en-US"

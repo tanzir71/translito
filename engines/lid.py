@@ -4,7 +4,8 @@ import math
 import unicodedata
 
 
-LATIN_LANGUAGES = {"fr", "es", "de", "it", "pt", "tr", "id", "vi", "nl", "pl", "ro"}
+from engines.languages import LATIN_CODES
+LATIN_LANGUAGES = LATIN_CODES
 
 
 def latin_ratio(text):
