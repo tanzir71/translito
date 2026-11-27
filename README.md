@@ -70,7 +70,7 @@ that cached copy. Download and Open folder are alongside it. Model changes
 require an idle session; gated models retain their
 terms/token setup. See [model-manager details](docs/quality/MODEL_MANAGER.md).
 
-- **Windows 2.0.9:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.9/TranslitoSetup-2.0.9.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.9/TranslitoPortable-2.0.9.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.9/SHA256SUMS.txt). Keeps translated subtitles large while new source drafts arrive, with smaller originals and history. Includes the cloud, subtitle and Stop fixes from 2.0.8. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_9.md).
+- **Windows 2.0.10:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.10/TranslitoSetup-2.0.10.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.10/TranslitoPortable-2.0.10.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.10/SHA256SUMS.txt). Keeps previous/current translated captions, bounds long captions to the screen with scrolling, makes reply suggestions accessible, and repairs Windows model-cache links. Upgrade and uninstall clean obsolete runtime backups while preserving settings and cached models. See the [release notes](docs/quality/RELEASE_2_0_10.md).
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 For the portable build, extract the entire ZIP into a new empty folder before

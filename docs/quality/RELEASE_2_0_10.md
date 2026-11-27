@@ -60,3 +60,18 @@ from the verified Windows dependency build.
 The portable ZIP passed a full CRC check and all staged file-size checks. All
 31 inspected module entries (including both GUI entry points and every changed
 module) match source. Bundled engine data and VB-CABLE resources match source.
+
+The final download suite passed 29 checks in 29.03 seconds, for 915 application,
+download and landing-page checks overall. During concurrent installer compilation,
+earlier runs exceeded the existing child timeout or UI heartbeat threshold. The
+final download run used a byte-identical source copy on C: after compilation;
+source and test thresholds were unchanged.
+
+Both Windows executable version resources report 2.0.10 and Authenticode reports
+NotSigned. The installer compiled successfully and passed the isolated lifecycle
+checks. Source commit: `f3eb55348c59f35e03a3d681d45a93a642347e9f`.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| TranslitoSetup-2.0.10.exe | 256,960,457 | `be7b6141c18f25e02c9d4158cc9e02c2c412b1ee6b0db5f157f5a8c23fed7586` |
+| TranslitoPortable-2.0.10.zip | 374,116,888 | `ade11bf4895a454857407b38a985dc23a4dff257ed2027d268f8c91589440f07` |
