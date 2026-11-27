@@ -90,6 +90,8 @@ def _disk_size(path):
 
 
 def _complete(folder, format):
+    from engines.model_files import prepare_snapshot_cache
+    prepare_snapshot_cache(folder)
     def present(name):
         p = folder / name
         return p.is_file() and p.stat().st_size > 0
@@ -157,7 +159,7 @@ class ModelLibrary:
         self.offline = offline or (lambda: False)
 
     def inventory(self):
-        from huggingface_hub import scan_cache_dir
+        from types import SimpleNamespace
         if self._default_specs:
             self.specs = default_catalog()
         if self._default_roots:
@@ -168,9 +170,12 @@ class ModelLibrary:
         cached = {}
         for root in self.hub_roots:
             if root.is_dir() and not _linked(root):
-                for repo in scan_cache_dir(root).repos:
-                    if repo.repo_type == "model":
-                        cached[repo.repo_path.absolute()] = repo
+                # Inventory must not follow every repo's snapshot links through
+                # the SDK: one inaccessible shared model hid the whole library.
+                for path in root.iterdir():
+                    if path.name.startswith("models--") and path.is_dir() and not _linked(path):
+                        cached[path.absolute()] = SimpleNamespace(repo_id=path.name[8:].replace("--", "/"),
+                            repo_path=path.absolute(), size_on_disk=_disk_size(path))
         specs = list(self.specs)
         known = {s.repo for s in specs}
         for repo in cached.values():
@@ -189,14 +194,18 @@ class ModelLibrary:
             if spec.local_path is not None:
                 path = spec.local_path.expanduser().absolute()
                 if path.exists():
-                    complete = (path.is_file() and path.stat().st_size > 0 and
-                                (not spec.expected_size or path.stat().st_size == spec.expected_size)) if spec.format == "gguf" else _complete(path, spec.format)
+                    inaccessible = False
+                    try:
+                        complete = (path.is_file() and path.stat().st_size > 0 and
+                                    (not spec.expected_size or path.stat().st_size == spec.expected_size)) if spec.format == "gguf" else _complete(path, spec.format)
+                    except OSError:
+                        complete, inaccessible = False, True
                     managed = path.resolve().is_relative_to(self.models_root.resolve())
                     codeswitch = spec.key == "codeswitch" and path.name == "whisper-arabic-codeswitch-ct2" and not os.environ.get("TRANSLITO_CODESWITCH_MODEL_DIR")
                     managed = managed or codeswitch
                     allowed = path.is_file() and path.suffix.lower() == ".gguf" if spec.format == "gguf" else managed
                     copies.append(ModelEntry(spec, path, "Model file" if spec.format == "gguf" else "App cache" if managed else "External folder",
-                                              "Downloaded" if complete else "Partial", _disk_size(path), allowed and not _linked(path),
+                                              "Downloaded" if complete else "Unavailable" if inaccessible else "Partial", _disk_size(path), allowed and not _linked(path),
                                               path.parent if spec.format == "gguf" or codeswitch else self.models_root))
                 if spec.format == "gguf":
                     partial_root = path.parent / ".cache" / "huggingface" / "download"
@@ -210,10 +219,14 @@ class ModelLibrary:
                     path = root / ("models--" + spec.repo.replace("/", "--"))
                     if path.is_dir():
                         snapshots = path / "snapshots"
-                        complete = snapshots.is_dir() and not _linked(snapshots) and any(
-                            _complete(p, spec.format) for p in snapshots.iterdir() if p.is_dir() and not _linked(p))
+                        inaccessible = False
+                        try:
+                            complete = snapshots.is_dir() and not _linked(snapshots) and any(
+                                _complete(p, spec.format) for p in snapshots.iterdir() if p.is_dir() and not _linked(p))
+                        except OSError:
+                            complete, inaccessible = False, True
                         size = cached[path].size_on_disk if path in cached else _disk_size(path)
-                        copies.append(ModelEntry(spec, path, "Shared Hugging Face cache", "Downloaded" if complete else "Partial",
+                        copies.append(ModelEntry(spec, path, "Shared Hugging Face cache", "Downloaded" if complete else "Unavailable" if inaccessible else "Partial",
                                                   size, not _linked(path), root))
             if not copies:
                 path = spec.local_path if spec.local_path else self.hub_roots[0] / ("models--" + spec.repo.replace("/", "--"))

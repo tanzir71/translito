@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from engines.model_files import (Ready, Missing, Incomplete, Corrupt, ModelNotReady,
-                                inspect_model, whisper_spec, model_hint, ready_whisper)
+                                Unavailable, inspect_model, whisper_spec, model_hint, ready_whisper)
 
 
 def snapshot(tmp_path, monkeypatch):
@@ -86,3 +86,53 @@ def test_cloud_launch_does_not_preload_or_change_hf_flags(monkeypatch):
     assert "HF_HUB_OFFLINE" not in os.environ
     assert "TRANSFORMERS_OFFLINE" not in os.environ
     monkeypatch.delenv("OFFLINE_ONLY", raising=False)
+
+
+def test_access_failure_is_not_reported_as_corruption(tmp_path, monkeypatch):
+    import engines.model_files as files
+    from engines.model_library import ModelSpec
+    spec = ModelSpec('model','Model','Speech','test/model','ct2',tmp_path)
+    error = PermissionError('blocked')
+    error.winerror = 448
+    monkeypatch.setattr(files,'prepare_snapshot_cache',Mock(side_effect=error))
+    status = inspect_model(spec)
+    assert isinstance(status, Unavailable) and not isinstance(status, Corrupt)
+    assert model_hint(spec,status)[1] == 'Repair cache'
+
+
+def test_gguf_beside_repo_registry_is_not_a_corrupt_manifest(tmp_path):
+    from engines.model_library import ModelSpec
+    model = tmp_path/'translation.gguf';model.write_bytes(b'gguf-bytes')
+    (tmp_path/'manifest.json').write_text(json.dumps({'other/repo':{'path':'elsewhere'}}))
+    assert isinstance(inspect_model(ModelSpec('gguf','Translation','Translation','test/gguf','gguf',model,expected_size=10)),Ready)
+
+
+@pytest.mark.skipif(__import__('os').name != 'nt', reason='Windows RedirectionGuard')
+def test_inventory_inspection_repairs_protected_snapshot_links_offline(tmp_path):
+    from pathlib import Path
+    import subprocess,sys,hashlib
+    repository = tmp_path/'models--test--inspection'
+    folder = repository/'snapshots'/('a'*40);folder.mkdir(parents=True)
+    blobs = repository/'blobs';blobs.mkdir()
+    for name in ('config.json','tokenizer.json','model.bin'):
+        data = name.encode();blob = blobs/hashlib.sha256(data).hexdigest();blob.write_bytes(data)
+        (folder/name).symlink_to(Path('../../blobs')/blob.name)
+    code = '''import ctypes,sys
+from pathlib import Path
+from ctypes import wintypes
+from engines.model_files import inspect_model,Ready
+from engines.model_library import ModelSpec,ModelLibrary
+flags=wintypes.DWORD(1)
+assert ctypes.WinDLL('kernel32').SetProcessMitigationPolicy(16,ctypes.byref(flags),ctypes.sizeof(flags))
+folder=Path(sys.argv[1]);root=Path(sys.argv[2])
+try: (folder/'model.bin').stat()
+except OSError as error: assert error.winerror==448
+else: raise AssertionError('Protection was not reproduced')
+spec=ModelSpec('test','Test','Speech','test/inspection','ct2',folder)
+assert isinstance(inspect_model(spec),Ready)
+library=ModelLibrary(specs=[spec],models_root=root/'models',hub_roots=[root],protected_paths=[])
+assert all(row.status=='Downloaded' for row in library.inventory())
+assert all(not p.is_symlink() for p in folder.iterdir())
+'''
+    result = subprocess.run([sys.executable,'-c',code,str(folder),str(tmp_path)],capture_output=True,text=True,timeout=40)
+    assert result.returncode == 0,result.stderr

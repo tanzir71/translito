@@ -468,34 +468,8 @@ def _progress_class(report):
 
 
 def _materialize_cache_link(path):
-    """Use regular HF snapshot files under Windows RedirectionGuard."""
-    if os.name != "nt" or path.parent.parent.name != "snapshots" or not path.is_symlink():
-        return
-    import re
-    repository = path.parent.parent.parent
-    if not repository.name.startswith("models--"):
-        raise ValueError("The cached model has an unexpected folder layout.")
-    try:
-        link_target = path.readlink()
-    except OSError:
-        if not path.is_symlink():  # Another progress/fetch thread materialized it.
-            return
-        raise
-    target = Path(os.path.abspath(path.parent / link_target))
-    blobs = repository / "blobs"
-    if target.parent != blobs or not re.fullmatch(r"[a-fA-F0-9]{40,64}", target.name) or target.is_symlink():
-        raise ValueError("The cached model link does not point to a model blob.")
-    # HF blobs are immutable, content-addressed files. A hard link avoids
-    # following a user-created reparse point, without weakening Windows policy.
-    temporary = path.with_name(".translito-" + uuid4().hex + ".tmp")
-    try:
-        try:
-            os.link(target, temporary)
-        except OSError:
-            shutil.copyfile(target, temporary)
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    from engines.model_files import materialize_cache_link
+    materialize_cache_link(path, allow_copy=True)
 
 
 def _file_size(path):

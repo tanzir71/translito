@@ -27,6 +27,58 @@ class Corrupt:
     reason: str = "The model file could not be read."
 
 
+@dataclass(frozen=True)
+class Unavailable:
+    reason: str = "The model cache cannot be accessed. Check its folder and permissions."
+
+
+def materialize_cache_link(path, *, allow_copy=False):
+    """Make an immutable HF blob readable with Windows RedirectionGuard."""
+    import os
+    if os.name != "nt" or not path.is_symlink():
+        return
+    import re
+    import shutil
+    from uuid import uuid4
+    snapshot = next((parent for parent in path.parents if parent.parent.name == "snapshots"), None)
+    if snapshot is None or not snapshot.parent.parent.name.startswith("models--"):
+        return
+    repository = snapshot.parent.parent
+    blobs = repository / "blobs"
+    for directory in (snapshot, snapshot.parent, repository, blobs):
+        if directory.is_symlink() or (hasattr(directory, "is_junction") and directory.is_junction()):
+            raise PermissionError("The model cache directory is linked. Choose a normal cache folder.")
+    try:
+        link_target = path.readlink()
+    except OSError:
+        if not path.is_symlink():
+            return
+        raise
+    target = Path(os.path.abspath(path.parent / link_target))
+    if target.parent != blobs or not re.fullmatch(r"[a-fA-F0-9]{40,64}", target.name) or target.is_symlink():
+        raise PermissionError("The cached model link does not point to its model blob.")
+    temporary = path.with_name(".translito-" + uuid4().hex + ".tmp")
+    try:
+        try:
+            os.link(target, temporary)
+        except OSError:
+            if not allow_copy:
+                raise
+            shutil.copyfile(target, temporary)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def prepare_snapshot_cache(folder):
+    """Repair snapshot pointers without downloading or copying large weights."""
+    import os
+    if os.name == "nt" and folder.parent.name == "snapshots" and folder.parent.parent.name.startswith("models--"):
+        for path in folder.rglob("*"):
+            if path.is_symlink():
+                materialize_cache_link(path)
+
+
 class ModelNotReady(RuntimeError):
     def __init__(self, spec, status):
         self.spec, self.status = spec, status
@@ -70,13 +122,20 @@ def local_folder(repo, *, local_path=None, cache_roots=None):
 def inspect_model(spec, *, cache_roots=None):
     if spec.repo in DOWNLOADING:
         return Incomplete(0, spec.expected_size)
-    folder = local_folder(spec.repo, local_path=spec.local_path, cache_roots=cache_roots)
-    if folder is None:
-        return Missing()
     try:
+        folder = local_folder(spec.repo, local_path=spec.local_path, cache_roots=cache_roots)
+        if folder is None:
+            return Missing()
+        prepare_snapshot_cache(folder)
         manifest_path = folder / "manifest.json"
+        model_manifest = False
         if manifest_path.is_file():
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+            if not isinstance(manifest, dict):
+                raise ValueError("Invalid model metadata")
+            # A GGUF file may live beside the app's repo/path registry.
+            model_manifest = not (spec.format == "gguf" and "files" not in manifest and "corrupt" not in manifest)
+        if model_manifest:
             if manifest.get("corrupt"):
                 return Corrupt()
             files = manifest["files"]
@@ -102,13 +161,19 @@ def inspect_model(spec, *, cache_roots=None):
             complete = _complete(folder, spec.format)
         blobs = folder.parent.parent / "blobs" if folder.parent.name == "snapshots" else folder
         partials = list(blobs.rglob("*.incomplete")) if blobs.is_dir() else []
-        if not complete or (not manifest_path.is_file() and partials):
+        if not complete or (not model_manifest and partials):
             have = sum(p.stat().st_size for p in partials if p.is_file())
             if not have and folder.is_dir():
                 have = sum(p.stat().st_size for p in folder.iterdir() if p.is_file())
             return Incomplete(have, spec.expected_size)
         return Ready(folder)
-    except (OSError, ValueError, KeyError, TypeError):
+    except OSError as error:
+        if isinstance(error, FileNotFoundError):
+            return Incomplete(0, spec.expected_size)
+        return Unavailable("Windows blocked access to the cached model. Use Repair cache or choose another folder."
+                           if getattr(error, "winerror", None) == 448 else
+                           "The model cache cannot be accessed. Check its folder and permissions.")
+    except (ValueError, KeyError, TypeError):
         return Corrupt()
 
 
@@ -156,6 +221,8 @@ def missing_translations(source, target):
 
 
 def model_hint(spec, status, fallback=None):
+    if isinstance(status, Unavailable):
+        return status.reason, "Repair cache"
     if isinstance(status, Corrupt):
         return f"{spec.title} needs repair. Download it again to use it.", "Repair"
     if isinstance(status, Incomplete):

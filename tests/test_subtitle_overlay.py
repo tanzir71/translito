@@ -28,11 +28,12 @@ def test_per_monitor_position_survives_restart(tmp_path):
     monitor = Monitor("DISPLAY2", 1920, 0, 3840, 1080)
     window = SimpleNamespace(winfo_x=lambda:2020,winfo_y=lambda:80,geometry=Mock())
     overlay = SimpleNamespace(window=window, root=None, monitor=monitor, preferences=SettingsState(tmp_path/"config.ini"),
-        backend=SimpleNamespace(monitors=lambda root:[monitor]), position_key=SubtitleOverlay.position_key)
+        backend=SimpleNamespace(monitors=lambda root:[monitor]), position_key=SubtitleOverlay.position_key, fit_to_monitor=Mock())
     SubtitleOverlay.drag_end(overlay, None)
     overlay.preferences = SettingsState(tmp_path/"config.ini")
     SubtitleOverlay.restore_position(overlay, monitor)
-    window.geometry.assert_called_with("720x90+2020+80")
+    assert overlay._preferred_position == (2020, 80)
+    overlay.fit_to_monitor.assert_called_once()
 
 
 @pytest.fixture
@@ -107,3 +108,65 @@ def test_same_language_speech_remains_primary_and_original_can_be_hidden(subtitl
     assert overlay.labels[0].cget("text") == "Already English."
     assert points(overlay.labels[0]) == 24
     assert not overlay.labels[3].winfo_manager()
+
+
+def test_original_off_hides_native_drafts_until_translation_arrives(subtitles):
+    overlay = subtitles
+    overlay.preferences.set('SUBTITLES','show_original',False)
+    entry = dict(id='draft',source_text='مرحبا.',source_language='ar',target_language='en',
+                 translated_text='',translation_pending=True)
+    overlay.accept(entry)
+    assert not any(label.winfo_manager() for label in overlay.labels)
+    overlay.visible(True,listening=True,minimized=False)
+    assert overlay.window.state() == 'withdrawn'
+    overlay.accept(dict(entry,translated_text='Hello.'))
+    overlay.visible(True,listening=True,minimized=False)
+    assert overlay.labels[0].cget('text') == 'Hello.'
+    assert not overlay.labels[3].winfo_manager()
+
+
+@pytest.mark.parametrize('monitor', [Monitor('small', 0, 0, 800, 560), Monitor('left', -1000, -200, 0, 500)])
+def test_long_subtitles_scroll_inside_the_work_area_and_restore_position(subtitles, monitor):
+    overlay = subtitles
+    overlay.monitor = monitor
+    overlay._preferred_position = monitor.left + 30, monitor.bottom - 100
+    overlay.preferences.set('SUBTITLES', 'text_size', 48)
+    for index in range(3):
+        overlay.accept(dict(id=str(index), source_text='مرحبا. ' * 200,
+            source_language='ar', target_language='en', translated_text='A long translated sentence. ' * 180))
+    overlay.window.deiconify()
+    overlay.window.update()
+    def inside():
+        x, y = overlay.window.winfo_x(), overlay.window.winfo_y()
+        assert monitor.left <= x and x + overlay.window.winfo_width() <= monitor.right
+        assert monitor.top <= y and y + overlay.window.winfo_height() <= monitor.bottom
+    inside()
+    assert overlay.scrollbar.winfo_manager() == 'pack'
+    assert overlay.canvas.yview()[0] > 0
+    overlay.canvas.yview_moveto(0)
+    assert overlay.canvas.yview()[0] == 0
+    overlay.render()
+    assert overlay.canvas.yview()[0] == 0  # Ticks do not undo the reader's scroll.
+    overlay.toolbar.pack(fill='x', before=overlay.viewport)
+    overlay.fit_to_monitor()
+    inside()
+    overlay.entries.clear()
+    overlay.accept(dict(id='short', source_text='مرحبا.', translated_text='Hello.', source_language='ar',target_language='en'))
+    inside()
+    assert not overlay.scrollbar.winfo_manager()
+
+
+def test_overlay_monitor_api_is_not_changed_by_dialog_centering(subtitles):
+    import sys, ctypes
+    if sys.platform != 'win32':
+        pytest.skip('Windows monitor API')
+    backend = Win32Overlay()
+    shared = ctypes.windll.user32.GetMonitorInfoW
+    original = shared.argtypes
+    try:
+        shared.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_int)]
+        monitors = backend.monitors(subtitles.root)
+        assert monitors and monitors[0].right > monitors[0].left
+        assert backend.user32.GetMonitorInfoW.argtypes == [ctypes.c_void_p, ctypes.c_void_p]
+    finally:
+        shared.argtypes = original

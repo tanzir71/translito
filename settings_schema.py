@@ -81,7 +81,7 @@ for section, pairs in {
     "UI": {"subtitles_enabled": False, "reply_strip_visible": True, "last_settings_page": "Languages", "window_geometry": "800x640"},
     "LANGUAGE": {"english_passthrough": True, "variety": ""},
     "CAPTURE": {"default_app": "", "if_app_closed": "wait", "app_executable": "", "device_name": "", "default_app_prompted": False},
-    "COSTGUARD": {"skip_non_speech": True, "skip_other_languages": True, "close_idle_seconds": "8"},
+    "COSTGUARD": {"skip_non_speech": True, "skip_other_languages": False, "close_idle_seconds": "8"},
     "REPLIES": {"enabled": True, "trigger": "question", "show_native": False, "show_on_overlay": True},
     "SCHEDULE": {"enabled": False, "source": "weekly", "weekly_times": "[]", "lead_seconds": 60, "stop_rule": "end", "silence_seconds": 300,
                  "wait_for_app_audio": True, "ask_before_start": False, "only_with_call_link": False, "timezone": "UTC"},

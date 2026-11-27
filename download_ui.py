@@ -177,7 +177,7 @@ def gemma_dialog(app, colors, center):
 
 def models_page(app, parent, colors):
     from engines.model_library import default_catalog
-    from engines.model_files import inspect_model, Ready, Incomplete, Corrupt, model_hint
+    from engines.model_files import inspect_model, Ready, Incomplete, Corrupt, Unavailable, model_hint
     heading = tk.Label(parent, text="Models and downloads", bg=colors["bg"], fg=colors["text"], font=("Segoe UI Semibold", 13))
     heading.pack(anchor="w", pady=px((8, 4)))
     tk.Label(parent, text="Models download once, then run on this PC. Downloads continue in the background.",
@@ -218,7 +218,8 @@ def models_page(app, parent, colors):
                     except (ValueError, OSError) as error:
                         app.show_hint(str(error))
                 ttk.Button(buttons, text=title, style="Mac.TButton", command=invoke).pack(side="right", padx=px(3))
-            if job and job.state != "Ready":
+            status = inspect_model(spec)
+            if job and job.state != "Ready" and not isinstance(status, Ready):
                 text.set(job.error or job.progress_text)
                 if job.state != "Cancelled":
                     button("Cancel", lambda j=job: app.download_manager.cancel(j))
@@ -227,9 +228,9 @@ def models_page(app, parent, colors):
                 else:
                     button("Resume", lambda j=job: app.download_manager.resume(j))
                 continue
-            status = inspect_model(spec)
             text.set("Ready" if isinstance(status, Ready) else
-                     "Incomplete" if isinstance(status, Incomplete) else "Corrupt" if isinstance(status, Corrupt) else "Not downloaded")
+                     status.reason if isinstance(status, Unavailable) else
+                     "Incomplete" if isinstance(status, Incomplete) else "Needs repair" if isinstance(status, Corrupt) else "Not downloaded")
             if isinstance(status, Ready):
                 button("Remove…", app.download_models)
             elif spec.setup:

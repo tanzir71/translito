@@ -647,6 +647,99 @@ def test_ui_callback_error_does_not_stop_following_events_or_future_ticks(deskto
     assert handled == ['same tick', 'next tick']
 
 
+def test_manual_replies_survive_new_source_and_do_not_read_tk_in_worker(desktop, monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    from subtitle_overlay import PreviewBackend
+    create, _ = desktop
+    app = create()
+    app.subtitle_controller.backend = PreviewBackend()
+    app.subtitles_enabled_var.set(True)
+    app.transcriber = SimpleNamespace(conversation_pipeline=None)
+    replies = app.reply_controller
+    entered, release = threading.Event(), threading.Event()
+    def translator(*args):
+        entered.set()
+        assert release.wait(3)
+        return None
+    monkeypatch.setattr(replies, 'translator', translator)
+    main_thread = threading.get_ident()
+    original_get = app.offline_only_var.get
+    def ui_get():
+        assert threading.get_ident() == main_thread
+        return original_get()
+    monkeypatch.setattr(app.offline_only_var, 'get', ui_get)
+    replies.accept(dict(id='news',source_text='هذا خبر.',source_language='ar',target_language='en',translation_pending=False))
+    assert not replies.replies
+    buttons = [w for w in widgets(replies.frame) if w.winfo_class() == 'TButton' and w.cget('text') == 'Suggest replies']
+    assert len(buttons) == 1
+    overlay = app.subtitle_controller.overlay
+    overlay.clock = lambda: 1000000
+    overlay.updated = 0
+    try:
+        buttons[0].invoke()
+        assert entered.wait(1)
+        overlay.visible(True,listening=True,minimized=False)
+        assert overlay.window.state() == 'normal'
+        generation = replies.generation
+        replies.accept(dict(id='next',source_text='جملة جديدة.',source_language='ar',target_language='en',translation_pending=False))
+        assert replies.generation == generation
+    finally:
+        release.set()
+    end = time.monotonic() + 3
+    while not replies.replies and time.monotonic() < end:
+        app.root.update();time.sleep(.01)
+    assert len(replies.replies) == 3 and not replies.busy
+    assert app.subtitle_controller.overlay.reply_tray.winfo_manager() == 'pack'
+    overlay.visible(True,listening=True,minimized=False)
+    assert overlay.window.state() == 'normal'
+    replies.options['show_on_overlay'].set(False)
+    overlay.updated = 0
+    overlay.visible(True,listening=True,minimized=False)
+    assert overlay.window.state() == 'withdrawn'
+    app.transcriber = None
+
+
+def test_enabling_replies_with_context_shows_free_fallback_even_when_router_fails(desktop, monkeypatch):
+    from types import SimpleNamespace
+    from subtitle_overlay import PreviewBackend
+    create, _ = desktop
+    app = create()
+    app.subtitle_controller.backend = PreviewBackend()
+    app.subtitles_enabled_var.set(True)
+    app.transcriber = SimpleNamespace(conversation_pipeline=None)
+    replies = app.reply_controller
+    replies.options['enabled'].set(False)
+    replies.accept(dict(id='line',source_text='مرحبا.',source_language='ar',target_language='en'))
+    def unavailable(*args):
+        raise OSError('Reply model unavailable')
+    monkeypatch.setattr(replies,'translator',unavailable)
+    replies.options['enabled'].set(True)
+    end = time.monotonic()+3
+    while not replies.replies and time.monotonic()<end:
+        app.root.update();time.sleep(.01)
+    assert len(replies.replies)==3 and 'free' in replies.status.get()
+    assert not replies.busy
+    app.transcriber = None
+
+
+def test_reply_shortcut_reveals_main_strip_before_requesting(desktop, monkeypatch):
+    create, _ = desktop
+    app = create()
+    replies = app.reply_controller
+    monkeypatch.setattr(replies,'translator',lambda *args:None)
+    app.subtitles_enabled_var.set(False)
+    app.root.withdraw()
+    replies.visible_var.set(False)
+    replies.accept(dict(id='line',source_text='مرحبا.',source_language='ar',target_language='en'))
+    replies.show_and_request()
+    end = time.monotonic()+3
+    while not replies.replies and time.monotonic()<end:
+        app.root.update();time.sleep(.01)
+    assert replies.visible_var.get() and app.root.winfo_viewable()
+    assert len(replies.replies)==3
+
+
 @pytest.mark.parametrize('failure_stage', ['cleanup', 'save'])
 def test_stop_cleanup_failure_always_returns_control_and_retains_transcript(desktop, failure_stage):
     import threading

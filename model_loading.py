@@ -237,11 +237,10 @@ class ModelLoadManager:
                     compute_type="int8" if torch_device == -1 else "float16",
                     cpu_threads=physical_cpu_threads(), local_files_only=True))
             except Exception as error:
-                status = Incomplete() if "Unable to open file 'model.bin'" in str(error) else Corrupt()
-                if isinstance(status, Corrupt):
-                    from engines.model_files import mark_corrupt
-                    mark_corrupt(fast_model_path)
-                raise ModelNotReady(spec, status) from None
+                if "Unable to open file 'model.bin'" in str(error):
+                    raise ModelNotReady(spec, Incomplete()) from None
+                from engines.model_files import Unavailable
+                raise ModelNotReady(spec, Unavailable("The local speech engine could not load this model. Check model access, available memory and device support.")) from None
             if whisper_model == CODESWITCH_REPO:
                 asr.provider = "arabic-codeswitch-ct2"
         else:

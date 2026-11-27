@@ -93,6 +93,20 @@ def test_reply_shortcut_copies_romanization_without_speak_output():
     root.clipboard_append.assert_called_once_with("Shukran")
 
 
+def test_reply_provider_events_do_not_replace_the_capture_engine(tmp_path, monkeypatch):
+    from reply_ui import ReplyController
+    controller = ReplyController.__new__(ReplyController)
+    controller.app = SimpleNamespace(on_event=Mock())
+    router = object()
+    def construct(*args, **kwargs):
+        kwargs['on_event']('engine', {'mt':'reply-provider'})
+        kwargs['on_event']('engine_fallback', 'reply unavailable')
+        return None,router
+    monkeypatch.setattr('engines.registry.build_session_routers',construct)
+    assert controller.translator('ar','en',tmp_path/'config.ini',False,False) is router
+    controller.app.on_event.assert_not_called()
+
+
 def test_reply_bindings_are_recordable_persisted_and_registered_with_fake_keyboard(tmp_path,monkeypatch):
     import sys
     from app_config import DEFAULT_HOTKEYS,save_hotkey_config,load_hotkey_config

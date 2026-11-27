@@ -1,7 +1,7 @@
 #include "app_identity.iss"
 #define MyAppName "Translito"
 #define MyAppExeName "Translito.exe"
-#define MyAppVersion "2.0.9"
+#define MyAppVersion "2.0.10"
 #ifndef RuntimeBytes
   #error "Build with build_windows.ps1 so the runtime disk requirement is measured."
 #endif
@@ -126,6 +126,61 @@ begin
   Log('Archived the previous runtime at ' + BackupDir);
 end;
 
+function IsRuntimeBackupName(Name: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  if Length(Name) < 15 then Exit;
+  for I := 1 to Length(Name) do
+    if (I = 9) or (I = 16) then
+    begin
+      if Name[I] <> '-' then Exit;
+    end
+    else if (Name[I] < '0') or (Name[I] > '9') then Exit;
+  if Length(Name) = 16 then Exit;
+  Result := True;
+end;
+
+procedure CleanupRuntimeHistory;
+var
+  AppPrefix, HistoryDir, HistoryPrefix, Candidate: String;
+  Entry: TFindRec;
+begin
+  AppPrefix := AddBackslash(ExpandFileName(ExpandConstant('{app}')));
+  HistoryDir := ExpandFileName(AppPrefix + 'runtime-history');
+  HistoryPrefix := AddBackslash(HistoryDir);
+  if (Length(AppPrefix) <= 3) or not DirExists(HistoryDir) then Exit;
+  if ((GetFileAttributesW(RemoveBackslashUnlessRoot(AppPrefix)) and $400) <> 0) or
+     ((GetFileAttributesW(HistoryDir) and $400) <> 0) then Exit;
+  if FindFirst(HistoryPrefix + '*', Entry) then
+  begin
+    try
+      repeat
+        if ((Entry.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) and
+           ((Entry.Attributes and $400) = 0) and IsRuntimeBackupName(Entry.Name) then
+        begin
+          Candidate := ExpandFileName(HistoryPrefix + Entry.Name);
+          if (CompareText(Copy(Candidate, 1, Length(HistoryPrefix)), HistoryPrefix) = 0) and
+             FileExists(Candidate + '\python313.dll') and
+             DirExists(Candidate + '\_tk_data') and DirExists(Candidate + '\_tcl_data') then
+          begin
+            { DelTree removes nested reparse points without traversing them.
+              Only recognized packaged runtimes beneath this app are eligible. }
+            if DelTree(Candidate, True, True, True) then
+              Log('Removed obsolete Translito runtime: ' + Candidate)
+            else
+              Log('An obsolete runtime is still in use; leaving it for the next cleanup.');
+          end;
+        end;
+      until not FindNext(Entry);
+    finally
+      FindClose(Entry);
+    end;
+  end;
+  RemoveDir(HistoryDir);
+end;
+
 procedure InstallVirtualMic;
 var
   ArchivePath, DriverDir, DriverExe: String;
@@ -166,7 +221,19 @@ begin
   if CurStep = ssPostInstall then
   begin
     InstallFilesDone := True;
+    CleanupRuntimeHistory;
     InstallVirtualMic;
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    CleanupRuntimeHistory;
+    { An empty application folder can be removed; user data and shared model
+      caches are never included in this cleanup. }
+    RemoveDir(ExpandConstant('{app}'));
   end;
 end;
 

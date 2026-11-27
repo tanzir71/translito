@@ -20,7 +20,9 @@ class ReplyController:
         self.replies, self.context, self.language, self.target = (), [], "", "en"
         self.current_id, self.suggested, self.generation = None, None, 0
         self.request_stop = threading.Event()
+        self.busy = False
         self.reply_player, self.overlay_signature = None, None
+        self.main_signature = None
         self.frame = tk.Frame(app.root,bg=colors["bg"],padx=px(16),pady=px(10))
         self.status = tk.StringVar()
         self.visible_var.trace_add("write",lambda *_:self.render())
@@ -32,7 +34,8 @@ class ReplyController:
     def somewhere_visible(self):
         main = self.visible_var.get() and self.app.root.winfo_viewable() and self.app.root.state() != "iconic"
         window = self.app.subtitle_controller.overlay
-        overlay = self.app.subtitles_enabled_var.get() and self.options["show_on_overlay"].get() and window is not None and window.window.winfo_viewable()
+        overlay = (self.app.subtitles_enabled_var.get() and self.options["show_on_overlay"].get()
+                   and window is not None and self.app.transcriber is not None and self.app.mode_var.get() == "listen")
         return main or overlay
 
     def enabled_changed(self, *_):
@@ -40,41 +43,53 @@ class ReplyController:
             self.generation += 1
             self.request_stop.set()
             self.replies = ()
+            self.busy = False
             self.stop_speaking()
             self.render()
+        elif self.context:
+            self.show_and_request()
 
     def accept(self, entry):
         text, identity = entry.get("source_text",""), entry.get("id")
         if not text:
             return
         if identity != self.current_id:
-            self.current_id, self.replies = identity, ()
-            self.generation += 1
-            self.render()
+            self.current_id = identity
+        previous_pair = getattr(self, "language", ""), getattr(self, "target", "")
         self.language = entry.get("source_language") or self.app.language_entry_by_name(self.app.listen_source_var.get())[2]
         if entry.get("language_tag") == "mix":
             self.language = self.app.current_conversation().other_language
         self.target = entry.get("target_language") or self.app.language_entry_by_name(self.app.listen_target_var.get())[2]
+        if previous_pair[0] and previous_pair != (self.language, self.target):
+            self.replies = ()
+            self.generation += 1
+            self.request_stop.set()
+            self.busy = False
+            self.status.set("")
         if not self.context or self.context[-1][0] != identity:
             self.context.append((identity,text))
             self.context = self.context[-3:]
         else:
             self.context[-1] = identity,text
         marker = identity,text
-        if (self.options["enabled"].get() and self.options["trigger"].get() == "question" and not entry.get("translation_pending")
-                and not entry.get("pass_through") and text.rstrip().endswith(("?","؟","？")) and marker != self.suggested):
+        source_final = not entry.get("source_provisional", entry.get("translation_pending", False))
+        question = any(value.rstrip(' \t\n\"\u201d\u2019\u00bb)').endswith(("?", "؟", "？"))
+                       for value in (text, entry.get("translated_text", "")))
+        self.render()
+        if (self.options["enabled"].get() and self.options["trigger"].get() == "question" and source_final
+                and not entry.get("pass_through") and question and marker != self.suggested):
             self.suggested = marker
             self.request()
 
-    def translator(self):
-        if self.app.preview_mode:
+    def translator(self, language, target, config_path, offline_only, preview):
+        if preview:
             return None
         from types import SimpleNamespace
         from engines.settings import load_engine_settings
         from engines.registry import build_session_routers
         local = SimpleNamespace(name="local",requires_network=False,supports=lambda *a:True)
-        _, router = build_session_routers(local,local,load_engine_settings(self.app.preferences.path),
-            pair=(self.language,self.target),on_event=self.app.on_event, offline_only=self.app.offline_only_var.get())
+        _, router = build_session_routers(local,local,load_engine_settings(config_path),
+            pair=(language,target),on_event=lambda *args: None, offline_only=offline_only)
         return router
 
     def request(self):
@@ -85,29 +100,44 @@ class ReplyController:
         stop = self.request_stop = threading.Event()
         generation, language, target = self.generation,self.language,self.target
         context, variety = [text for _,text in self.context],self.app.variety_var.get()
+        config_path, offline_only, preview = self.app.preferences.path, self.app.offline_only_var.get(), self.app.preview_mode
+        self.busy = True
         self.status.set("Suggesting replies…")
+        self.render()
         def work():
             from engines.cancellation import generation_scope, GenerationCancelled
             try:
                 with generation_scope(stop):
-                    result = ReplyService(self.translator()).suggest(context,language,target,variety=variety)
+                    translator = self.translator(language, target, config_path, offline_only, preview)
+                    result = ReplyService(translator).suggest(context,language,target,variety=variety)
             except GenerationCancelled:
                 return
+            except Exception:
+                result = ReplyService().suggest(context,language,target,variety=variety)
             if stop.is_set():
                 return
             def finish():
                 if generation != self.generation or not self.options["enabled"].get():
                     return
                 self.replies = result.replies
-                self.status.set("Phrasebook · free" if result.provider == "phrasebook" else "Short replies · usage included in your budget")
+                self.busy = False
+                self.status.set("Quick replies · free" if result.provider == "phrasebook" else "Short replies · usage included in your budget")
+                if not self.replies:
+                    self.status.set("No quick replies are available for this language.")
                 self.render()
             post(self.app,finish)
         threading.Thread(target=work,daemon=True).start()
 
     def render(self):
+        signature = (self.replies, self.visible_var.get(), self.options["enabled"].get(),
+                     self.options["show_native"].get(), bool(self.context), self.busy, self.language, self.target)
+        if signature == self.main_signature:
+            self.render_overlay()
+            return
+        self.main_signature = signature
         for child in self.frame.winfo_children():
             child.destroy()
-        if not self.replies or not self.visible_var.get() or not self.options["enabled"].get():
+        if (not self.replies and not self.context) or not self.visible_var.get() or not self.options["enabled"].get():
             self.frame.grid_remove()
         else:
             self.frame.grid(row=9,column=0,sticky="ew")
@@ -115,7 +145,10 @@ class ReplyController:
             header.pack(fill="x",pady=px((0,8)))
             tk.Label(header,textvariable=self.status,bg=self.colors["bg"],fg=self.colors["secondary"],font=("Segoe UI",8)).pack(side="left")
             ttk.Button(header,text="Hide",command=lambda:self.visible_var.set(False),style="Mac.TButton").pack(side="right")
-            ttk.Button(header,text="More",command=self.request,style="Mac.TButton").pack(side="right",padx=px(6))
+            ttk.Button(header,text="Suggest replies" if not self.replies else "More",command=self.show_and_request,
+                       state="disabled" if self.busy else "normal",style="Mac.TButton").pack(side="right",padx=px(6))
+            if not self.status.get():
+                self.status.set("Suggestions appear after questions. Request replies for any line.")
             cards = tk.Frame(self.frame,bg=self.colors["bg"])
             cards.pack(fill="x")
             for index, reply in enumerate(self.replies):
@@ -141,32 +174,49 @@ class ReplyController:
         if overlay is None:
             return
         signature = (self.replies,self.options["enabled"].get(),self.options["show_on_overlay"].get(),
-            self.app.subtitles_enabled_var.get(),overlay.option("text_size",24))
+            self.app.subtitles_enabled_var.get(),overlay.option("text_size",24),self.busy,bool(self.context),
+            getattr(overlay,"layout_width",px(720)))
+        overlay._reply_pinned = all(signature[1:4]) and self.busy
         if signature == self.overlay_signature:
             return
         self.overlay_signature = signature
+        if all(signature[1:4]) and (self.replies or self.busy):
+            overlay.updated = overlay.clock()
         tray = overlay.reply_tray
         for child in tray.winfo_children():
             child.destroy()
-        if not self.replies or not all(signature[1:4]):
+        if (not self.replies and not self.context) or not all(signature[1:4]):
             tray.pack_forget()
+            overlay.fit_to_monitor()
             return
         tray.pack(fill="x",pady=px((6,0)))
+        if not self.replies:
+            tk.Label(tray,textvariable=self.status,bg=self.colors["black"],fg=self.colors["secondary"],
+                     wraplength=max(px(120),signature[-1]-px(160)),font=("Segoe UI",9)).pack(side="left",fill="x",expand=True)
+            ttk.Button(tray,text="Suggest replies",command=self.show_and_request,
+                       state="disabled" if self.busy else "normal",style="Mac.TButton").pack(side="right")
         for index, reply in enumerate(self.replies):
             card = tk.Frame(tray,bg=self.colors["black"],padx=px(8))
             card.grid(row=0,column=index,sticky="nsew")
             tray.columnconfigure(index,weight=1,uniform="reply-tray")
             size = max(9,round(overlay.option("text_size",24)*.4))
+            wrap = max(px(40), (signature[-1] - px(48)) // len(self.replies) - px(16))
             tk.Button(card,text=f"{index+1}  {reply.spoken}",command=lambda i=index:self.say(i),bg=self.colors["black"],
                 fg=self.colors["text"],activebackground=self.colors["field"],activeforeground=self.colors["text"],relief="flat",bd=0,
-                font=("Segoe UI Semibold",size),wraplength=px(205),anchor="w",justify="left").pack(fill="x")
+                font=("Segoe UI Semibold",size),wraplength=wrap,anchor="w",justify="left").pack(fill="x")
             tk.Label(card,text=wrap_text(display_text(reply.meaning),self.target,18),bg=self.colors["black"],fg=self.colors["secondary"],font=(font_family(self.target),max(8,size-1)),
-                wraplength=px(205),anchor="w",justify="left").pack(fill="x")
-        overlay.window.update_idletasks()
-        overlay.window.geometry(f"{px(720)}x{max(px(64),overlay.window.winfo_reqheight())}")
-        overlay.apply_styles()
+                wraplength=wrap,anchor="w",justify="left").pack(fill="x")
+        overlay.fit_to_monitor()
 
     def show_and_request(self):
+        if not self.context:
+            self.status.set("Listen to a line first, then request replies.")
+            return
+        if not self.somewhere_visible():
+            self.app.show_main_window()
+            self.visible_var.set(True)
+            self.app.root.after_idle(self.request)
+            return
         if self.app.root.winfo_viewable() and self.app.root.state() != "iconic":
             self.visible_var.set(True)
         self.request()
@@ -203,7 +253,7 @@ def page(app, colors):
     from engine_ui import heading, field
     from ui_widgets import Switch
     parent, controller = app.settings_shell.contents["Languages"], app.reply_controller
-    heading(parent,"Reply suggestions","Short replies in the spoken language, with readable English letters and a meaning.",colors)
+    heading(parent,"Reply suggestions","Automatic suggestions appear after questions. Use Suggest replies or the reply shortcut for any line. Quick replies work without an extra model.",colors)
     row = tk.Frame(parent,bg=colors["bg"])
     row.pack(fill="x",pady=px(8))
     tk.Label(row,text="Suggest short replies",bg=colors["bg"],fg=colors["text"]).pack(side="left")
