@@ -126,3 +126,22 @@ def test_stop_cancels_generation_and_discards_waiting_audio():
     assert transcriber.audio_queue.empty()
     transcriber._handle_capture_result(chunk())
     assert transcriber.audio_queue.empty()
+
+
+def test_stop_join_has_one_short_deadline_even_with_busy_inference():
+    import threading, time
+    transcriber, _ = worker()
+    release = threading.Event()
+    threads = [threading.Thread(target=release.wait) for _ in range(2)]
+    transcriber._capture_thread, transcriber._process_thread = threads
+    for thread in threads:
+        thread.start()
+    try:
+        started = time.monotonic()
+        transcriber.join_background()
+        assert time.monotonic() - started < .8
+        assert all(thread.is_alive() for thread in threads)
+    finally:
+        release.set()
+        for thread in threads:
+            thread.join(1)

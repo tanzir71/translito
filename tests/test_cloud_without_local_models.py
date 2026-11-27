@@ -11,15 +11,19 @@ from audio_processing import AudioChunkResult
 from engines.router import Conversation
 from engines.settings import EngineSettings, ProviderSettings, credential_signature
 from engines.session_state import resolve_plan, readiness
-from engines.model_files import Missing
+from engines.model_files import Missing, Ready
 
 
 @pytest.mark.parametrize('one_way', [False, True])
-def test_capture_translates_and_stops_with_missing_local_models(tmp_path, monkeypatch, one_way):
+@pytest.mark.parametrize('cached', [False, True])
+def test_capture_translates_and_stops_without_local_inference(tmp_path, monkeypatch, one_way, cached):
+    import time
     import main, audio_processing, engines.registry
     from engines.paid_streaming import PaidStreamingInterpreter
     monkeypatch.setenv('OFFLINE_ONLY', '0')
     monkeypatch.setattr(main.atexit, 'register', lambda *a: None)
+    monkeypatch.setattr(main, 'save_runtime_config', lambda *a, **kw: None)
+    monkeypatch.setattr('app_config.read_config', lambda *a, **kw: __import__('configparser').ConfigParser())
     monkeypatch.setattr(main.GLOBAL_MODEL_MANAGER, 'load_models', lambda **kw: pytest.fail('Cloud attempted local model loading'))
     monkeypatch.setattr('engines.asr_local._lid_model', lambda *a: pytest.fail('Cloud attempted local LID loading'))
     monkeypatch.setattr(audio_processing, 'SpeechActivityDetector', lambda: SimpleNamespace(speech_probability=lambda *a: .99))
@@ -27,7 +31,7 @@ def test_capture_translates_and_stops_with_missing_local_models(tmp_path, monkey
     pref = replace(pref, tested_signature=credential_signature('soniox', 'fake-key', pref))
     settings = EngineSettings(engine_choice='cloud', profile='custom', monthly_cap=Decimal(5),
         default_asr_provider='soniox', default_asr_model='obsolete-model', default_mt_provider='soniox', providers={'soniox':pref})
-    plan = resolve_plan(settings, ('ar','en'), inspect=lambda _: Missing())
+    plan = resolve_plan(settings, ('ar','en'), inspect=lambda _: Ready(tmp_path) if cached else Missing())
     assert readiness(plan).can_start and not plan.required_resources
     original = engines.registry.configured_live_interpreter
     class Stream:
@@ -61,7 +65,7 @@ def test_capture_translates_and_stops_with_missing_local_models(tmp_path, monkey
         def __exit__(self, *args): pass
         def record(self, numframes):
             self.frames += 1
-            if self.frames == 4: app.running = False
+            time.sleep(.01)
             return np.full(numframes, .25, np.float32)
     class Processor:
         def append(self, samples, rate): return [AudioChunkResult('audio', samples, rate, .25, .25)]
@@ -73,16 +77,23 @@ def test_capture_translates_and_stops_with_missing_local_models(tmp_path, monkey
         translation_model=plan.translation_model, engine_settings=settings, session_plan=plan, conversation=conversation,
         on_event=lambda kind, value: events.append((kind,value)))
     assert app.asr is None
-    app.live_pipeline.start()
+    app.start_background()
     assert not app.live_pipeline.interpreter.guard.skip_other_languages
-    app.running = True
-    app.capture_audio()
-    app.process_audio()
+    try:
+        end = time.monotonic() + 3
+        while not any(row['translated_text'] for row in app.transcripts) and time.monotonic() < end:
+            time.sleep(.01)
+    finally:
+        started = time.monotonic()
+        app.stop_background()
+        app.join_background()
+        stop_seconds = time.monotonic() - started
     assert app.transcripts and app.transcripts[0]['translated_text'] == 'Hello.'
     assert app.transcripts[0]['asr_engine'] == 'soniox'
     assert not any('selected default needs' in str(value) for _,value in events)
-    app.stop_background()
+    assert stop_seconds < 1
     assert app._stop_event.is_set() and not app.live_pipeline.interpreter.guard.active
+    assert not app._capture_thread.is_alive() and not app._process_thread.is_alive()
 
 
 def test_optional_filter_prepares_after_cloud_start_without_ui_progress(monkeypatch):
@@ -106,3 +117,19 @@ def test_optional_filter_prepares_after_cloud_start_without_ui_progress(monkeypa
     assert app.live_pipeline.lid is app.live_pipeline.interpreter.lid and guard.skip_other_languages
     app.ensure_local_asr.assert_called_once_with(notify=False)
     app._stop_event.set()
+
+
+def test_default_cloud_never_loads_or_attaches_a_cached_local_filter(monkeypatch):
+    import threading, main
+    app = main.ArabicAudioTranscriber.__new__(main.ArabicAudioTranscriber)
+    app.cloud_asr, app.whisper_model = True, 'openai/whisper-base'
+    app._stop_event = threading.Event()
+    app.live_pipeline = SimpleNamespace(lid=None, interpreter=SimpleNamespace(
+        lid=None, guard=SimpleNamespace(language_filter_requested=False)))
+    app.ensure_local_asr = Mock(side_effect=AssertionError('Cloud must not load cached Whisper'))
+    inspect = Mock(side_effect=AssertionError('Cloud must not inspect an unused filter'))
+    monkeypatch.setattr('engines.model_files.inspect_model', inspect)
+    app.prepare_optional_cloud_filter()
+    inspect.assert_not_called()
+    app.ensure_local_asr.assert_not_called()
+    assert app.live_pipeline.lid is None

@@ -794,6 +794,9 @@ class ArabicAudioTranscriber:
         if not self.cloud_asr or self.live_pipeline is None:
             return
         pipeline = self.live_pipeline
+        guard = getattr(pipeline.interpreter, "guard", None)
+        if not getattr(guard, "language_filter_requested", False):
+            return
         def prepare():
             from engines.model_files import Ready, inspect_model, whisper_spec
             from engines.lid import PairLanguageDetector
@@ -853,11 +856,12 @@ class ArabicAudioTranscriber:
             if self.speech_player:
                 self.speech_player.stop()
 
-    def join_background(self, timeout_capture=2, timeout_process=5):
+    def join_background(self, timeout_capture=.25, timeout_process=.25):
+        deadline = time.monotonic() + timeout_capture + timeout_process
         if self._capture_thread:
             self._capture_thread.join(timeout=timeout_capture)
         if self._process_thread:
-            self._process_thread.join(timeout=timeout_process)
+            self._process_thread.join(timeout=max(0, deadline - time.monotonic()))
 
     def run(self):
         if self.interactive:

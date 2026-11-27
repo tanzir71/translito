@@ -20,7 +20,7 @@ def initialize(app):
         ("budget_warning", "ENGINES", "budget_warn_percent", str(settings.budget_warn_percent)),
         ("engine_scope", "UI", "engine_scope", "all"),
         ("skip_non_speech", "COSTGUARD", "skip_non_speech", True),
-        ("skip_other_languages", "COSTGUARD", "skip_other_languages", True),
+        ("skip_other_languages", "COSTGUARD", "skip_other_languages", False),
         ("close_idle", "COSTGUARD", "close_idle_seconds", "8")):
         variable = tk.BooleanVar(app.root) if isinstance(default, bool) else tk.StringVar(app.root)
         setattr(app, name + "_var", state.bind(variable, section, key, default))
@@ -253,9 +253,9 @@ def pages(app, colors):
     tk.Label(cost, textvariable=app.cost_summary_var, bg=colors["bg"], fg=colors["text"], wraplength=px(540), justify="left").pack(fill="x", pady=px(12))
     ttk.Button(cost, text="Change the monthly budget in Engine", style="Mac.TButton", command=lambda: app.settings_shell.show("Engine")).pack(anchor="w")
     field(cost, "Warn at", app.budget_warning_var, colors, ("50", "75", "80", "90", "100"))
-    for title, variable in (("Skip silence, music and noise", app.skip_non_speech_var), ("Skip speech outside the selected languages", app.skip_other_languages_var)):
+    for title, variable in (("Skip silence, music and noise", app.skip_non_speech_var), ("Filter other languages on this PC", app.skip_other_languages_var)):
         tk.Checkbutton(cost, text=title, variable=variable, **{**app._checkbutton_options(), "bg": colors["bg"]}).pack(anchor="w", pady=px(6))
-    tk.Label(cost, text="Cloud starts with speech detection. Local language filtering turns on when its optional model is ready.",
+    tk.Label(cost, text="Cloud detects the selected languages. Optional filtering on this PC uses a local model and can add delay; leave it off for the fastest subtitles. Changes apply next session.",
              bg=colors["bg"], fg=colors["secondary"], wraplength=px(540), justify="left").pack(anchor="w", pady=px((0, 8)))
     field(cost, "Close idle connections after seconds (8–10)", app.close_idle_var, colors, ("8", "9", "10"))
     app.provider_totals_var = tk.StringVar()

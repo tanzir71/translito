@@ -13,7 +13,8 @@ model preparation and temporary recovery are presented as setup progress.
   pair-specific speech overrides and an explicit Lite selection. Larger models
   and models requiring license acceptance remain explicit downloads.
 - For cloud, start the connected recognizer without waiting for local models.
-  Speech detection is available immediately. Optional language filtering and
+  Speech detection is available immediately. Local language filtering is opt-in;
+  default cloud sessions use provider language identification. Optional filtering and
   local fallback prepare in the background; their download failures cannot block
   a ready cloud route. Explicit local translation still requires its translator.
 - Recompute required files when the user changes either language, switches

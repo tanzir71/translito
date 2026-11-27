@@ -79,3 +79,29 @@ def test_stream_stop_settles_all_frames_in_one_write_without_releasing_cost(tmp_
     assert all(record["settled"] for record in ledger._read()["reservations"].values())
     instance.close()
     assert write.call_count == 1
+
+
+def test_stop_during_slow_inspection_does_not_send_or_reserve_late_audio(tmp_path):
+    import threading, time
+    instance, provider, ledger = guard(tmp_path, "open_stream", [GateDecision(.99, "es")])
+    entered, release = threading.Event(), threading.Event()
+    def inspect(*args):
+        entered.set()
+        assert release.wait(3)
+        return GateDecision(.99, "es")
+    instance.inspect = inspect
+    feeding = threading.Thread(target=lambda: instance.feed(np.ones(16000, np.float32)))
+    feeding.start()
+    try:
+        assert entered.wait(1)
+        started = time.monotonic()
+        instance.stop()
+        assert time.monotonic() - started < .5
+    finally:
+        release.set()
+        feeding.join(2)
+    assert not feeding.is_alive()
+    assert not instance.feed(np.ones(16000, np.float32))
+    provider.open_stream.assert_not_called()
+    provider.push_audio.assert_not_called()
+    assert ledger.snapshot()['providers'] == {}

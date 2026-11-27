@@ -594,17 +594,22 @@ class TranslatorGUI:
 
     def _drain_ui(self):
         import queue
-        for _ in range(200):
-            try:
-                callback = self._ui_events.get_nowait()
-            except queue.Empty:
-                break
-            callback()
         try:
-            if self.root.winfo_exists():
-                self.root.after(50, self._drain_ui)
-        except tk.TclError:
-            pass
+            for _ in range(200):
+                try:
+                    callback = self._ui_events.get_nowait()
+                except queue.Empty:
+                    break
+                try:
+                    callback()
+                except Exception:
+                    self.root._report_exception()
+        finally:
+            try:
+                if self.root.winfo_exists():
+                    self.root.after(50, self._drain_ui)
+            except tk.TclError:
+                pass
 
     def apply_styles(self):
         from ui_theme import apply_theme
@@ -2522,9 +2527,10 @@ class TranslatorGUI:
             fg=COLORS["secondary"],
             font=("Cascadia Mono", 8),
         ).pack(side="left")
-        tk.Label(header, text=entry.get("language_tag", entry.get("source_language", "")).upper(),
+        language_label = tk.Label(header, text=(entry.get("language_tag") or entry.get("source_language") or "").upper(),
                  bg=COLORS["field"], fg=COLORS["blue"], padx=px(5),
-                 font=("Segoe UI Semibold", 8)).pack(side="left", padx=px((8, 0)))
+                 font=("Segoe UI Semibold", 8))
+        language_label.pack(side="left", padx=px((8, 0)))
         source_info = self.current_source_info(entry)
         if entry.get("delay_s") is not None:
             source_info += f" · {entry['delay_s']:.1f} s"
@@ -2559,6 +2565,7 @@ class TranslatorGUI:
             font=("Segoe UI", 10),
         )
         source_label.pack(fill="x")
+        source_label._language_label = language_label
         configure_language_text(source_label, source_text, source_language, 10)
         self.transcript_text_labels.append(source_label)
         if translated_text or entry.get("id"):
@@ -2605,6 +2612,7 @@ class TranslatorGUI:
             return
         stored_entry, label, source_label = target
         stored_entry.update(entry)
+        source_label._language_label.configure(text=(stored_entry.get("language_tag") or stored_entry.get("source_language") or "").upper())
         meta = self.transcript_meta.get(entry.get("id"))
         if meta is not None:
             meta.configure(text=self.current_source_info(stored_entry) + (f" · {entry['delay_s']:.1f} s" if entry.get("delay_s") is not None else ""))

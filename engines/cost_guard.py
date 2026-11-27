@@ -2,6 +2,7 @@
 from collections import deque
 from dataclasses import dataclass
 import math
+import threading
 import time
 from uuid import uuid4
 
@@ -45,6 +46,7 @@ class CostGuard:
         self.sent_intervals = {}
         self.stream_sent_seconds = 0
         self.last_sent_capture = 0
+        self.stopped = threading.Event()
 
     def _reserve(self, seconds):
         if self.paused:
@@ -62,6 +64,8 @@ class CostGuard:
                 self.emit("hint", "The monthly budget warning level has been reached.")
 
     def _send(self, audio, sample_rate):
+        if self.stopped.is_set():
+            return
         seconds = len(audio) / sample_rate
         self._reserve(seconds)  # Before socket creation, handshake or upload.
         if not self.active:
@@ -83,6 +87,8 @@ class CostGuard:
         self.last_sent_capture = self.captured_seconds
 
     def feed(self, audio, sample_rate=16000):
+        if self.stopped.is_set():
+            return False
         audio = np.asarray(audio, dtype=np.float32)
         if audio.ndim != 1 or sample_rate <= 0 or not np.isfinite(audio).all():
             raise ValueError("The cost guard requires finite mono audio")
@@ -99,6 +105,8 @@ class CostGuard:
             self.paused = True
             self.close()
             self.emit("fallback", "Local speech/language inspection is unavailable. Continuing on this PC.")
+            return False
+        if self.stopped.is_set():
             return False
         threshold = .25 if self.active else .5
         evidence = decision.probability >= threshold and decision.no_speech_prob < .6
@@ -177,6 +185,7 @@ class CostGuard:
             self.reservations.clear()
 
     def stop(self):
+        self.stopped.set()
         self.close()
         self.ledger.record_session(self.session_id, captured_seconds=self.captured_seconds,
             sent_seconds=self.sent_seconds, translated_chars=self.translated_chars)

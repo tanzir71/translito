@@ -573,6 +573,77 @@ def test_repeated_stop_does_not_overlap_shutdown_or_save(desktop):
     child.save_transcript.assert_called_once()
 
 
+def test_local_language_filter_is_opt_in_and_explicit_choice_survives(desktop):
+    create, path = desktop
+    app = create()
+    assert app.skip_other_languages_var.get() is False
+    app.skip_other_languages_var.set(True)
+    assert app.preferences.commit_pending()
+    app = create()
+    assert app.skip_other_languages_var.get() is True
+
+
+def test_first_streaming_row_without_language_renders_translation_subtitles_and_stop(desktop, monkeypatch):
+    from unittest.mock import Mock
+    from subtitle_overlay import PreviewBackend
+    create, _ = desktop
+    app = create()
+    errors = Mock()
+    monkeypatch.setattr(app.root._root(), 'report_callback_exception', errors)
+    app.subtitle_controller.backend = PreviewBackend()
+    app.subtitles_enabled_var.set(True)
+    child = Mock(last_saved_path=None)
+    child.save_transcript.return_value = None
+    app.transcriber = child
+    draft = dict(id='first-live-row', source_text='', translated_text='', source_language=None,
+                 target_language='en', mode='listen', translation_pending=True)
+    source = dict(draft, source_text='مرحبا.', source_language='ar', language_tag='ar')
+    target = dict(source, translated_text='Hello.', translation_pending=False)
+    for kind, entry in [('transcript', draft), ('transcript_update', source), ('transcript_update', target)]:
+        app.on_event(kind, entry)
+    end = time.monotonic() + 2
+    while (not app.transcript_entries or not app.transcript_entries[0].get('translated_text')) and time.monotonic() < end:
+        app.root.update()
+        time.sleep(.01)
+    assert len(app.transcript_entries) == 1
+    assert app.transcript_entries[0]['translated_text'] == 'Hello.'
+    _, translated, original = app.transcript_targets[draft['id']]
+    assert translated.cget('text') == 'Hello.' and translated.winfo_manager()
+    assert original._language_label.cget('text') == 'AR'
+    app.subtitle_controller.tick(schedule=False)
+    assert any(label.cget('text') == 'Hello.' for label in app.subtitle_controller.overlay.labels)
+    started = time.monotonic()
+    app.stop()
+    while app.transcriber is not None and time.monotonic() - started < 1.5:
+        app.root.update()
+        time.sleep(.01)
+    assert app.transcriber is None and not app._stopping and app.current_status == 'Ready'
+    assert app.listen_action_button.cget('text') != 'Stopping…'
+    errors.assert_not_called()
+
+
+def test_ui_callback_error_does_not_stop_following_events_or_future_ticks(desktop, monkeypatch):
+    from unittest.mock import Mock
+    create, _ = desktop
+    app = create()
+    errors = Mock()
+    monkeypatch.setattr(app.root._root(), 'report_callback_exception', errors)
+    handled = []
+    def broken():
+        raise ValueError('Deliberate callback failure')
+    app.post_ui(broken)
+    app.post_ui(lambda: handled.append('same tick'))
+    app._drain_ui()
+    assert handled == ['same tick']
+    assert errors.call_args.args[0] is ValueError
+    app.post_ui(lambda: handled.append('next tick'))
+    end = time.monotonic() + 1
+    while len(handled) < 2 and time.monotonic() < end:
+        app.root.update()
+        time.sleep(.01)
+    assert handled == ['same tick', 'next tick']
+
+
 @pytest.mark.parametrize('failure_stage', ['cleanup', 'save'])
 def test_stop_cleanup_failure_always_returns_control_and_retains_transcript(desktop, failure_stage):
     import threading
