@@ -53,3 +53,11 @@ Final source verification passed **869 app checks and 29 download checks**.
 The portable archive passed full CRC verification, every staged file-size
 check, and source comparisons for all 27 checked production modules plus the
 importable GUI. Engine data and bundled VB-CABLE resources match their sources.
+
+Release source: `f789c090093b781b308ce30902bbac05755d9537`.
+The landing page passed **64 checks** with the 2.0.8 download links.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| TranslitoSetup-2.0.8.exe | 256,945,547 | `be09ad15a753db42213cec1a76f397f872c5cbd5acdda3841c0aceb3051ef202` |
+| TranslitoPortable-2.0.8.zip | 374,108,923 | `93a1c01059993fe9f84507fa8b509bfdadfe003935aa511d250ed7d350602b89` |
