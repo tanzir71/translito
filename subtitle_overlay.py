@@ -12,6 +12,10 @@ from engines.display import display_text, dominant_rtl
 WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE, WS_EX_TRANSPARENT = 0x80000, 0x80, 0x8000000, 0x20
 
 
+def _primary_text(entry):
+    return entry.get("translated_text") or (entry.get("source_text", "") if entry.get("pass_through") else "")
+
+
 @dataclass(frozen=True)
 class Monitor:
     name: str
@@ -155,7 +159,10 @@ class SubtitleOverlay:
             existing.update(entry)
         else:
             self.entries.append(entry.copy())
-            self.entries = self.entries[-3:]
+        latest_ready = next((row for row in reversed(self.entries) if _primary_text(row)), None)
+        self.entries = self.entries[-3:]
+        if latest_ready is not None and latest_ready not in self.entries:
+            self.entries.insert(0, latest_ready)
         text = (entry.get("source_text", ""), entry.get("translated_text", ""))
         if text != self.last_text:
             self.updated, self.last_text = self.clock(), text
@@ -168,20 +175,23 @@ class SubtitleOverlay:
             label.pack_forget()
         count = min(3, max(1, self.option("lines", 2)))
         size = min(48, max(12, self.option("text_size", 24)))
-        rows = self.entries[-count:]
+        ready = [entry for entry in self.entries if _primary_text(entry)]
+        # New source drafts must not demote a translation that is already readable.
+        rows = (ready or self.entries[-1:])[-count:]
+        from engines.display import configure_language_text
         for index, entry in enumerate(rows):
             label = self.labels[index]
-            text = entry.get("translated_text") or entry.get("source_text", "")
+            text = _primary_text(entry) or entry.get("source_text", "")
             current = index == len(rows)-1
-            label.configure(text=display_text(text), font=("Segoe UI Semibold" if current else "Segoe UI", round(size*.75 if current else size*.56)),
-                fg=self.colors["secondary"] if not current or entry.get("translation_pending") else self.colors["text"])
-            from engines.display import configure_language_text
+            primary = current and bool(_primary_text(entry))
+            text_size = size if primary else max(10, round(size * (.75 if ready else .5)))
+            label.configure(fg=self.colors["text"] if primary else self.colors["secondary"])
             code = entry.get("target_language") if entry.get("translated_text") else entry.get("source_language")
-            configure_language_text(label, text, code, round(size*.75 if current else size*.56), semibold=current)
+            configure_language_text(label, text, code, text_size, semibold=primary)
             label.pack(fill="x", pady=px(2))
         if rows and self.option("show_original", False) and rows[-1].get("translated_text"):
-            self.labels[3].configure(text=display_text(rows[-1].get("source_text", "")), fg=self.colors["secondary"], font=("Segoe UI", 10))
-            configure_language_text(self.labels[3], rows[-1].get("source_text", ""), rows[-1].get("source_language"), 10)
+            self.labels[3].configure(fg=self.colors["secondary"])
+            configure_language_text(self.labels[3], rows[-1].get("source_text", ""), rows[-1].get("source_language"), max(10, round(size * .5)))
             self.labels[3].pack(fill="x", pady=px(2))
         self.window.update_idletasks()
         self.window.geometry(f"{px(720)}x{max(px(64), self.window.winfo_reqheight())}")

@@ -585,6 +585,8 @@ def test_local_language_filter_is_opt_in_and_explicit_choice_survives(desktop):
 
 def test_first_streaming_row_without_language_renders_translation_subtitles_and_stop(desktop, monkeypatch):
     from unittest.mock import Mock
+    from types import SimpleNamespace
+    import threading
     from subtitle_overlay import PreviewBackend
     create, _ = desktop
     app = create()
@@ -592,8 +594,9 @@ def test_first_streaming_row_without_language_renders_translation_subtitles_and_
     monkeypatch.setattr(app.root._root(), 'report_callback_exception', errors)
     app.subtitle_controller.backend = PreviewBackend()
     app.subtitles_enabled_var.set(True)
-    child = Mock(last_saved_path=None)
-    child.save_transcript.return_value = None
+    child = SimpleNamespace(last_saved_path=None, running=True, _stop_event=threading.Event(),
+        live_pipeline=None, conversation_pipeline=None, stop_background=Mock(), join_background=Mock(),
+        save_transcript=Mock(return_value=None))
     app.transcriber = child
     draft = dict(id='first-live-row', source_text='', translated_text='', source_language=None,
                  target_language='en', mode='listen', translation_pending=True)
