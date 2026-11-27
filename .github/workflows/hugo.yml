@@ -58,8 +58,8 @@ jobs:
           curl --fail --location --retry 5 --retry-all-errors --output /dev/null "$CTA_URL"
       - name: Validate Windows download CTAs
         run: |
-          for asset in TranslitoSetup-2.0.8.exe TranslitoPortable-2.0.8.zip; do
-            CTA_URL="https://github.com/tanzir71/translito/releases/download/v2.0.8/$asset"
+          for asset in TranslitoSetup-2.0.9.exe TranslitoPortable-2.0.9.zip; do
+            CTA_URL="https://github.com/tanzir71/translito/releases/download/v2.0.9/$asset"
             grep -Fq "$CTA_URL" website/public/index.html
             curl --fail --head --location --retry 5 --retry-all-errors --output /dev/null "$CTA_URL"
           done

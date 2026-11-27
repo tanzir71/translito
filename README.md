@@ -33,6 +33,8 @@ automatically, and moves Stop cleanup off the UI thread.
 Windows 2.0.8 fixes provisional cloud transcripts stopping the UI update queue,
 restores visible translation and subtitles, uses cloud language identification
 by default, and bounds Stop's worker wait.
+Windows 2.0.9 keeps translated subtitles prominent while source drafts arrive,
+uses the configured text size for the translation, and shows originals smaller.
 
 - Dark 800×640 main window and 820×680 Settings with Languages, Engine, Cost & usage,
   Subtitles, Schedule, Audio, Models and General. Controls save automatically;
@@ -68,7 +70,7 @@ that cached copy. Download and Open folder are alongside it. Model changes
 require an idle session; gated models retain their
 terms/token setup. See [model-manager details](docs/quality/MODEL_MANAGER.md).
 
-- **Windows 2.0.8:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.8/TranslitoSetup-2.0.8.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.8/TranslitoPortable-2.0.8.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.8/SHA256SUMS.txt). Restores cloud transcripts and subtitles, keeps the UI update queue running, and returns control promptly after Stop. Local language filtering is opt-in. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_8.md).
+- **Windows 2.0.9:** [Installer](https://github.com/tanzir71/translito/releases/download/v2.0.9/TranslitoSetup-2.0.9.exe), [portable ZIP](https://github.com/tanzir71/translito/releases/download/v2.0.9/TranslitoPortable-2.0.9.zip) or [checksums](https://github.com/tanzir71/translito/releases/download/v2.0.9/SHA256SUMS.txt). Keeps translated subtitles large while new source drafts arrive, with smaller originals and history. Includes the cloud, subtitle and Stop fixes from 2.0.8. Existing settings, transcripts and cached models keep their locations. See the [release notes](docs/quality/RELEASE_2_0_9.md).
 - **macOS 1.0:** [Universal DMG](https://github.com/tanzir71/translito/releases/latest/download/Translito.dmg).
 
 For the portable build, extract the entire ZIP into a new empty folder before

@@ -9,7 +9,7 @@ title = 'Translito'
   seoTitle = 'Translito: live meeting subtitles in 18 languages for Windows and macOS'
   description = 'A native macOS and Windows app that translates system audio, microphones, and your spoken voice in real time with on-device intelligence.'
   author = 'Translito'
-  version = '2.0.8'
+  version = '2.0.9'
 
 [markup]
   [markup.goldmark]
